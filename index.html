@@ -1170,6 +1170,7 @@ function hostTable(){
     });
   });
   NET.peer.on("error",e=>{console.warn("peer error",e);$("net-status").textContent="TABLE ERROR — re-host";});
+  NET.peer.on("disconnected",()=>{try{NET.peer.reconnect();}catch(e){}}); // signaling blip: rejoin the broker
 }
 function inviteLink(){
   const base=location.origin.startsWith("http")?location.href.split("?")[0]:"(open the same file)";
@@ -1207,32 +1208,73 @@ setInterval(()=>{
   NET.fogDirty=false;
   netBroadcast({type:"fog",data:state.map.fog.toDataURL("image/png")});
 },1500);
+/* heartbeat — lets clients detect a dead channel instead of showing a stale table */
+setInterval(()=>{if(NET.mode==="host")netBroadcast({type:"hb"});},5000);
 $("btn-host").onclick=hostTable;
 
 /* ----- client ----- */
 let clientConn=null, clientDragging=false, cliOX=0, cliOY=0;
+let cliWantTok=null, cliLastMsg=0, cliRetry=null, cliOpened=false;
+function netStatus(t){const el=$("net-status");el.style.display="inline";el.textContent=t;}
 function joinTable(code){
   if(typeof Peer==="undefined"){alert("Couldn't load the connection library — check your internet and reload.");return;}
-  NET.mode="client";
+  NET.mode="client"; NET.code=code.trim();
   document.body.classList.add("netclient");
   document.body.classList.add("panelopen");   // phones: start with the drawer up so players can claim a token
   setView("pl"); state.view="pl";
   resize(); fitScene(); updZoom();            // stage geometry changed with the netclient layout
-  NET.peer=new Peer();
-  NET.peer.on("open",id=>{
+  clientConnect(false);
+  /* watchdog: the host heartbeats every 5s — silence means the channel died
+     (locked phone, dropped Wi-Fi) even though PeerJS never fired close */
+  setInterval(()=>{
+    if(!cliOpened||!cliLastMsg) return;
+    if(Date.now()-cliLastMsg>30000){cliLastMsg=Date.now();netStatus("CONNECTION LOST — RECONNECTING…");clientConnect(true);}
+  },5000);
+  document.addEventListener("visibilitychange",()=>{ // phone unlocked / back to Safari
+    if(document.visibilityState!=="visible"||NET.mode!=="client") return;
+    if(!clientConn||!clientConn.open){netStatus("RECONNECTING…");clientConnect(true);}
+  });
+}
+function clientConnect(re){
+  if(cliRetry){clearTimeout(cliRetry);cliRetry=null;}
+  cliOpened=false;
+  try{if(NET.peer)NET.peer.destroy();}catch(e){}
+  clientConn=null;
+  netStatus(re?"RECONNECTING…":"CONNECTING…");
+  const p=NET.peer=new Peer();
+  p.on("open",id=>{
     NET.myId=id;
-    clientConn=NET.peer.connect(code,{reliable:true});
-    clientConn.on("open",()=>{
-      const el=$("net-status");
-      el.style.display="inline"; el.textContent="CONNECTED · "+code;
+    const conn=clientConn=p.connect(NET.code,{reliable:true});
+    conn.on("open",()=>{
+      cliOpened=true; cliLastMsg=Date.now(); firstSync=true;
+      netStatus("CONNECTED · "+NET.code);
+      if(cliWantTok!=null) clientSend({type:"claim",id:cliWantTok}); // resume my token after a drop
     });
-    clientConn.on("data",raw=>{
+    conn.on("data",raw=>{
+      cliLastMsg=Date.now();
       let m; try{m=JSON.parse(raw);}catch(e){return;}
       clientHandle(m);
     });
-    clientConn.on("close",()=>{$("net-status").textContent="DISCONNECTED — reload to rejoin";});
+    conn.on("close",()=>{if(NET.peer===p){netStatus("CONNECTION LOST — RECONNECTING…");cliRescue();}});
+    conn.on("error",()=>{if(NET.peer===p){netStatus("CONNECTION ERROR — RECONNECTING…");cliRescue();}});
   });
-  NET.peer.on("error",e=>{$("net-status").style.display="inline";$("net-status").textContent="COULDN'T JOIN — check the code";});
+  p.on("disconnected",()=>{try{p.reconnect();}catch(e){}});
+  p.on("error",e=>{
+    if(NET.peer!==p) return;
+    if(e.type==="peer-unavailable") netStatus("TABLE NOT FOUND — IS THE DM STILL HOSTING? RETRYING…");
+    else netStatus("CONNECTION ERROR ("+(e.type||"?")+") — RETRYING…");
+    cliRescue(e.type==="peer-unavailable"?8000:4000);
+  });
+  setTimeout(()=>{ // signaling worked but no P2P route (different network / isolated Wi-Fi)
+    if(!cliOpened && NET.mode==="client" && NET.peer===p){
+      netStatus("CAN'T REACH THE HOST — SAME WI-FI? RETRYING…");
+      cliRescue();
+    }
+  },15000);
+}
+function cliRescue(delay){
+  if(cliRetry) return;
+  cliRetry=setTimeout(()=>{cliRetry=null;clientConnect(true);},delay||4000);
 }
 let firstSync=true;
 function clientHandle(m){
@@ -1258,6 +1300,11 @@ function clientHandle(m){
     if(NET.myToken!=null){
       const t=[...state.map.tokens,...state.verso.tokens].find(t=>t.id===NET.myToken);
       if(!t||t.owner!==NET.myId) NET.myToken=null;
+    }
+    // claim sent but not yet confirmed (or re-sent after a reconnect): adopt it once the host agrees
+    if(NET.myToken==null && cliWantTok!=null){
+      const t=[...state.map.tokens,...state.verso.tokens].find(t=>t.id===cliWantTok);
+      if(t && t.owner===NET.myId) NET.myToken=cliWantTok;
     }
     if(m.dice && (!NET.lastDice||m.dice.stamp!==NET.lastDice.stamp)){NET.lastDice=m.dice;clientBanner(m.dice);}
     if(firstSync){firstSync=false;fitScene();updZoom();}
@@ -2008,7 +2055,7 @@ function renderClientPanel(){
       const id=+el.dataset.claim;
       const t=S().tokens.find(t=>t.id===id);
       if(!t||(t.owner&&t.owner!==NET.myId))return;
-      NET.myToken=id;
+      NET.myToken=id; cliWantTok=id;
       clientSend({type:"claim",id});
       renderPanel();
     };
