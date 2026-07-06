@@ -151,6 +151,22 @@ body.playerview .dm-only{display:none!important}
 #net-banner .rb-detail{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--under)}
 body.netclient #rail,body.netclient .tabs,body.netclient .viewswitch,
 body.netclient #btn-save,body.netclient #btn-load,body.netclient #btn-host,body.netclient #btn-pwin{display:none!important}
+body.netclient #stage{left:0}
+#fit-float,#panel-toggle{display:none;position:fixed;z-index:26;
+  font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.08em;padding:9px 14px;
+  background:var(--felt-900);border:1px solid var(--brass-dim);border-radius:4px;color:var(--brass)}
+@media (max-width:760px){
+  body.netclient #wordmark{font-size:15px}
+  body.netclient #wordmark small{display:none}
+  body.netclient #stage{right:0}
+  body.netclient #panel{left:0;right:0;top:auto;bottom:26px;width:100%;max-height:46vh;
+    border-left:none;border-top:1px solid var(--brass-dim);
+    transform:translateY(102%);transition:transform .22s ease;z-index:25}
+  body.netclient.panelopen #panel{transform:none}
+  body.netclient #panel-toggle{display:block;right:10px;bottom:36px}
+  body.netclient #fit-float{display:block;left:10px;bottom:36px;border-color:var(--brass-faint);color:var(--vellum-dim)}
+  body.netclient #st-hint{display:none}
+}
 #dmgate{position:fixed;inset:0;z-index:100;display:grid;place-items:center;background:#0A0F0C}
 #dmgate .gcard{text-align:center;padding:36px 44px;border:1px solid var(--brass-faint);border-radius:6px;background:var(--felt-900)}
 #dmgate h1{font-family:Marcellus,serif;font-size:26px;letter-spacing:.14em;color:var(--brass);margin-bottom:4px}
@@ -215,6 +231,8 @@ body.netclient #btn-save,body.netclient #btn-load,body.netclient #btn-host,body.
 <aside id="panel"></aside>
 
 <div id="net-banner"></div>
+<button id="fit-float">⤢ FIT</button>
+<button id="panel-toggle">☰ MENU</button>
 <footer id="status">
   <span id="st-view">DM VIEW</span>
   <span id="st-hint">Drag tokens · drag space to pan · wheel to zoom</span>
@@ -380,6 +398,9 @@ function resize(){
   ctx.setTransform(DPR,0,0,DPR,0,0);
 }
 addEventListener("resize",()=>{resize();});
+if(window.visualViewport) visualViewport.addEventListener("resize",()=>resize()); // iOS URL-bar collapse / rotation
+$("panel-toggle").onclick=()=>document.body.classList.toggle("panelopen");
+$("fit-float").onclick=()=>{fitScene();updZoom();};
 
 /* ---------------- camera helpers ---------------- */
 const toScreen=(wx,wy)=>{const c=cam();return [(wx-c.x)*c.s,(wy-c.y)*c.s];};
@@ -397,8 +418,14 @@ function fitScene(){
     c.s=Math.min(W/iw,H/ih)*.94;
     c.x=-(W/c.s-iw)/2; c.y=-(H/c.s-ih)/2;
   }else{
+    // players only see revealed rooms — fit those, not the whole hidden floor plan
+    let fitRooms=ROOMS;
+    if(NET.mode==="client"){
+      const rev=ROOMS.filter(r=>state.verso.revealed[r.id]);
+      if(rev.length) fitRooms=rev;
+    }
     let minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9;
-    for(const r of ROOMS){
+    for(const r of fitRooms){
       const cs=[[r.rect.x,r.rect.y],[r.rect.x+r.rect.w,r.rect.y],[r.rect.x+r.rect.w,r.rect.y+r.rect.h],[r.rect.x,r.rect.y+r.rect.h]];
       for(const [i,j] of cs){minX=Math.min(minX,isoX(i,j));maxX=Math.max(maxX,isoX(i,j));minY=Math.min(minY,isoY(i,j));maxY=Math.max(maxY,isoY(i,j));}
     }
@@ -1188,7 +1215,9 @@ function joinTable(code){
   if(typeof Peer==="undefined"){alert("Couldn't load the connection library — check your internet and reload.");return;}
   NET.mode="client";
   document.body.classList.add("netclient");
+  document.body.classList.add("panelopen");   // phones: start with the drawer up so players can claim a token
   setView("pl"); state.view="pl";
+  resize(); fitScene(); updZoom();            // stage geometry changed with the netclient layout
   NET.peer=new Peer();
   NET.peer.on("open",id=>{
     NET.myId=id;
@@ -1427,7 +1456,7 @@ function paintFog(sx,sy){
 }
 
 cv.addEventListener("pointerdown",e=>{
-  cv.setPointerCapture(e.pointerId);
+  try{cv.setPointerCapture(e.pointerId);}catch(_){/* pointer already gone */}
   pointers.set(e.pointerId,{x:e.offsetX,y:e.offsetY});
   if(pointers.size===2){
     const [a,b]=[...pointers.values()];
@@ -1558,12 +1587,23 @@ cv.addEventListener("pointerup",e=>{
   }
   dragTok=null; panRef=null; fogPainting=false; downAt=null;
 });
+cv.addEventListener("pointercancel",e=>{
+  // iOS fires this when Safari takes over a gesture; without cleanup a stale
+  // pointer stays in the map and every later touch reads as a two-finger pinch
+  pointers.delete(e.pointerId);
+  if(pointers.size<2) pinchRef=null;
+  clientDragging=false; dragTok=null; panRef=null; fogPainting=false; downAt=null;
+});
 cv.addEventListener("wheel",e=>{
   e.preventDefault();
   zoomAt(e.offsetX,e.offsetY, e.deltaY<0?1.12:0.89);
   updZoom();
 },{passive:false});
 cv.addEventListener("contextmenu",e=>e.preventDefault());
+/* iOS Safari ignores user-scalable=no and pinch-zooms the page itself;
+   swallow the native gesture so the canvas pinch handler gets the touches */
+for(const ev of ["gesturestart","gesturechange","gestureend"])
+  document.addEventListener(ev,e=>e.preventDefault(),{passive:false});
 
 addEventListener("keydown",e=>{
   if(e.target.tagName==="INPUT"||e.target.tagName==="SELECT") return;
@@ -1961,7 +2001,7 @@ function renderClientPanel(){
     </div>
     <div class="hint">Rolls go to the whole table.</div></div>`;
   html+=`<div class="sect"><h3>Table</h3>
-    <div class="hint">Drag your token to move. Drag empty space to pan, scroll to zoom, M for ruler, F to re-center. Rooms appear as the party discovers them.</div></div>`;
+    <div class="hint">Drag your token to move. Drag empty space to pan, pinch or scroll to zoom, ⤢ FIT to re-center. Rooms appear as the party discovers them.</div></div>`;
   p.innerHTML=html;
   p.querySelectorAll("[data-claim]").forEach(el=>{
     el.onclick=()=>{
