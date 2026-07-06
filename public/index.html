@@ -155,16 +155,22 @@ body.netclient #stage{left:0}
 #fit-float,#panel-toggle{display:none;position:fixed;z-index:26;
   font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.08em;padding:9px 14px;
   background:var(--felt-900);border:1px solid var(--brass-dim);border-radius:4px;color:var(--brass)}
+#dicebar{display:none}
 @media (max-width:760px){
   body.netclient #wordmark{font-size:15px}
   body.netclient #wordmark small{display:none}
   body.netclient #stage{right:0}
-  body.netclient #panel{left:0;right:0;top:auto;bottom:26px;width:100%;max-height:46vh;
+  body.netclient #dicebar{display:flex;position:fixed;left:0;right:0;bottom:26px;z-index:24;gap:4px;
+    padding:7px 8px;background:var(--felt-900);border-top:1px solid var(--brass-faint)}
+  body.netclient #dicebar button{flex:1;min-width:0;font-family:'IBM Plex Mono',monospace;font-size:10px;
+    padding:9px 0;border:1px solid var(--brass-faint);border-radius:3px;color:var(--brass)}
+  body.netclient #dicebar button:active{background:var(--brass);color:var(--ink)}
+  body.netclient #panel{left:0;right:0;top:auto;bottom:71px;width:100%;max-height:46vh;
     border-left:none;border-top:1px solid var(--brass-dim);
-    transform:translateY(102%);transition:transform .22s ease;z-index:25}
+    transform:translateY(calc(100% + 72px));transition:transform .22s ease;z-index:25}
   body.netclient.panelopen #panel{transform:none}
-  body.netclient #panel-toggle{display:block;right:10px;bottom:36px}
-  body.netclient #fit-float{display:block;left:10px;bottom:36px;border-color:var(--brass-faint);color:var(--vellum-dim)}
+  body.netclient #panel-toggle{display:block;right:10px;bottom:81px}
+  body.netclient #fit-float{display:block;left:10px;bottom:81px;border-color:var(--brass-faint);color:var(--vellum-dim)}
   body.netclient #st-hint{display:none}
 }
 #dmgate{position:fixed;inset:0;z-index:100;display:grid;place-items:center;background:#0A0F0C}
@@ -232,7 +238,12 @@ body.netclient #stage{left:0}
 
 <div id="net-banner"></div>
 <button id="fit-float">⤢ FIT</button>
-<button id="panel-toggle">☰ MENU</button>
+<button id="panel-toggle">✕ CLOSE</button>
+<div id="dicebar">
+  <button data-bdie="4">d4</button><button data-bdie="6">d6</button><button data-bdie="8">d8</button>
+  <button data-bdie="10">d10</button><button data-bdie="12">d12</button><button data-bdie="20">d20</button>
+  <button data-bdie="100">d100</button><button data-bdie="adv">ADV</button><button data-bdie="dis">DIS</button>
+</div>
 <footer id="status">
   <span id="st-view">DM VIEW</span>
   <span id="st-hint">Drag tokens · drag space to pan · wheel to zoom</span>
@@ -399,8 +410,15 @@ function resize(){
 }
 addEventListener("resize",()=>{resize();});
 if(window.visualViewport) visualViewport.addEventListener("resize",()=>resize()); // iOS URL-bar collapse / rotation
-$("panel-toggle").onclick=()=>document.body.classList.toggle("panelopen");
+function setDrawer(open){
+  document.body.classList.toggle("panelopen",open);
+  $("panel-toggle").textContent=open?"✕ CLOSE":"☰ MENU";
+}
+$("panel-toggle").onclick=()=>setDrawer(!document.body.classList.contains("panelopen"));
 $("fit-float").onclick=()=>{fitScene();updZoom();};
+document.querySelectorAll("#dicebar [data-bdie]").forEach(b=>{
+  b.onclick=()=>{if(NET.mode==="client")clientSend({type:"roll",die:b.dataset.bdie});};
+});
 
 /* ---------------- camera helpers ---------------- */
 const toScreen=(wx,wy)=>{const c=cam();return [(wx-c.x)*c.s,(wy-c.y)*c.s];};
@@ -1109,6 +1127,27 @@ const NET={mode:null,peer:null,conns:new Map(),code:null,myToken:null,myId:null,
 function netMark(){NET.dirty=true;}
 function netMarkFog(){NET.fogDirty=true;}
 
+/* TURN relay — the deploy worker mints Cloudflare Realtime credentials at /turn.
+   Remote players (cellular, different networks) usually can't connect peer-to-peer
+   without a relay; the public free TURN servers are all dead. Where /turn isn't
+   available (local file, worker not configured) we fall back to STUN only,
+   which works on a shared LAN but usually not across the internet. */
+let ICE=null;
+const ICE_READY=Promise.race([
+  (async()=>{
+    try{
+      const r=await fetch("turn",{cache:"no-store"});
+      if(!r.ok) return;
+      const d=await r.json();
+      let s=d.iceServers;
+      if(s&&!Array.isArray(s)) s=[s];
+      if(Array.isArray(s)&&s.length) ICE=[{urls:"stun:stun.l.google.com:19302"},...s];
+    }catch(e){}
+  })(),
+  new Promise(r=>setTimeout(r,4000))
+]);
+function peerOpts(){return ICE?{config:{iceServers:ICE,sdpSemantics:"unified-plan"}}:{};}
+
 function moveAllowed(x,y){
   if(state.scene==="verso"){
     const r=roomAtTile(x,y);
@@ -1143,11 +1182,18 @@ function sendFullTo(c){
 }
 
 /* ----- host ----- */
+let hostStarting=false;
 function hostTable(){
   if(NET.mode==="host"){navigator.clipboard&&navigator.clipboard.writeText(inviteLink());return;}
   if(typeof Peer==="undefined"){alert("Couldn't load the connection library — check your internet and reload.");return;}
+  if(hostStarting) return;
+  hostStarting=true;
+  $("btn-host").textContent="STARTING…";
+  ICE_READY.then(startHost);
+}
+function startHost(){
   NET.code="verso-"+Math.random().toString(36).slice(2,7);
-  NET.peer=new Peer(NET.code);
+  NET.peer=new Peer(NET.code,peerOpts());
   NET.peer.on("open",()=>{
     NET.mode="host";
     const el=$("net-status");
@@ -1220,7 +1266,7 @@ function joinTable(code){
   if(typeof Peer==="undefined"){alert("Couldn't load the connection library — check your internet and reload.");return;}
   NET.mode="client"; NET.code=code.trim();
   document.body.classList.add("netclient");
-  document.body.classList.add("panelopen");   // phones: start with the drawer up so players can claim a token
+  setDrawer(true);   // phones: start with the drawer up so players can claim a token
   setView("pl"); state.view="pl";
   resize(); fitScene(); updZoom();            // stage geometry changed with the netclient layout
   clientConnect(false);
@@ -1241,7 +1287,10 @@ function clientConnect(re){
   try{if(NET.peer)NET.peer.destroy();}catch(e){}
   clientConn=null;
   netStatus(re?"RECONNECTING…":"CONNECTING…");
-  const p=NET.peer=new Peer();
+  ICE_READY.then(()=>clientPeer());
+}
+function clientPeer(){
+  const p=NET.peer=new Peer(peerOpts());
   p.on("open",id=>{
     NET.myId=id;
     const conn=clientConn=p.connect(NET.code,{reliable:true});
@@ -1265,9 +1314,9 @@ function clientConnect(re){
     else netStatus("CONNECTION ERROR ("+(e.type||"?")+") — RETRYING…");
     cliRescue(e.type==="peer-unavailable"?8000:4000);
   });
-  setTimeout(()=>{ // signaling worked but no P2P route (different network / isolated Wi-Fi)
+  setTimeout(()=>{ // signaling worked but no P2P route
     if(!cliOpened && NET.mode==="client" && NET.peer===p){
-      netStatus("CAN'T REACH THE HOST — SAME WI-FI? RETRYING…");
+      netStatus(ICE?"CAN'T REACH THE HOST — RETRYING…":"CAN'T REACH THE HOST (NO RELAY CONFIGURED) — RETRYING…");
       cliRescue();
     }
   },15000);
@@ -2058,6 +2107,7 @@ function renderClientPanel(){
       NET.myToken=id; cliWantTok=id;
       clientSend({type:"claim",id});
       renderPanel();
+      setDrawer(false);   // claimed — give the screen back to the map
     };
   });
   p.querySelectorAll("[data-cdie]").forEach(el=>{
