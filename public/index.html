@@ -29,9 +29,11 @@
 html,body{height:100%;overflow:hidden;background:var(--felt-950);color:var(--vellum);
   font-family:'Spectral',Georgia,serif;font-size:15px}
 button{font-family:inherit;color:inherit;background:none;border:none;cursor:pointer}
-input,select{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--vellum);
+input,select,textarea{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--vellum);
   background:var(--felt-900);border:1px solid var(--brass-faint);border-radius:3px;padding:5px 7px;outline:none}
-input:focus,select:focus{border-color:var(--brass)}
+input:focus,select:focus,textarea:focus{border-color:var(--brass)}
+textarea{width:100%;resize:vertical;line-height:1.45;font-size:11px}
+input[type=color]{padding:1px 2px;width:40px;height:26px;cursor:pointer}
 ::selection{background:var(--brass);color:var(--ink)}
 
 /* ---------- top bar ---------- */
@@ -202,6 +204,7 @@ body.netclient #stage{left:0}
   <nav class="tabs">
     <button class="tab" id="tab-map">YOUR MAP</button>
     <button class="tab on" id="tab-verso">THE VERSO · BACK OF HOUSE</button>
+    <button class="tab" id="tab-edit" title="Draw rooms on a top-down grid, write descriptions, save levels">EDITOR</button>
   </nav>
   <div class="spacer"></div>
   <div class="viewswitch" title="Player view hides DM notes, fog contents and unrevealed rooms">
@@ -254,6 +257,7 @@ body.netclient #stage{left:0}
 
 <input type="file" id="file-img" accept="image/*" hidden>
 <input type="file" id="file-json" accept="application/json" hidden>
+<input type="file" id="file-level" accept="application/json" hidden>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
 <script>
@@ -277,9 +281,9 @@ const isoX = (i,j)=> (i-j)*TW/2;
 const isoY = (i,j)=> (i+j)*TH/2;
 const unIso = (x,y)=> [ (x/(TW/2)+y/(TH/2))/2, (y/(TH/2)-x/(TW/2))/2 ];
 
-/* ---------------- the Verso floor plan ---------------- */
+/* ---------------- the Verso floor plan (built-in level) ---------------- */
 /* rect = tile coords {x,y,w,h}; corners run x..x+w, y..y+h */
-const ROOMS = [
+const VERSO_ROOMS = [
  {id:"lift", name:"Freight Landing", sub:"scene of the crime",
   rect:{x:6,y:0,w:3,h:3}, floorA:"#3E424A", floorB:"#363A42", wall:"#5A5E66",
   read:"The freight doors hang wrenched off their track, one panel folded like a playing card. The lectern still stands beside them, its book open to pages that are now simply blank. The muzak plays on, unbothered. Somewhere down the corridor: footsteps on carpet. One set. Taking their time.",
@@ -346,7 +350,7 @@ const ROOMS = [
 ];
 
 /* doors/openings: segments in tile-corner space */
-const DOORS = [
+const VERSO_DOORS = [
  {x:7, y:3, dir:"h", type:"door"},   // freight landing -> corrH
  {x:6, y:3, dir:"v", type:"door"},   // white -> corrH
  {x:3, y:6, dir:"h", type:"door"},   // white -> cloak
@@ -368,6 +372,36 @@ const PARTY = [
 ];
 const SWATCH = ["#8A6FB8","#4E8F86","#E0B341","#D96A9C","#B5443C","#C8A14E","#7FA8B8","#9AA08F","#5E7FB8","#8A2E25"];
 
+/* ---------------- level system ----------------
+   ROOMS/DOORS are the live, editable level; the Verso ships as the built-in
+   default. Levels round-trip as JSON via the editor's export/import. */
+let ROOMS=[], DOORS=[];
+const LEVEL={name:"The Verso · Back of House", bg:"#0A0F0C"};
+const VERSO_LEVEL={name:"The Verso · Back of House", bg:"#0A0F0C", rooms:VERSO_ROOMS, doors:VERSO_DOORS};
+const TEMPLATES=[
+ {name:"Stone Hall",      floorA:"#4A4A4E",floorB:"#3F3F44",wall:"#2C2C30"},
+ {name:"Wood Parlor",     floorA:"#5C4630",floorB:"#4F3C29",wall:"#6B5A33"},
+ {name:"Marble Gallery",  floorA:"#C9BD9C",floorB:"#BFB28F",wall:"#8F8468"},
+ {name:"Oxblood Corridor",floorA:"#5A2723",floorB:"#4D211E",wall:"#3A2E22",corridor:true},
+ {name:"Green Baize",     floorA:"#21392B",floorB:"#1B3024",wall:"#2E4A38"},
+ {name:"White Void",      floorA:"#D8D2C2",floorB:"#CCC5B2",wall:"#9C947E"},
+ {name:"Dark Cloak",      floorA:"#33272A",floorB:"#2B2125",wall:"#5A4A40"},
+ {name:"Steel Platform",  floorA:"#3E424A",floorB:"#363A42",wall:"#5A5E66"}
+];
+function levelData(){return {name:LEVEL.name, bg:LEVEL.bg, rooms:ROOMS, doors:DOORS};}
+function loadLevel(lv){
+  LEVEL.name=lv.name||"Untitled Level";
+  LEVEL.bg=lv.bg||"#0A0F0C";
+  ROOMS=(lv.rooms||[]).map(r=>({...r, rect:{...r.rect}, clues:[...(r.clues||[])]}));
+  DOORS=(lv.doors||[]).map(d=>({...d}));
+  const ids=new Set(ROOMS.map(r=>r.id));
+  for(const k of Object.keys(state.verso.revealed)) if(!ids.has(k)) delete state.verso.revealed[k];
+  if(state.selRoom && !ids.has(state.selRoom)) state.selRoom=null;
+  const tab=$("tab-verso"); if(tab) tab.textContent=LEVEL.name.toUpperCase();
+  netMarkLevel(); netMark();
+  renderPanel();
+}
+
 /* ---------------- state ---------------- */
 let uid = 1;
 const mkTok = (name,letter,color,x,y,size=1)=>({id:uid++,name,letter,color,x,y,size});
@@ -375,6 +409,7 @@ const mkTok = (name,letter,color,x,y,size=1)=>({id:uid++,name,letter,color,x,y,s
 const state = {
   view:"dm",
   scene:"verso",
+  mode:"play",     // "play" | "edit" (edit = top-down level editor, DM only)
   tool:"select",
   selToken:null,
   selRoom:null,
@@ -397,7 +432,7 @@ const state = {
 };
 
 const S  = ()=> state[state.scene];
-const cam= ()=> CAMOVR || S().cam;
+const cam= ()=> CAMOVR || (state.mode==="edit" ? edCam : S().cam);
 
 /* ---------------- canvas sizing ---------------- */
 let W=0,H=0,DPR=1;
@@ -940,7 +975,7 @@ function drawProps(r){
 }
 function drawVerso(){
   const v=state.verso, c=cam();
-  ctx.fillStyle="#0A0F0C"; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle=LEVEL.bg||"#0A0F0C"; ctx.fillRect(0,0,W,H);
   ctx.save();
   ctx.scale(c.s,c.s); ctx.translate(-c.x,-c.y);
 
@@ -1126,6 +1161,7 @@ const NET={mode:null,peer:null,conns:new Map(),code:null,myToken:null,myId:null,
   dirty:false,fogDirty:false,imgStamp:0,diceStamp:0,lastDice:null};
 function netMark(){NET.dirty=true;}
 function netMarkFog(){NET.fogDirty=true;}
+function netMarkLevel(){NET.levelDirty=true;}
 
 /* TURN relay — the deploy worker mints Cloudflare Realtime credentials at /turn.
    Remote players (cellular, different networks) usually can't connect peer-to-peer
@@ -1175,6 +1211,7 @@ function netBroadcast(msg){
 }
 function sendFullTo(c){
   try{
+    c.send(JSON.stringify({type:"level",data:levelData()}));
     c.send(JSON.stringify(lightSnapshot()));
     if(state.map.imgURL) c.send(JSON.stringify({type:"img",data:state.map.imgURL,stamp:NET.imgStamp}));
     if(state.map.fog) c.send(JSON.stringify({type:"fog",data:state.map.fog.toDataURL("image/png")}));
@@ -1256,11 +1293,17 @@ setInterval(()=>{
 },1500);
 /* heartbeat — lets clients detect a dead channel instead of showing a stale table */
 setInterval(()=>{if(NET.mode==="host")netBroadcast({type:"hb"});},5000);
+/* level edits stream to players (coarse — the editor marks this on every change) */
+setInterval(()=>{
+  if(NET.mode!=="host"||!NET.levelDirty) return;
+  NET.levelDirty=false;
+  netBroadcast({type:"level",data:levelData()});
+},1000);
 $("btn-host").onclick=hostTable;
 
 /* ----- client ----- */
 let clientConn=null, clientDragging=false, cliOX=0, cliOY=0;
-let cliWantTok=null, cliLastMsg=0, cliRetry=null, cliOpened=false;
+let cliWantTok=null, cliLastMsg=0, cliRetry=null, cliOpened=false, cliLevelFit=false;
 function netStatus(t){const el=$("net-status");el.style.display="inline";el.textContent=t;}
 function joinTable(code){
   if(typeof Peer==="undefined"){alert("Couldn't load the connection library — check your internet and reload.");return;}
@@ -1358,6 +1401,10 @@ function clientHandle(m){
     if(m.dice && (!NET.lastDice||m.dice.stamp!==NET.lastDice.stamp)){NET.lastDice=m.dice;clientBanner(m.dice);}
     if(firstSync){firstSync=false;fitScene();updZoom();}
     renderPanel();
+  }
+  if(m.type==="level" && m.data){
+    loadLevel(m.data);
+    if(!cliLevelFit){cliLevelFit=true; if(state.scene==="verso"){fitScene();updZoom();}}
   }
   if(m.type==="img"){
     const img=new Image();
@@ -1511,8 +1558,12 @@ function frame(t){
   tNow=t;
   RVIEW=state.view; CAMOVR=null;
   ctx.clearRect(0,0,W,H);
-  if(state.scene==="map") drawMap(); else drawVerso();
-  drawRuler();
+  if(state.mode==="edit"){
+    drawEditor();
+  }else{
+    if(state.scene==="map") drawMap(); else drawVerso();
+    drawRuler();
+  }
   renderPlayerWindow();
   requestAnimationFrame(frame);
 }
@@ -1557,8 +1608,9 @@ cv.addEventListener("pointerdown",e=>{
   if(pointers.size===2){
     const [a,b]=[...pointers.values()];
     pinchRef={d:Math.hypot(a.x-b.x,a.y-b.y)};
-    dragTok=null; panRef=null; return;
+    dragTok=null; panRef=null; edDraft=null; edDrag=null; return;
   }
+  if(state.mode==="edit"){edDown(e);return;}
   downAt={x:e.offsetX,y:e.offsetY,moved:false};
   if(NET.mode==="client"){
     if(e.button===2){downAt=null;return;}
@@ -1607,7 +1659,9 @@ cv.addEventListener("pointermove",e=>{
   if(p){p.x=e.offsetX;p.y=e.offsetY;}
   // status coords
   const [wx,wy]=toWorld(e.offsetX,e.offsetY);
-  if(state.scene==="verso"){
+  if(state.mode==="edit"){
+    /* edMove writes the tile readout */
+  }else if(state.scene==="verso"){
     const [i,j]=unIso(wx,wy);
     $("st-pos").textContent=`tile ${i.toFixed(1)}, ${j.toFixed(1)}`;
   }else{
@@ -1620,6 +1674,7 @@ cv.addEventListener("pointermove",e=>{
     if(pinchRef.d>0) zoomAt(mx,my,d/pinchRef.d);
     pinchRef.d=d; updZoom(); return;
   }
+  if(state.mode==="edit"){edMove(e);return;}
   if(downAt && Math.hypot(e.offsetX-downAt.x,e.offsetY-downAt.y)>4) downAt.moved=true;
   if(ruler && state.tool==="ruler" && e.buttons){
     const [rx,ry]=toWorld(e.offsetX,e.offsetY);
@@ -1640,6 +1695,7 @@ cv.addEventListener("pointermove",e=>{
 cv.addEventListener("pointerup",e=>{
   pointers.delete(e.pointerId);
   if(pointers.size<2) pinchRef=null;
+  if(state.mode==="edit"){edUp();return;}
   if(ruler && state.tool==="ruler"){ setTimeout(()=>{ruler=null;},900); }
   if(dragTok && NET.mode==="client"){
     if(state.scene==="map" && state.map.grid.snap && state.map.grid.show){
@@ -1689,6 +1745,7 @@ cv.addEventListener("pointercancel",e=>{
   pointers.delete(e.pointerId);
   if(pointers.size<2) pinchRef=null;
   clientDragging=false; dragTok=null; panRef=null; fogPainting=false; downAt=null;
+  edDraft=null; edDrag=null;
 });
 cv.addEventListener("wheel",e=>{
   e.preventDefault();
@@ -1702,9 +1759,21 @@ for(const ev of ["gesturestart","gesturechange","gestureend"])
   document.addEventListener(ev,e=>e.preventDefault(),{passive:false});
 
 addEventListener("keydown",e=>{
-  if(e.target.tagName==="INPUT"||e.target.tagName==="SELECT") return;
+  if(e.target.tagName==="INPUT"||e.target.tagName==="SELECT"||e.target.tagName==="TEXTAREA") return;
   if(e.code==="Space"){spaceDown=true;cv.style.cursor="grabbing";e.preventDefault();}
   const k=e.key.toLowerCase();
+  if(state.mode==="edit"){
+    if((k==="delete"||k==="backspace") && edSel){
+      const i=ROOMS.findIndex(r=>r.id===edSel);
+      if(i>=0){ROOMS.splice(i,1);edSel=null;levelTouched();renderPanel();}
+    }
+    if(e.key==="Escape"){edSel=null;renderPanel();}
+    if(k==="f") edFit();
+    if(k==="d") edSetTool("draw");
+    if(k==="v") edSetTool("select");
+    if(k==="o") edSetTool("door");
+    return;
+  }
   if(k==="v") setTool("select");
   if(k==="m") setTool("ruler");
   if(k==="r" && state.scene==="map") setTool("fogr");
@@ -1722,6 +1791,213 @@ addEventListener("keyup",e=>{
 
 function updZoom(){$("st-zoom").textContent=Math.round(cam().s*100)+"%";}
 
+/* ---------------- level editor (top-down) ----------------
+   Rooms are drawn on a flat tile grid; play mode renders the same data iso. */
+const ET=34;                                  // editor px per tile at zoom 1
+const edCam={x:-120,y:-120,s:1};
+let edTool="draw", edSel=null, edDraft=null, edDrag=null, edTemplate=0, edFitDone=false, edRoomN=0;
+const edTile=(sx,sy)=>{const [wx,wy]=toWorld(sx,sy);return [wx/ET,wy/ET];};
+function levelTouched(){markDirty(); netMarkLevel();}
+function newRoomId(){let id; do{id="room"+(++edRoomN);}while(ROOMS.some(r=>r.id===id)); return id;}
+function overlapsAny(rc,excludeId){
+  return ROOMS.some(o=>o.id!==excludeId &&
+    !(rc.x+rc.w<=o.rect.x || o.rect.x+o.rect.w<=rc.x || rc.y+rc.h<=o.rect.y || o.rect.y+o.rect.h<=rc.y));
+}
+function draftRect(){
+  const a={i:Math.floor(edDraft.ai),j:Math.floor(edDraft.aj)};
+  const b={i:Math.floor(edDraft.bi),j:Math.floor(edDraft.bj)};
+  return {x:Math.min(a.i,b.i), y:Math.min(a.j,b.j), w:Math.abs(b.i-a.i)+1, h:Math.abs(b.j-a.j)+1};
+}
+function edFit(){
+  let minX=0,minY=0,maxX=24,maxY=18;
+  if(ROOMS.length){
+    minX=1e9;minY=1e9;maxX=-1e9;maxY=-1e9;
+    for(const r of ROOMS){
+      minX=Math.min(minX,r.rect.x); minY=Math.min(minY,r.rect.y);
+      maxX=Math.max(maxX,r.rect.x+r.rect.w); maxY=Math.max(maxY,r.rect.y+r.rect.h);
+    }
+  }
+  const bw=(maxX-minX+4)*ET, bh=(maxY-minY+4)*ET;
+  edCam.s=Math.min(W/bw,H/bh);
+  edCam.x=(minX-2)*ET-(W/edCam.s-bw)/2;
+  edCam.y=(minY-2)*ET-(H/edCam.s-bh)/2;
+  updZoom();
+}
+function drawEditor(){
+  const c=edCam;
+  ctx.fillStyle="#0C1310"; ctx.fillRect(0,0,W,H);
+  ctx.save();
+  ctx.scale(c.s,c.s); ctx.translate(-c.x,-c.y);
+  const i0=Math.floor(c.x/ET)-1, i1=Math.ceil((c.x+W/c.s)/ET)+1;
+  const j0=Math.floor(c.y/ET)-1, j1=Math.ceil((c.y+H/c.s)/ET)+1;
+  ctx.lineWidth=1/c.s; ctx.strokeStyle="rgba(200,161,78,.09)";
+  ctx.beginPath();
+  for(let i=i0;i<=i1;i++){ctx.moveTo(i*ET,j0*ET);ctx.lineTo(i*ET,j1*ET);}
+  for(let j=j0;j<=j1;j++){ctx.moveTo(i0*ET,j*ET);ctx.lineTo(i1*ET,j*ET);}
+  ctx.stroke();
+  // origin cross
+  ctx.strokeStyle="rgba(200,161,78,.3)";
+  ctx.beginPath();ctx.moveTo(-6,0);ctx.lineTo(6,0);ctx.moveTo(0,-6);ctx.lineTo(0,6);ctx.stroke();
+  // rooms
+  for(const r of ROOMS){
+    const {x,y,w,h}=r.rect, rev=!!state.verso.revealed[r.id];
+    ctx.fillStyle=r.floorA; ctx.globalAlpha=.92;
+    ctx.fillRect(x*ET,y*ET,w*ET,h*ET);
+    ctx.globalAlpha=1;
+    ctx.lineWidth=(r.id===edSel?3:2)/c.s;
+    ctx.strokeStyle=r.id===edSel?"#E9E2CE":r.wall;
+    ctx.strokeRect(x*ET,y*ET,w*ET,h*ET);
+    ctx.font="600 10px 'IBM Plex Mono', monospace";
+    ctx.textAlign="center"; ctx.textBaseline="middle";
+    ctx.fillStyle="rgba(7,9,8,.85)";
+    ctx.fillText(r.name.toUpperCase()+(rev?"":" ○"),(x+w/2)*ET,(y+h/2)*ET);
+  }
+  // doors / openings
+  for(const d of DOORS){
+    const len=d.len||1;
+    const x2=d.dir==="h"?d.x+len:d.x, y2=d.dir==="h"?d.y:d.y+len;
+    ctx.beginPath();
+    ctx.moveTo(d.x*ET,d.y*ET); ctx.lineTo(x2*ET,y2*ET);
+    if(d.type==="open"){ctx.strokeStyle="#2B2125";ctx.lineWidth=7/Math.max(c.s,.4);}
+    else{ctx.strokeStyle="#C8A14E";ctx.lineWidth=4/Math.max(c.s,.4);ctx.setLineDash([6/c.s,4/c.s]);}
+    ctx.stroke(); ctx.setLineDash([]);
+  }
+  // draft rect
+  if(edDraft){
+    const rc=draftRect();
+    ctx.fillStyle="rgba(200,161,78,.2)";
+    ctx.fillRect(rc.x*ET,rc.y*ET,rc.w*ET,rc.h*ET);
+    ctx.strokeStyle="#C8A14E"; ctx.lineWidth=2/c.s; ctx.setLineDash([6/c.s,4/c.s]);
+    ctx.strokeRect(rc.x*ET,rc.y*ET,rc.w*ET,rc.h*ET); ctx.setLineDash([]);
+  }
+  // resize handle on selection
+  const sr=ROOMS.find(r=>r.id===edSel);
+  if(sr){
+    const hx=(sr.rect.x+sr.rect.w)*ET, hy=(sr.rect.y+sr.rect.h)*ET, hs=9/c.s;
+    ctx.fillStyle="#E9E2CE";
+    ctx.fillRect(hx-hs/2,hy-hs/2,hs,hs);
+  }
+  // token ghosts for reference
+  for(const t of state.verso.tokens){
+    ctx.globalAlpha=.55;
+    ctx.beginPath(); ctx.arc(t.x*ET,t.y*ET,6/Math.max(c.s,.5),0,7);
+    ctx.fillStyle=t.color; ctx.fill();
+    ctx.globalAlpha=1;
+  }
+  ctx.restore();
+}
+function edDown(e){
+  if(e.button===1 || e.button===2 || spaceDown){
+    panRef={x:e.offsetX,y:e.offsetY,cx:cam().x,cy:cam().y};
+    return;
+  }
+  const [fi,fj]=edTile(e.offsetX,e.offsetY);
+  if(edTool==="door"){edToggleDoor(fi,fj);return;}
+  // resize handle of current selection (both draw & select tools)
+  const sr=ROOMS.find(r=>r.id===edSel);
+  if(sr){
+    const [sx,sy]=toScreen((sr.rect.x+sr.rect.w)*ET,(sr.rect.y+sr.rect.h)*ET);
+    const lim=Math.min(14, ET*edCam.s*.75);   // don't let the handle eat room-drags when zoomed out
+    if(Math.hypot(e.offsetX-sx,e.offsetY-sy)<lim){
+      edDrag={mode:"resize",room:sr,orig:{...sr.rect}};
+      return;
+    }
+  }
+  const r=roomAtTile(fi,fj);
+  if(r){
+    edSel=r.id;
+    edDrag={mode:"move",room:r,di:fi-r.rect.x,dj:fj-r.rect.y,orig:{...r.rect}};
+    renderPanel();
+    return;
+  }
+  if(edTool==="draw"){
+    edDraft={ai:fi,aj:fj,bi:fi,bj:fj};
+    return;
+  }
+  if(edSel){edSel=null;renderPanel();}
+  panRef={x:e.offsetX,y:e.offsetY,cx:cam().x,cy:cam().y};
+}
+function edMove(e){
+  const [fi,fj]=edTile(e.offsetX,e.offsetY);
+  $("st-pos").textContent=`tile ${Math.floor(fi)}, ${Math.floor(fj)}`;
+  if(!e.buttons) return;
+  if(edDraft){edDraft.bi=fi;edDraft.bj=fj;return;}
+  if(edDrag){
+    const rc=edDrag.room.rect;
+    if(edDrag.mode==="move"){
+      rc.x=Math.round(fi-edDrag.di); rc.y=Math.round(fj-edDrag.dj);
+    }else{
+      rc.w=Math.max(1,Math.round(fi)-rc.x); rc.h=Math.max(1,Math.round(fj)-rc.y);
+    }
+    return;
+  }
+  if(panRef){
+    const c=cam();
+    c.x=panRef.cx-(e.offsetX-panRef.x)/c.s;
+    c.y=panRef.cy-(e.offsetY-panRef.y)/c.s;
+  }
+}
+function edUp(){
+  if(edDraft){
+    const rc=draftRect(); edDraft=null;
+    if(!overlapsAny(rc,null)){
+      const t=TEMPLATES[edTemplate];
+      const room={id:newRoomId(), name:"New Room", sub:"", rect:rc,
+        floorA:t.floorA, floorB:t.floorB, wall:t.wall, read:"", dm:"", clues:[]};
+      if(t.corridor) room.corridor=true;
+      ROOMS.push(room); edSel=room.id;
+      levelTouched();
+    }
+    renderPanel();
+    return;
+  }
+  if(edDrag){
+    const r=edDrag.room;
+    if(overlapsAny(r.rect,r.id)) r.rect={...edDrag.orig};   // no overlapping rooms
+    edDrag=null; levelTouched();
+    return;
+  }
+  panRef=null;
+}
+function edToggleDoor(fi,fj){
+  const dv=Math.abs(fi-Math.round(fi)), dh=Math.abs(fj-Math.round(fj));
+  if(Math.min(dv,dh)>.35) return;
+  let d;
+  if(dv<=dh) d={x:Math.round(fi),y:Math.floor(fj),dir:"v"};
+  else       d={x:Math.floor(fi),y:Math.round(fj),dir:"h"};
+  const i=DOORS.findIndex(o=>o.x===d.x&&o.y===d.y&&o.dir===d.dir);
+  if(i<0) DOORS.push({...d,type:"door"});                   // none -> door
+  else if(DOORS[i].type==="door") DOORS[i].type="open";     // door -> opening
+  else DOORS.splice(i,1);                                   // opening -> none
+  levelTouched();
+}
+function edSetTool(t){
+  edTool=t; edDraft=null; edDrag=null;
+  const hints={draw:"Drag empty grid to draw a room · drag rooms to move · corner square resizes",
+    select:"Click a room to select · drag to move · corner square resizes · Delete removes",
+    door:"Click an edge between rooms: once = door, twice = open passage, thrice = remove"};
+  $("st-hint").textContent=hints[t];
+  renderPanel();
+}
+function setMode(m){
+  if(m==="edit" && NET.mode==="client") return;
+  state.mode=m;
+  $("tab-edit").classList.toggle("on",m==="edit");
+  if(m==="edit"){
+    state.scene="verso"; state.selToken=null;
+    $("tab-map").classList.remove("on"); $("tab-verso").classList.remove("on");
+    if(!edFitDone){edFit();edFitDone=true;}
+    $("st-hint").textContent="Drag empty grid to draw a room · click to select · corner square resizes · DOORS tool: click a wall edge";
+    $("st-view").textContent="EDITOR";
+  }else{
+    $("tab-verso").classList.toggle("on",state.scene==="verso");
+    $("tab-map").classList.toggle("on",state.scene==="map");
+    setView(state.view);
+    setTool(state.tool);
+  }
+  updZoom(); renderPanel();
+}
+
 /* ---------------- tools / tabs / view ---------------- */
 function setTool(t){
   state.tool=t;
@@ -1737,9 +2013,10 @@ $("t-select").onclick=()=>setTool("select");
 $("t-ruler").onclick=()=>setTool("ruler");
 $("t-fogr").onclick=()=>setTool("fogr");
 $("t-fogh").onclick=()=>setTool("fogh");
-$("t-fit").onclick=()=>fitScene();
+$("t-fit").onclick=()=>{if(state.mode==="edit")edFit();else fitScene();};
 
 function setScene(s){
+  if(state.mode==="edit"){ state.mode="play"; $("tab-edit").classList.remove("on"); setView(state.view); setTool(state.tool); }
   state.scene=s; state.selToken=null;
   $("tab-map").classList.toggle("on",s==="map");
   $("tab-verso").classList.toggle("on",s==="verso");
@@ -1750,6 +2027,7 @@ function setScene(s){
 }
 $("tab-map").onclick=()=>setScene("map");
 $("tab-verso").onclick=()=>setScene("verso");
+$("tab-edit").onclick=()=>setMode("edit");
 
 function setView(v){
   state.view=v;
@@ -1807,11 +2085,13 @@ function serialize(){
       tokens:state.map.tokens,
       fogURL: state.map.fog ? state.map.fog.toDataURL("image/png") : null
     },
-    verso:{revealed:state.verso.revealed, tokens:state.verso.tokens}
+    verso:{revealed:state.verso.revealed, tokens:state.verso.tokens},
+    level:levelData()
   };
 }
 function deserialize(d){
   try{
+    if(d.level && Array.isArray(d.level.rooms)) loadLevel(d.level);
     state.verso.revealed=d.verso.revealed||{white:true};
     state.verso.tokens=(d.verso.tokens||[]).map(t=>({...t}));
     uid=Math.max(uid,...state.verso.tokens.map(t=>t.id+1),1);
@@ -1887,6 +2167,7 @@ function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;","
 
 function renderPanel(){
   if(NET.mode==="client"){renderClientPanel();return;}
+  if(state.mode==="edit"){renderEditorPanel();return;}
   const p=$("panel");
   let html="";
 
@@ -2074,6 +2355,111 @@ function placeToken(name,letter,color,size){
   markDirty(); renderPanel();
 }
 
+function renderEditorPanel(){
+  const p=$("panel");
+  const sel=ROOMS.find(r=>r.id===edSel);
+  const toolBtn=(t,label)=>`<button class="rbtn ${edTool===t?"":"quiet"}" data-edtool="${t}" style="flex:1">${label}</button>`;
+  let html=`<div class="sect"><h3>Level</h3>
+    <div class="row"><label>name</label><input type="text" id="lv-name" value="${esc(LEVEL.name)}"></div>
+    <div class="row"><label>backdrop</label><input type="color" id="lv-bg" value="${LEVEL.bg}"></div>
+    <div class="row">
+      <button class="rbtn quiet" id="lv-export">EXPORT</button>
+      <button class="rbtn quiet" id="lv-import">IMPORT</button>
+    </div>
+    <div class="row">
+      <button class="rbtn quiet" id="lv-new">NEW BLANK</button>
+      <button class="rbtn quiet" id="lv-verso">RESET TO VERSO</button>
+    </div></div>`;
+  html+=`<div class="sect"><h3>Tools</h3>
+    <div class="row">${toolBtn("draw","DRAW (D)")}${toolBtn("select","SELECT (V)")}${toolBtn("door","DOORS (O)")}</div>
+    <div class="row"><label>template</label><select id="ed-template">${
+      TEMPLATES.map((t,i)=>`<option value="${i}" ${i===edTemplate?"selected":""}>${t.name}</option>`).join("")
+    }</select></div>
+    <div class="hint">New rooms use the template palette. Doors: click the shared edge between two rooms.</div></div>`;
+  if(sel){
+    html+=`<div class="sect"><h3>Room · ${esc(sel.id)}</h3>
+      <div class="row"><label>name</label><input type="text" id="ed-name" value="${esc(sel.name)}"></div>
+      <div class="row"><label>subtitle</label><input type="text" id="ed-sub" value="${esc(sel.sub||"")}"></div>
+      <div class="row"><label>colors</label>
+        <input type="color" id="ed-fa" value="${sel.floorA}" title="floor A">
+        <input type="color" id="ed-fb" value="${sel.floorB}" title="floor B">
+        <input type="color" id="ed-wl" value="${sel.wall}" title="wall">
+        <button class="rbtn quiet" id="ed-applytpl" style="flex:1;padding:5px" title="apply the selected template palette">TPL</button>
+      </div>
+      <label class="check"><input type="checkbox" id="ed-corr" ${sel.corridor?"checked":""}> corridor (thin label styling)</label>
+      <div class="row"><label>read-aloud</label></div>
+      <textarea id="ed-read" rows="4" placeholder="What the players hear when they enter…">${esc(sel.read||"")}</textarea>
+      <div class="row" style="margin-top:6px"><label>DM notes</label></div>
+      <textarea id="ed-dm" rows="4" placeholder="Only you see this. <b>bold</b> allowed.">${esc(sel.dm||"")}</textarea>
+      <div class="row" style="margin-top:6px"><label>clues</label></div>
+      <textarea id="ed-clues" rows="3" placeholder="One clue per line">${esc((sel.clues||[]).join("\n"))}</textarea>
+      <button class="rbtn quiet" id="ed-del" style="width:100%;margin-top:8px;color:var(--oxblood);border-color:var(--oxblood)">DELETE ROOM</button>
+    </div>`;
+  }else{
+    html+=`<div class="sect"><h3>Room</h3><div class="hint">Select a room to edit its name, palette, read-aloud text, DM notes and clues — the same card you use at the table.</div></div>`;
+  }
+  html+=`<div class="sect"><h3>How this works</h3><div class="hint">The editor is a top-down view of the same level players see in isometric. Switch back to the ${esc(LEVEL.name)} tab to play it; reveal rooms from there as usual. Levels travel with SAVE/LOAD, or share them with EXPORT.</div></div>`;
+  p.innerHTML=html;
+
+  p.querySelectorAll("[data-edtool]").forEach(b=>{b.onclick=()=>edSetTool(b.dataset.edtool);});
+  $("ed-template").onchange=e=>{edTemplate=+e.target.value;};
+  $("lv-name").onchange=e=>{LEVEL.name=e.target.value.trim()||"Untitled Level";$("tab-verso").textContent=LEVEL.name.toUpperCase();levelTouched();};
+  $("lv-bg").oninput=e=>{LEVEL.bg=e.target.value;levelTouched();};
+  $("lv-export").onclick=()=>{
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(new Blob([JSON.stringify(levelData(),null,1)],{type:"application/json"}));
+    a.download=(LEVEL.name||"level").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")+".level.json";
+    a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+  };
+  $("lv-import").onclick=()=>$("file-level").click();
+  $("lv-new").onclick=()=>{
+    if(!confirm("Start a new blank level? The current level is replaced (export first if you want to keep it)."))return;
+    loadLevel({name:"Untitled Level",bg:"#0A0F0C",rooms:[],doors:[]});
+    edSel=null; edSetTool("draw"); edFit(); levelTouched();
+  };
+  $("lv-verso").onclick=()=>{
+    if(!confirm("Replace the current level with The Verso — Back of House?"))return;
+    loadLevel(VERSO_LEVEL);
+    if(ROOMS.some(r=>r.id==="white") && !Object.keys(state.verso.revealed).length) state.verso.revealed.white=true;
+    edSel=null; edFit(); levelTouched();
+  };
+  if(sel){
+    $("ed-name").onchange=e=>{sel.name=e.target.value.trim()||"Room";levelTouched();};
+    $("ed-sub").onchange=e=>{sel.sub=e.target.value;levelTouched();};
+    $("ed-fa").oninput=e=>{sel.floorA=e.target.value;levelTouched();};
+    $("ed-fb").oninput=e=>{sel.floorB=e.target.value;levelTouched();};
+    $("ed-wl").oninput=e=>{sel.wall=e.target.value;levelTouched();};
+    $("ed-applytpl").onclick=()=>{
+      const t=TEMPLATES[edTemplate];
+      sel.floorA=t.floorA; sel.floorB=t.floorB; sel.wall=t.wall;
+      if(t.corridor)sel.corridor=true;
+      levelTouched(); renderPanel();
+    };
+    $("ed-corr").onchange=e=>{if(e.target.checked)sel.corridor=true;else delete sel.corridor;levelTouched();};
+    $("ed-read").onchange=e=>{sel.read=e.target.value;levelTouched();};
+    $("ed-dm").onchange=e=>{sel.dm=e.target.value;levelTouched();};
+    $("ed-clues").onchange=e=>{sel.clues=e.target.value.split("\n").map(s=>s.trim()).filter(Boolean);levelTouched();};
+    $("ed-del").onclick=()=>{
+      const i=ROOMS.findIndex(r=>r.id===sel.id);
+      if(i>=0){ROOMS.splice(i,1);delete state.verso.revealed[sel.id];edSel=null;levelTouched();renderPanel();}
+    };
+  }
+}
+$("file-level").onchange=e=>{
+  const f=e.target.files[0]; e.target.value="";
+  if(!f) return;
+  const rd=new FileReader();
+  rd.onload=()=>{
+    try{
+      const d=JSON.parse(rd.result);
+      if(!d || !Array.isArray(d.rooms)) throw new Error("not a level file");
+      loadLevel(d);
+      edSel=null; if(state.mode==="edit") edFit(); levelTouched();
+    }catch(err){alert("Couldn't read that level file: "+err.message);}
+  };
+  rd.readAsText(f);
+};
+
 function renderClientPanel(){
   const p=$("panel");
   const toks=S().tokens;
@@ -2117,6 +2503,7 @@ function renderClientPanel(){
 
 /* ---------------- boot ---------------- */
 resize();
+loadLevel(VERSO_LEVEL);
 setScene("verso");
 setTool("select");
 fitScene(); updZoom();
