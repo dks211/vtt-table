@@ -51,15 +51,21 @@ async function turnCredentials(env) {
   };
   const fail = (error) =>
     new Response(JSON.stringify({ iceServers: null, error }), { status: 200, headers });
+  // dashboard copy-paste often smuggles in whitespace or a scheme prefix
+  const clean = (v) => (v || "").trim().replace(/^https?:\/\//, "").replace(/\/+$/, "");
+  const turnKeyId = (env.TURN_KEY_ID || "").trim();
+  const turnKeyToken = (env.TURN_KEY_API_TOKEN || "").trim();
+  const meteredDomain = clean(env.METERED_DOMAIN);
+  const meteredKey = (env.METERED_API_KEY || "").trim();
 
   try {
-    if (env.TURN_KEY_ID && env.TURN_KEY_API_TOKEN) {
+    if (turnKeyId && turnKeyToken) {
       const response = await fetch(
-        `https://rtc.live.cloudflare.com/v1/turn/keys/${env.TURN_KEY_ID}/credentials/generate-ice-servers`,
+        `https://rtc.live.cloudflare.com/v1/turn/keys/${turnKeyId}/credentials/generate-ice-servers`,
         {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${env.TURN_KEY_API_TOKEN}`,
+            Authorization: `Bearer ${turnKeyToken}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ ttl: 86400 }),
@@ -69,9 +75,9 @@ async function turnCredentials(env) {
       return new Response(JSON.stringify(await response.json()), { status: 200, headers });
     }
 
-    if (env.METERED_DOMAIN && env.METERED_API_KEY) {
+    if (meteredDomain && meteredKey) {
       const response = await fetch(
-        `https://${env.METERED_DOMAIN}/api/v1/turn/credentials?apiKey=${env.METERED_API_KEY}`,
+        `https://${meteredDomain}/api/v1/turn/credentials?apiKey=${encodeURIComponent(meteredKey)}`,
       );
       if (!response.ok) return fail(`metered turn api ${response.status}`);
       const servers = await response.json(); // metered returns a bare array
