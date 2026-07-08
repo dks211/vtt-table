@@ -154,6 +154,15 @@ body.playerview .dm-only{display:none!important}
 #tracker-float .tfr.on{color:var(--brass)}
 #tracker-float .tfr .n{min-width:22px;text-align:right}
 body.netclient #tracker-float{left:10px}
+#rolls-float{position:fixed;right:calc(var(--panel-w) + 14px);bottom:44px;z-index:28;width:256px;display:none;
+  background:rgba(14,20,17,.95);border:1px solid var(--brass-dim);border-radius:6px;padding:10px 12px;
+  box-shadow:0 8px 28px rgba(0,0,0,.55)}
+#rolls-float .rfh{display:flex;align-items:center;gap:8px;cursor:grab;margin-bottom:8px;user-select:none;
+  font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.18em;color:var(--brass)}
+#rolls-float .rfh .x{margin-left:auto;cursor:pointer;color:var(--vellum-dim);padding:2px 6px}
+#rolls-float .rfh .x:hover{color:var(--oxblood)}
+body.netclient #rolls-float{right:12px;bottom:120px}
+@media (max-width:760px){ body.netclient #rolls-float{left:8px;right:8px;width:auto} }
 #net-banner{position:fixed;top:70px;left:50%;transform:translateX(-50%) scale(.8);opacity:0;pointer-events:none;
   text-align:center;transition:opacity .25s,transform .25s;z-index:40;text-shadow:0 2px 14px rgba(0,0,0,.9)}
 #net-banner.show{opacity:1;transform:translateX(-50%) scale(1)}
@@ -250,6 +259,7 @@ body.netclient #stage{left:0}
 
 <div id="net-banner"></div>
 <div id="tracker-float"></div>
+<div id="rolls-float"></div>
 <button id="fit-float">⤢ FIT</button>
 <button id="panel-toggle">✕ CLOSE</button>
 <div id="dicebar">
@@ -403,7 +413,11 @@ function levelData(){return {name:LEVEL.name, bg:LEVEL.bg, rooms:ROOMS, doors:DO
 function loadLevel(lv){
   LEVEL.name=lv.name||"Untitled Level";
   LEVEL.bg=lv.bg||"#0A0F0C";
-  LEVEL.roster=(lv.roster||PARTY).map(p=>({...p}));
+  LEVEL.roster=(lv.roster||PARTY).map(p=>{
+    const q={...p};
+    if(p.sheet) q.sheet=JSON.parse(JSON.stringify(p.sheet));   // sheets travel with the level
+    return q;
+  });
   LEVEL.props=(lv.props||[]).map(p=>({...p}));
   // rooms are unions of rectangles; older single-rect data migrates to rects:[rect]
   ROOMS=(lv.rooms||[]).map(r=>{
@@ -1454,7 +1468,9 @@ function trackerAnnounce(){
 function sanitizeSheet(s){
   if(!s || typeof s!=="object") return null;
   const num=(v,lo,hi)=>Math.max(lo,Math.min(hi,(+v||0)|0));
-  const out={prof:num(s.prof,0,10), init:num(s.init,-10,20), abil:{}, atks:[], skills:{}};
+  const out={prof:num(s.prof,0,10),
+    init:(s.init==null||s.init==="")?null:num(s.init,-10,20),   // null = default to DEX
+    abil:{}, atks:[], skills:{}};
   for(const k of ["str","dex","con","int","wis","cha"]) out.abil[k]=num(s.abil&&s.abil[k],-10,15);
   out.atks=(Array.isArray(s.atks)?s.atks:[]).slice(0,8).map(a=>({
     name:String(a&&a.name||"attack").slice(0,24),
@@ -1673,6 +1689,7 @@ const SKILL_ABIL={"Acrobatics":"dex","Animal Handling":"wis","Arcana":"int","Ath
   "Deception":"cha","History":"int","Insight":"wis","Intimidation":"cha","Investigation":"int",
   "Medicine":"wis","Nature":"int","Perception":"wis","Performance":"cha","Persuasion":"cha",
   "Religion":"int","Sleight of Hand":"dex","Stealth":"dex","Survival":"wis"};
+function initOf(sh){return sh.init==null ? (sh.abil.dex||0) : sh.init;} // blank init = DEX (5e default)
 function skillBonus(sh,name){
   if(sh.skills && name in sh.skills) return sh.skills[name];
   const sv=/^(\w{3}) save$/i.exec(name);
@@ -2206,7 +2223,7 @@ function updZoom(){$("st-zoom").textContent=Math.round(cam().s*100)+"%";}
    Rooms are drawn on a flat tile grid; play mode renders the same data iso. */
 const ET=34;                                  // editor px per tile at zoom 1
 const edCam={x:-120,y:-120,s:1};
-let edTool="draw", edSel=null, edDraft=null, edDrag=null, edHover=null, edTemplate=0, edFitDone=false, edRoomN=0, edPropType="table";
+let edTool="draw", edSel=null, edDraft=null, edDrag=null, edHover=null, edTemplate=0, edFitDone=false, edRoomN=0, edPropType="table", edRosterSel=null;
 const edTile=(sx,sy)=>{const [wx,wy]=toWorld(sx,sy);return [wx/ET,wy/ET];};
 function levelTouched(){markDirty(); netMarkLevel();}
 function newRoomId(){let id; do{id="room"+(++edRoomN);}while(ROOMS.some(r=>r.id===id)); return id;}
@@ -2700,7 +2717,7 @@ function sheetRollsHTML(t){
   const sh=t.sheet;
   if(!sh) return `<div class="hint">No sheet yet — fill in (or import) the form below and the roll buttons appear here.</div>`;
   const sign=v=>(v>=0?"+":"")+v;
-  let h=`<div class="row"><button class="rbtn" id="sr-init">ROLL INITIATIVE ${sign(sh.init)}</button></div>`;
+  let h=`<div class="row"><button class="rbtn" id="sr-init">ROLL INITIATIVE ${sign(initOf(sh))}</button></div>`;
   if(sh.atks.length){
     h+=`<div class="toklist">`+sh.atks.map((a,i)=>`<div class="tok" style="cursor:default">
       <span class="nm">${esc(a.name)}</span>
@@ -2710,39 +2727,79 @@ function sheetRollsHTML(t){
       <button class="rbtn quiet" data-srdmg="${i}" style="flex:none;padding:5px 7px">${esc(a.dmg)}</button>
     </div>`).join("")+`</div>`;
   }
-  h+=`<div class="row" style="margin-top:7px"><select id="sr-skill" style="flex:1">${
-    ["STR check","DEX check","CON check","INT check","WIS check","CHA check",
-     "STR save","DEX save","CON save","INT save","WIS save","CHA save"]
-      .concat(Object.keys(SKILL_ABIL)).map(k=>`<option>${k}</option>`).join("")
-  }</select></div>
+  const bonusOf=k=>{
+    const chk=/^(\w{3}) check$/.exec(k);
+    return chk ? (sh.abil[chk[1].toLowerCase()]||0) : skillBonus(sh,k);
+  };
+  const opt=k=>`<option value="${k}">${k}  ${sign(bonusOf(k))}</option>`;
+  const ABL=["STR","DEX","CON","INT","WIS","CHA"];
+  const bySkill={}; ABL.forEach(a=>bySkill[a]=[]);
+  for(const [k,ab] of Object.entries(SKILL_ABIL)) bySkill[ab.toUpperCase()].push(k);
+  let sel=`<optgroup label="— Ability checks —">${ABL.map(a=>opt(a+" check")).join("")}</optgroup>`;
+  sel+=`<optgroup label="— Saving throws —">${ABL.map(a=>opt(a+" save")).join("")}</optgroup>`;
+  for(const a of ABL) if(bySkill[a].length)
+    sel+=`<optgroup label="— ${a} skills —">${bySkill[a].sort().map(opt).join("")}</optgroup>`;
+  h+=`<div class="row" style="margin-top:7px"><select id="sr-skill" style="flex:1">${sel}</select></div>
   <div class="row"><button class="rbtn quiet" id="sr-roll">ROLL</button><button class="rbtn quiet" id="sr-adv">ADV</button><button class="rbtn quiet" id="sr-dis">DIS</button></div>`;
   return h;
 }
 function wireSheetRolls(p,t){
-  const sh=t.sheet;
-  if(!sh || !$("sr-roll")) return;
+  // all lookups scoped to the container: the same ids can exist transiently
+  // in both the panel and the pop-out float during re-renders
+  const sh=t.sheet, q=sel=>p.querySelector(sel);
+  if(!sh || !q("#sr-roll")) return;
   const skillPick=()=>{
-    const k=$("sr-skill").value;
+    const k=q("#sr-skill").value;
     const chk=/^(\w{3}) check$/.exec(k);
     return {k, bonus: chk ? (sh.abil[chk[1].toLowerCase()]||0) : skillBonus(sh,k)};
   };
-  const si=$("sr-init"); if(si) si.onclick=()=>tokenRoll(t,{die:20,mod:sh.init,label:"Initiative",init:true});
+  const si=q("#sr-init"); if(si) si.onclick=()=>tokenRoll(t,{die:20,mod:initOf(sh),label:"Initiative",init:true});
   p.querySelectorAll("[data-srhit]").forEach(el=>{el.onclick=()=>{const a=sh.atks[+el.dataset.srhit];if(a)tokenRoll(t,{die:20,mod:a.hit,label:a.name});};});
   p.querySelectorAll("[data-sradv]").forEach(el=>{el.onclick=()=>{const a=sh.atks[+el.dataset.sradv];if(a)tokenRoll(t,{die:"adv",mod:a.hit,label:a.name+" (adv)"});};});
   p.querySelectorAll("[data-srdis]").forEach(el=>{el.onclick=()=>{const a=sh.atks[+el.dataset.srdis];if(a)tokenRoll(t,{die:"dis",mod:a.hit,label:a.name+" (dis)"});};});
   p.querySelectorAll("[data-srdmg]").forEach(el=>{el.onclick=()=>{const a=sh.atks[+el.dataset.srdmg];if(a)tokenRoll(t,{expr:a.dmg,label:a.name+" damage"});};});
-  $("sr-roll").onclick=()=>{const s=skillPick();tokenRoll(t,{die:20,mod:s.bonus,label:s.k});};
-  $("sr-adv").onclick=()=>{const s=skillPick();tokenRoll(t,{die:"adv",mod:s.bonus,label:s.k+" (adv)"});};
-  $("sr-dis").onclick=()=>{const s=skillPick();tokenRoll(t,{die:"dis",mod:s.bonus,label:s.k+" (dis)"});};
+  q("#sr-roll").onclick=()=>{const s=skillPick();tokenRoll(t,{die:20,mod:s.bonus,label:s.k});};
+  q("#sr-adv").onclick=()=>{const s=skillPick();tokenRoll(t,{die:"adv",mod:s.bonus,label:s.k+" (adv)"});};
+  q("#sr-dis").onclick=()=>{const s=skillPick();tokenRoll(t,{die:"dis",mod:s.bonus,label:s.k+" (dis)"});};
+}
+
+/* pop-out roll palette: same controls, floating over the map, draggable by its header */
+let rollsFloatOpen=false;
+function rollsFloatToken(){
+  return NET.mode==="client" ? S().tokens.find(t=>t.id===NET.myToken)
+                             : S().tokens.find(t=>t.id===state.selToken);
+}
+function renderRollsFloat(){
+  const el=$("rolls-float");
+  if(!el) return;
+  const t=(rollsFloatOpen && state.mode!=="edit") ? rollsFloatToken() : null;
+  if(!t || !t.sheet){el.style.display="none";el.innerHTML="";return;}
+  const ae=document.activeElement;
+  if(ae && el.contains(ae)) return;            // don't rebuild under an open select
+  el.style.display="block";
+  el.innerHTML=`<div class="rfh" id="rf-head">🎲 ${esc(t.name).toUpperCase()}<span class="x" id="rf-close" title="dock back into the panel">✕</span></div>`
+    +sheetRollsHTML(t);
+  wireSheetRolls(el,t);
+  $("rf-close").onclick=()=>{rollsFloatOpen=false;renderPanel();};
+  const head=$("rf-head");
+  head.onpointerdown=e=>{
+    if(e.target.id==="rf-close") return;
+    const r=el.getBoundingClientRect();
+    const ox=e.clientX-r.left, oy=e.clientY-r.top;
+    const move=ev=>{el.style.left=(ev.clientX-ox)+"px";el.style.top=(ev.clientY-oy)+"px";el.style.right="auto";el.style.bottom="auto";};
+    const up=()=>{removeEventListener("pointermove",move);removeEventListener("pointerup",up);};
+    addEventListener("pointermove",move); addEventListener("pointerup",up);
+    e.preventDefault();
+  };
 }
 
 /* character mini-sheet: same form for the DM (any token) and players (their claim) */
-function sheetFormHTML(t){
-  const sh=t.sheet||{prof:2,init:0,abil:{str:0,dex:0,con:0,int:0,wis:0,cha:0},atks:[],skills:{}};
+function sheetFormHTML(t,toLib){
+  const sh=t.sheet||{prof:2,init:null,abil:{str:0,dex:0,con:0,int:0,wis:0,cha:0},atks:[],skills:{}};
   const sign=v=>(v>=0?"+":"")+v;
   return `<div class="sect"><h3>Sheet · ${esc(t.name)}</h3>
     <div class="row"><label>prof</label><input type="number" id="sh-prof" value="${sh.prof}" style="width:52px">
-      <label style="width:auto">init</label><input type="number" id="sh-init" value="${sh.init}" style="width:52px"></div>
+      <label style="width:auto">init</label><input type="number" id="sh-init" value="${sh.init==null?"":sh.init}" placeholder="dex" style="width:52px" title="blank = use the DEX modifier"></div>
     <div class="row" style="flex-wrap:wrap;gap:5px">${["str","dex","con","int","wis","cha"].map(k=>
       `<label style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--vellum-dim)">${k.toUpperCase()}<input type="number" id="sh-${k}" value="${sh.abil[k]||0}" style="width:42px;margin-left:3px"></label>`).join("")}</div>
     <div class="hint" style="margin:4px 0">Ability boxes take the MODIFIER (+3, not 16).</div>
@@ -2754,7 +2811,8 @@ function sheetFormHTML(t){
       <button class="rbtn quiet" id="sh-import" title="reads the CSV export of the v2.1 5e Google Sheet — File → Download → .csv on the main tab">IMPORT GSHEET CSV</button>
       <button class="rbtn" id="sh-save">SAVE SHEET</button>
     </div>
-    <div class="hint" style="margin-top:5px">Import fills the boxes from a Google Sheet CSV export — check them, then SAVE.</div>
+    ${toLib?`<button class="rbtn quiet" id="sh-tolib" style="width:100%;margin-top:6px" title="store name/color/PC flag/sheet in this level's Token Library">SAVE TO TOKEN LIBRARY</button>`:""}
+    <div class="hint" style="margin-top:5px">Import fills the boxes from a Google Sheet CSV export — check them, then SAVE. Blank init = DEX.</div>
   </div>`;
 }
 function readSheetForm(){
@@ -2769,7 +2827,8 @@ function readSheetForm(){
     const m=/^(.+?)\s+([+-]?\d+)$/.exec(line);
     if(m) skills[m[1]]=+m[2];
   });
-  return sanitizeSheet({prof:num("sh-prof"),init:num("sh-init"),abil,atks,skills});
+  const initRaw=$("sh-init").value.trim();
+  return sanitizeSheet({prof:num("sh-prof"),init:initRaw===""?null:+initRaw,abil,atks,skills});
 }
 function trackerListHTML(canEdit){
   const tr=state.tracker;
@@ -2793,6 +2852,7 @@ function updateTrackerFloat(){
 }
 function renderPanel(){
   updateTrackerFloat();
+  renderRollsFloat();
   // don't wipe a form someone is typing in (network syncs re-render constantly)
   const ae=document.activeElement;
   if(ae && ae.closest && ae.closest("#panel") &&
@@ -2902,8 +2962,13 @@ function renderPanel(){
     if(patrolRec===selT.id) html+=`<div class="hint">Click the map to drop waypoints for ${esc(selT.name)}, then STOP. PULSE (Events) walks the route.</div>`;
   }
   html+=`</div>`;
-  if(selT && selT.sheet) html+=`<div class="sect"><h3>Roll as ${esc(selT.name)}</h3>`+sheetRollsHTML(selT)+`</div>`;
-  if(selT) html+=sheetFormHTML(selT);
+  if(selT && selT.sheet){
+    html+=`<div class="sect"><h3>Roll as ${esc(selT.name)}</h3>`+
+      (rollsFloatOpen?`<div class="hint">Popped out — floating over the map.</div>`
+        :sheetRollsHTML(selT)+`<button class="rbtn quiet" id="sr-pop" style="width:100%;margin-top:6px">POP OUT OVER MAP</button>`)+
+      `</div>`;
+  }
+  if(selT) html+=sheetFormHTML(selT,true);
   // add token
   html+=`<div class="sect"><h3>Add Token</h3>
     <div class="row"><input type="text" id="at-name" placeholder="name" style="flex:1"></div>
@@ -3018,7 +3083,7 @@ function renderPanel(){
   const trClear=$("tr-clear"); if(trClear) trClear.onclick=()=>{state.tracker={order:[],active:0};netMark();renderPanel();};
   const trPcs=$("tr-pcs"); if(trPcs) trPcs.onclick=()=>{
     for(const t of S().tokens.filter(t=>t.pc)){
-      const e=roll(20,1,t.sheet?t.sheet.init:0,"dm",t.name+" · Initiative");
+      const e=roll(20,1,t.sheet?initOf(t.sheet):0,"dm",t.name+" · Initiative");
       trackerSet(t.name,e.total,t.id);
     }
   };
@@ -3070,10 +3135,19 @@ function renderPanel(){
     markDirty(); renderPanel();
   };
   /* sheet wiring (DM edits any selected token; rolls as it too) */
-  if(selT) wireSheetRolls(p,selT);
+  if(selT && !rollsFloatOpen) wireSheetRolls(p,selT);
+  const srp=$("sr-pop"); if(srp) srp.onclick=()=>{rollsFloatOpen=true;renderPanel();};
   const shSave=$("sh-save"); if(shSave && selT) shSave.onclick=()=>{
     selT.sheet=readSheetForm();
     markDirty(); renderPanel();
+  };
+  const shLib=$("sh-tolib"); if(shLib && selT) shLib.onclick=()=>{
+    const entry={name:selT.name, letter:selT.letter, color:selT.color, sheet:readSheetForm()};
+    if(selT.pc) entry.pc=true;
+    const i=LEVEL.roster.findIndex(q=>q.name===selT.name);
+    if(i>=0) LEVEL.roster[i]=entry; else LEVEL.roster.push(entry);
+    levelTouched();
+    $("st-hint").textContent=selT.name+" saved to the Token Library — persists with the level";
   };
   const shImp=$("sh-import"); if(shImp) shImp.onclick=()=>$("file-sheet").click();
   p.querySelectorAll(".sw").forEach(el=>{
@@ -3086,10 +3160,10 @@ function renderPanel(){
     placeToken(name, name.replace(/[^A-Za-z]/g,"").slice(0,2).toUpperCase()||"?", addColor, size, $("at-pc").checked);
   };
   p.querySelectorAll("[data-party]").forEach(el=>{
-    el.onclick=()=>{const pp=LEVEL.roster[+el.dataset.party];placeToken(pp.name,pp.letter,pp.color,1,!!pp.pc);};
+    el.onclick=()=>{const pp=LEVEL.roster[+el.dataset.party];placeToken(pp.name,pp.letter,pp.color,1,!!pp.pc,pp.sheet);};
   });
 }
-function placeToken(name,letter,color,size,pc){
+function placeToken(name,letter,color,size,pc,sheet){
   const c=cam();
   let x,y;
   if(state.scene==="map"){
@@ -3100,6 +3174,7 @@ function placeToken(name,letter,color,size,pc){
     x=Math.floor(i)+.5; y=Math.floor(j)+.5;
   }
   const t=mkTok(name,letter,color,x,y,size,pc);
+  if(sheet) t.sheet=JSON.parse(JSON.stringify(sheet));
   S().tokens.push(t);
   state.selToken=t.id;
   markDirty(); renderPanel();
@@ -3159,12 +3234,15 @@ function renderEditorPanel(){
       <span class="dot" style="background:${q.color}">${esc(q.letter)}</span>
       <span class="nm">${esc(q.name)}</span>
       <span class="del" data-rpc="${i}" title="toggle: players can claim this token" style="color:${q.pc?"var(--brass)":"#666"}">${q.pc?"PC":"npc"}</span>
+      <span class="del" data-rsheet="${i}" title="${q.sheet?"edit this token's sheet":"add a sheet (stats, attacks, skills)"}" style="color:${q.sheet?"var(--brass)":"#666"}">✎</span>
       <span class="del" data-rdel="${i}" title="remove from library">✕</span>
     </div>`).join("")}</div>
     <div class="row" style="margin-top:7px"><input type="text" id="ros-name" placeholder="name" style="flex:1"><input type="color" id="ros-color" value="#7FA8B8"></div>
     <label class="check"><input type="checkbox" id="ros-pc" checked> players can claim (PC)</label>
     <button class="rbtn quiet" id="ros-add" style="width:100%">ADD TO LIBRARY</button>
-    <div class="hint" style="margin-top:6px">The library is this level's cast — it fills the shortcuts list when placing tokens. Players joining online can only see and claim PC tokens.</div></div>`;
+    <div class="hint" style="margin-top:6px">The library is this level's cast — it fills the shortcuts list when placing tokens, and ✎ sheets travel with each placed token. Players joining online can only see and claim PC tokens.</div></div>`;
+  const rosEntry=(edRosterSel!=null)?LEVEL.roster[edRosterSel]:null;
+  if(rosEntry) html+=sheetFormHTML(rosEntry);
   html+=`<div class="sect"><h3>How this works</h3><div class="hint">The editor is a top-down view of the same level players see in isometric. Switch back to the ${esc(LEVEL.name)} tab to play it; reveal rooms from there as usual. Levels travel with SAVE/LOAD, or share them with EXPORT.</div></div>`;
   p.innerHTML=html;
 
@@ -3178,8 +3256,19 @@ function renderEditorPanel(){
     levelTouched(); renderPanel();
   };});
   p.querySelectorAll("[data-rdel]").forEach(el=>{el.onclick=()=>{
-    edSnapshot(); LEVEL.roster.splice(+el.dataset.rdel,1); levelTouched(); renderPanel();
+    edSnapshot(); LEVEL.roster.splice(+el.dataset.rdel,1); edRosterSel=null; levelTouched(); renderPanel();
   };});
+  p.querySelectorAll("[data-rsheet]").forEach(el=>{el.onclick=()=>{
+    const i=+el.dataset.rsheet;
+    edRosterSel = edRosterSel===i ? null : i;
+    renderPanel();
+  };});
+  if(rosEntry){
+    const shS=$("sh-save"); if(shS) shS.onclick=()=>{
+      edSnapshot(); rosEntry.sheet=readSheetForm(); levelTouched(); renderPanel();
+    };
+    const shI=$("sh-import"); if(shI) shI.onclick=()=>$("file-sheet").click();
+  }
   $("ros-add").onclick=()=>{
     const name=($("ros-name").value||"").trim();
     if(!name) return;
@@ -3273,7 +3362,10 @@ function renderClientPanel(){
     </div>`;}).join("")+`</div></div>`;
   const mine=S().tokens.find(t=>t.id===NET.myToken);
   if(mine){
-    html+=`<div class="sect"><h3>Your Rolls</h3>`+sheetRollsHTML(mine)+`</div>`;
+    html+=`<div class="sect"><h3>Your Rolls</h3>`+
+      ((rollsFloatOpen&&mine.sheet)?`<div class="hint">Popped out — floating over the map.</div>`
+        :sheetRollsHTML(mine)+(mine.sheet?`<button class="rbtn quiet" id="sr-pop" style="width:100%;margin-top:6px">POP OUT OVER MAP</button>`:""))+
+      `</div>`;
   }
   if(state.tracker.order.length){
     html+=`<div class="sect"><h3>Initiative</h3>`+trackerListHTML(false)+`</div>`;
@@ -3305,7 +3397,8 @@ function renderClientPanel(){
   });
   /* my rolls + my sheet */
   if(mine){
-    wireSheetRolls(p,mine);
+    if(!rollsFloatOpen) wireSheetRolls(p,mine);
+    const srp=$("sr-pop"); if(srp) srp.onclick=()=>{rollsFloatOpen=true;renderPanel();setDrawer(false);};
     const shSave=$("sh-save"); if(shSave) shSave.onclick=()=>{
       const s2=readSheetForm();
       mine.sheet=s2;                                   // optimistic; host confirms via sync
