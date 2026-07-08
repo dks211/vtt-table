@@ -2113,7 +2113,20 @@ cv.addEventListener("pointercancel",e=>{
 });
 cv.addEventListener("wheel",e=>{
   e.preventDefault();
-  zoomAt(e.offsetX,e.offsetY, e.deltaY<0?1.12:0.89);
+  const dm=e.deltaMode===1?33:e.deltaMode===2?H:1;   // lines/pages -> px
+  if(e.ctrlKey||e.metaKey){
+    // trackpad pinch (macOS reports it as ctrl+wheel) & ctrl/cmd+scroll:
+    // zoom proportional to the gesture instead of fixed 12% steps
+    zoomAt(e.offsetX,e.offsetY,Math.exp(-e.deltaY*dm*.0018));
+    updZoom(); return;
+  }
+  if(state.mode==="edit"){
+    // editor: two-finger scroll pans, so DRAW mode never needs a tool switch
+    const c=cam();
+    c.x+=e.deltaX*dm/c.s; c.y+=e.deltaY*dm/c.s;
+    return;
+  }
+  zoomAt(e.offsetX,e.offsetY,Math.exp(-e.deltaY*dm*.0018));
   updZoom();
 },{passive:false});
 cv.addEventListener("contextmenu",e=>e.preventDefault());
@@ -2121,6 +2134,18 @@ cv.addEventListener("contextmenu",e=>e.preventDefault());
    swallow the native gesture so the canvas pinch handler gets the touches */
 for(const ev of ["gesturestart","gesturechange","gestureend"])
   document.addEventListener(ev,e=>e.preventDefault(),{passive:false});
+/* macOS Safari trackpad pinch arrives ONLY as gesture events (no ctrl+wheel) —
+   apply it to the canvas; skipped when a real two-finger touch pinch is active */
+let gestRef=null;
+cv.addEventListener("gesturestart",e=>{e.preventDefault();gestRef={s:e.scale||1};});
+cv.addEventListener("gesturechange",e=>{
+  e.preventDefault();
+  if(!gestRef || pointers.size>=2) return;
+  const r=cv.getBoundingClientRect();
+  zoomAt(e.clientX-r.left,e.clientY-r.top,(e.scale||1)/gestRef.s);
+  gestRef.s=e.scale||1; updZoom();
+});
+cv.addEventListener("gestureend",e=>{e.preventDefault();gestRef=null;});
 
 addEventListener("keydown",e=>{
   if(e.target.tagName==="INPUT"||e.target.tagName==="SELECT"||e.target.tagName==="TEXTAREA") return;
@@ -2342,7 +2367,8 @@ function edDown(e){
   }
   if(edTool==="draw"){
     // shift+drag on empty grid extends the selected room (L-shapes etc.)
-    edDraft={ai:fi,aj:fj,bi:fi,bj:fj,addTo:(e.shiftKey&&sr)?sr.id:null};
+    edDraft={ai:fi,aj:fj,bi:fi,bj:fj,sx:e.offsetX,sy:e.offsetY,moved:false,
+             addTo:(e.shiftKey&&sr)?sr.id:null};
     return;
   }
   if(edSel){edSel=null;renderPanel();}
@@ -2353,7 +2379,11 @@ function edMove(e){
   $("st-pos").textContent=`tile ${Math.floor(fi)}, ${Math.floor(fj)}`;
   edHover = edTool==="door" ? edNearestEdge(fi,fj) : null;
   if(!e.buttons) return;
-  if(edDraft){edDraft.bi=fi;edDraft.bj=fj;return;}
+  if(edDraft){
+    if(Math.hypot(e.offsetX-edDraft.sx,e.offsetY-edDraft.sy)>4) edDraft.moved=true;
+    edDraft.bi=fi; edDraft.bj=fj;
+    return;
+  }
   if(edDrag){
     const r=edDrag.room;
     if(edDrag.mode==="move"){
@@ -2374,6 +2404,11 @@ function edMove(e){
 }
 function edUp(){
   if(edDraft){
+    if(!edDraft.moved){ // a plain click isn't a room — deselect instead
+      edDraft=null;
+      if(edSel){edSel=null;renderPanel();}
+      return;
+    }
     const rc=draftRect(), addTo=edDraft.addTo;
     edDraft=null;
     if(addTo){
@@ -2438,7 +2473,7 @@ function edProp(fi,fj,removeOnly){
 }
 function edSetTool(t){
   edTool=t; edDraft=null; edDrag=null; edHover=null;
-  const hints={draw:"Drag empty grid = new room · Shift+drag = extend selected room (L-shapes) · Alt+click a section removes it",
+  const hints={draw:"Drag empty grid = new room · Shift+drag extends selection · Alt+click removes a section · scroll pans · pinch zooms",
     select:"Click selects · drag moves · corner squares resize each section · Delete removes room · Ctrl/Cmd+Z undoes",
     door:"Click an edge: once = door, twice = open passage, thrice = remove · right-click = remove",
     prop:"Click a tile to place the chosen furniture · click a furnished tile (or right-click) to remove"};
@@ -2453,7 +2488,7 @@ function setMode(m){
     state.scene="verso"; state.selToken=null;
     $("tab-map").classList.remove("on"); $("tab-verso").classList.remove("on");
     if(!edFitDone || !isFinite(edCam.s) || edCam.s<=0){edFit();edFitDone=true;}
-    $("st-hint").textContent="Drag empty grid to draw a room · click to select · corner square resizes · DOORS tool: click a wall edge";
+    $("st-hint").textContent="Drag empty grid to draw a room · click to select · scroll pans · pinch (or ⌘+scroll) zooms";
     $("st-view").textContent="EDITOR";
   }else{
     $("tab-verso").classList.toggle("on",state.scene==="verso");
