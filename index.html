@@ -1192,10 +1192,21 @@ function drawVerso(){
   }
   // tokens, depth-sorted
   const toks=[...v.tokens].sort((a,b)=>(a.x+a.y)-(b.x+b.y));
+  // players only see NPCs sharing a room with a PC right now (or a room the DM
+  // has flagged "always show tokens") — a revealed room stays readable, but a
+  // patrol that's since wandered off elsewhere doesn't broadcast its position
+  let partyRoomIds=null;
   for(const t of toks){
     if(RVIEW!=="dm"){
       const room=roomAtTile(t.x,t.y);
       if(room && !v.revealed[room.id]) continue;
+      if(room && !t.pc && !room.tokensAlways){
+        if(!partyRoomIds){
+          partyRoomIds=new Set();
+          for(const p of v.tokens) if(p.pc){const pr=roomAtTile(p.x,p.y); if(pr) partyRoomIds.add(pr.id);}
+        }
+        if(!partyRoomIds.has(room.id)) continue;
+      }
     }
     drawTokenIso(t,c.s);
   }
@@ -2940,9 +2951,12 @@ function renderPanel(){
           <div class="rc-dm">${r.dm}</div>
           <div class="rc-clues">${r.clues.map(c=>`<div>${esc(c)}</div>`).join("")}</div>
         </div>
-        <div class="rc-foot dm-only">
+        <div class="rc-foot dm-only" style="flex-direction:column;align-items:stretch">
           <button class="rbtn" id="rc-toggle">${rev?"HIDE FROM PLAYERS":"REVEAL TO PLAYERS"}</button>
-          <button class="rbtn quiet" id="rc-light" title="cycle lit / dim / dark / flicker">☀ ${(r.light||"lit").toUpperCase()}</button>
+          <div class="row" style="margin:8px 0 0">
+            <button class="rbtn quiet" id="rc-light" title="cycle lit / dim / dark / flicker">☀ ${(r.light||"lit").toUpperCase()}</button>
+            <button class="rbtn quiet" id="rc-tokens" title="off: NPCs here are hidden from players until a PC is also in the room. on: NPCs always show once the room is revealed.">${r.tokensAlways?"👁 NPCS VISIBLE":"🕶 PARTY ONLY"}</button>
+          </div>
         </div></div>`;
     }else{
       html+=`<div class="hint">Click a room on the map to read it. Reveal rooms as the party reaches them — in Player view, hidden rooms don't exist yet.</div>`;
@@ -3063,6 +3077,13 @@ function renderPanel(){
       const seq=["lit","dim","dark","flicker"];
       const next=seq[(seq.indexOf(room.light||"lit")+1)%seq.length];
       if(next==="lit") delete room.light; else room.light=next;
+      levelTouched(); renderPanel();
+    };
+    const rct=$("rc-tokens");
+    if(rct) rct.onclick=()=>{
+      const room=ROOMS.find(x=>x.id===state.selRoom);
+      if(!room) return;
+      if(room.tokensAlways) delete room.tokensAlways; else room.tokensAlways=true;
       levelTouched(); renderPanel();
     };
     p.querySelectorAll("[data-room]").forEach(el=>{
@@ -3283,6 +3304,7 @@ function renderEditorPanel(){
       </div>
       <label class="check"><input type="checkbox" id="ed-corr" ${sel.corridor?"checked":""}> corridor (thin label styling)</label>
       <div class="row"><label>lighting</label><select id="ed-light">${["lit","dim","dark","flicker"].map(v=>`<option ${(sel.light||"lit")===v?"selected":""}>${v}</option>`).join("")}</select></div>
+      <label class="check"><input type="checkbox" id="ed-tokens" ${sel.tokensAlways?"checked":""}> NPCs always visible here (default: hidden from players until a PC is also in the room)</label>
       <div class="row"><label>read-aloud</label></div>
       <textarea id="ed-read" rows="4" placeholder="What the players hear when they enter…">${esc(sel.read||"")}</textarea>
       <div class="row" style="margin-top:6px"><label>DM notes</label></div>
@@ -3383,6 +3405,7 @@ function renderEditorPanel(){
     };
     $("ed-corr").onchange=e=>{edSnapshot();if(e.target.checked)sel.corridor=true;else delete sel.corridor;levelTouched();};
     $("ed-light").onchange=e=>{edSnapshot();const v=e.target.value;if(v==="lit")delete sel.light;else sel.light=v;levelTouched();};
+    $("ed-tokens").onchange=e=>{edSnapshot();if(e.target.checked)sel.tokensAlways=true;else delete sel.tokensAlways;levelTouched();};
     $("ed-read").onchange=e=>{edSnapshot();sel.read=e.target.value;levelTouched();};
     $("ed-dm").onchange=e=>{edSnapshot();sel.dm=e.target.value;levelTouched();};
     $("ed-clues").onchange=e=>{edSnapshot();sel.clues=e.target.value.split("\n").map(s=>s.trim()).filter(Boolean);levelTouched();};
