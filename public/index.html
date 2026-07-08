@@ -258,6 +258,7 @@ body.netclient #stage{left:0}
 <input type="file" id="file-img" accept="image/*" hidden>
 <input type="file" id="file-json" accept="application/json" hidden>
 <input type="file" id="file-level" accept="application/json" hidden>
+<input type="file" id="file-sheet" accept=".csv,text/csv" hidden>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
 <script>
@@ -388,11 +389,12 @@ const TEMPLATES=[
  {name:"Dark Cloak",      floorA:"#33272A",floorB:"#2B2125",wall:"#5A4A40"},
  {name:"Steel Platform",  floorA:"#3E424A",floorB:"#363A42",wall:"#5A5E66"}
 ];
-function levelData(){return {name:LEVEL.name, bg:LEVEL.bg, rooms:ROOMS, doors:DOORS, roster:LEVEL.roster};}
+function levelData(){return {name:LEVEL.name, bg:LEVEL.bg, rooms:ROOMS, doors:DOORS, roster:LEVEL.roster, props:LEVEL.props};}
 function loadLevel(lv){
   LEVEL.name=lv.name||"Untitled Level";
   LEVEL.bg=lv.bg||"#0A0F0C";
   LEVEL.roster=(lv.roster||PARTY).map(p=>({...p}));
+  LEVEL.props=(lv.props||[]).map(p=>({...p}));
   // rooms are unions of rectangles; older single-rect data migrates to rects:[rect]
   ROOMS=(lv.rooms||[]).map(r=>{
     const room={...r, clues:[...(r.clues||[])]};
@@ -535,6 +537,7 @@ function drawMap(){
     emptyMapMessage();
     return;
   }
+  drawPatrolPath();
   drawPings();
   ctx.restore();
 }
@@ -575,6 +578,9 @@ let tNow=0;
 function hash2(i,j){let h=(i*374761393+j*668265263)|0;h=(h^(h>>13))*1274126177;return ((h^(h>>16))>>>0)/4294967295;}
 function tilePath(i,j){
   ctx.beginPath();
+  tilePathAdd(i,j);
+}
+function tilePathAdd(i,j){ // append one tile to the current path (for multi-tile fills)
   ctx.moveTo(isoX(i,j),       isoY(i,j));
   ctx.lineTo(isoX(i+1,j),     isoY(i+1,j));
   ctx.lineTo(isoX(i+1,j+1),   isoY(i+1,j+1));
@@ -656,6 +662,29 @@ function sconce(i,j,glow){
   ctx.beginPath();ctx.arc(x,y-14,1.7,0,7);ctx.fill();
   if(glow) lightPool(i+.16,j+.55,30,"rgba(232,196,120,.12)");
 }
+/* ----- placeable furniture (editor PROPS tool) ----- */
+const PROP_LIB={
+ table: {n:"Table",  draw(i,j){box(i+.12,j+.25,i+.88,j+.75,13,"#5C4630");}},
+ chair: {n:"Chair",  draw(i,j){box(i+.32,j+.32,i+.68,j+.68,8,"#4F3C29");box(i+.32,j+.6,i+.68,j+.68,16,"#453425");}},
+ crate: {n:"Crate",  draw(i,j){box(i+.2,j+.2,i+.8,j+.8,12,"#6B5A33");}},
+ barrel:{n:"Barrel", draw(i,j){cyl(i+.5,j+.5,7,14,"#5A4A28");}},
+ chest: {n:"Chest",  draw(i,j){box(i+.22,j+.3,i+.78,j+.7,10,"#7A5E2E");
+   const A=P(i+.22,j+.5),B=P(i+.78,j+.5);
+   ctx.strokeStyle="#C8A14E";ctx.lineWidth=1;
+   ctx.beginPath();ctx.moveTo(A[0],A[1]-10);ctx.lineTo(B[0],B[1]-10);ctx.stroke();}},
+ shelf: {n:"Shelf",  draw(i,j){box(i+.1,j+.35,i+.9,j+.65,26,"#4F3C29");
+   ctx.strokeStyle="rgba(7,9,8,.5)";ctx.lineWidth=.8;
+   for(let k=1;k<3;k++){const A=P(i+.1,j+.35),B=P(i+.9,j+.35);
+     ctx.beginPath();ctx.moveTo(A[0],A[1]-k*8);ctx.lineTo(B[0],B[1]-k*8);ctx.stroke();}}},
+ bed:   {n:"Bed",    draw(i,j){box(i+.08,j+.2,i+.95,j+.8,7,"#8F8468");box(i+.08,j+.2,i+.3,j+.8,11,"#C9BD9C");}},
+ rug:   {n:"Rug",    draw(i,j){flat(i+.08,j+.08,i+.92,j+.92,"#7E1F2B","rgba(7,9,8,.4)");}},
+ pillar:{n:"Pillar", draw(i,j){cyl(i+.5,j+.5,5,34,"#8F8468");}},
+ lamp:  {n:"Lamp",   draw(i,j){pole(i+.5,j+.5,30,2.4,"#8A6E36");lightPool(i+.5,j+.5,40,"rgba(232,196,120,.14)");
+   const [x,y]=P(i+.5,j+.5);
+   ctx.fillStyle="rgba(240,200,120,.95)";ctx.beginPath();ctx.arc(x,y-31,2.2,0,7);ctx.fill();}},
+ altar: {n:"Altar",  draw(i,j){box(i+.2,j+.3,i+.8,j+.7,15,"#C9BD9C");lightPool(i+.5,j+.5,30,"rgba(127,168,184,.12)");}},
+ stack: {n:"Chips",  draw(i,j){chipStack(i+.4,j+.5,"#8A2E25",5);chipStack(i+.62,j+.45,"#2E4A38",4);}}
+};
 function drawProps2(r){
   const id=r.id;
   if(id==="lift"){
@@ -1060,6 +1089,36 @@ function drawVerso(){
     drawProps2(r);
     ctx.restore();
   }
+  // placed furniture (editor props)
+  for(const pr of (LEVEL.props||[])){
+    const lib=PROP_LIB[pr.t];
+    if(!lib) continue;
+    const room=roomAtTile(pr.x+.5,pr.y+.5);
+    const rev=room && v.revealed[room.id];
+    if(!rev && !showHidden) continue;
+    ctx.save();
+    if(!rev) ctx.globalAlpha=.22;
+    lib.draw(pr.x,pr.y);
+    ctx.restore();
+  }
+  // lighting overlays (dim / dark / flicker per room)
+  for(const r of ROOMS){
+    if(!r.light) continue;
+    const rev=v.revealed[r.id];
+    if(!rev && !showHidden) continue;
+    let a = r.light==="dim"?.34 : r.light==="dark"?.74 : 0;
+    if(r.light==="flicker"){
+      a = REDUCED ? .4 : .22+.26*(.5+.5*Math.sin(tNow/93)+.3*Math.sin(tNow/31+2));
+    }
+    if(a<=0) continue;
+    if(RVIEW==="dm") a*=.5;                    // DM keeps night vision
+    ctx.save();
+    ctx.fillStyle="rgba(4,7,9,"+Math.min(a,.85)+")";
+    ctx.beginPath();
+    for(const [i,j] of roomTiles(r)) tilePathAdd(i,j);
+    ctx.fill();
+    ctx.restore();
+  }
   // doors / openings
   for(const d of DOORS){
     const len=d.len||1;
@@ -1106,6 +1165,7 @@ function drawVerso(){
     }
     drawTokenIso(t,c.s);
   }
+  drawPatrolPath();
   drawPings();
   ctx.restore();
 }
@@ -1350,6 +1410,17 @@ function hostHandle(c,m){
     netBroadcast({type:"ping",x:p.x,y:p.y,color:p.color,stamp:p.stamp});
   }
 }
+function pulsePatrols(){ // advance every patrolling token one waypoint
+  let moved=0;
+  for(const t of S().tokens){
+    if(!t.patrol || !t.patrol.length) continue;
+    t.pi=((t.pi==null?-1:t.pi)+1)%t.patrol.length;
+    t.x=t.patrol[t.pi][0]; t.y=t.patrol[t.pi][1];
+    moved++;
+  }
+  if(moved) markDirty();
+  return moved;
+}
 function trackerSet(name,total,tok){
   const tr=state.tracker;
   const i=tr.order.findIndex(e=>(tok&&e.tok===tok)||e.name===name);
@@ -1550,6 +1621,25 @@ function spawnPing(wx,wy){
   if(NET.mode==="host") netBroadcast({type:"ping",x:p.x,y:p.y,color:p.color,stamp:p.stamp});
   else if(NET.mode==="client") clientSend({type:"ping",x:p.x,y:p.y,stamp:p.stamp});
 }
+function drawPatrolPath(){ // DM-only: dashed loop for the selected token's patrol
+  if(RVIEW!=="dm" || NET.mode==="client") return;
+  const t=S().tokens.find(t=>t.id===state.selToken);
+  if(!t || !t.patrol || !t.patrol.length) return;
+  const pts=t.patrol.map(([a,b])=> state.scene==="verso" ? [isoX(a,b),isoY(a,b)] : [a,b]);
+  const c=cam();
+  ctx.save();
+  ctx.strokeStyle="#7FA8B8"; ctx.lineWidth=2/c.s; ctx.setLineDash([8/c.s,6/c.s]);
+  ctx.beginPath();
+  pts.forEach(([x,y],i)=> i?ctx.lineTo(x,y):ctx.moveTo(x,y));
+  if(pts.length>2) ctx.closePath();
+  ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle="#7FA8B8";
+  pts.forEach(([x,y],i)=>{
+    ctx.globalAlpha = i===((t.pi||0)%pts.length) ? 1 : .5;
+    ctx.beginPath(); ctx.arc(x,y,4.5/c.s,0,7); ctx.fill();
+  });
+  ctx.restore();
+}
 function drawPings(){ // called inside each scene's world transform
   const now=performance.now(), c=cam();
   for(let i=PINGS.length-1;i>=0;i--){
@@ -1572,9 +1662,101 @@ const SKILL_ABIL={"Acrobatics":"dex","Animal Handling":"wis","Arcana":"int","Ath
   "Religion":"int","Sleight of Hand":"dex","Stealth":"dex","Survival":"wis"};
 function skillBonus(sh,name){
   if(sh.skills && name in sh.skills) return sh.skills[name];
+  const sv=/^(\w{3}) save$/i.exec(name);
+  if(sv) return sh.abil[sv[1].toLowerCase()]||0;
   const ab=SKILL_ABIL[name];
   return ab ? (sh.abil[ab]||0) : 0;
 }
+
+/* ---------------- gsheet character import ----------------
+   Reads the CSV export of the popular "v2.1" 5e Google Sheet template.
+   Label-anchored, so it tolerates the row drift between characters. */
+function parseCSV(text){
+  const rows=[[]]; let cell="", q=false;
+  for(let i=0;i<text.length;i++){
+    const ch=text[i];
+    if(q){
+      if(ch==='"'){ if(text[i+1]==='"'){cell+='"';i++;} else q=false; }
+      else cell+=ch;
+    }else if(ch==='"') q=true;
+    else if(ch===","){rows[rows.length-1].push(cell);cell="";}
+    else if(ch==="\n"){rows[rows.length-1].push(cell);cell="";rows.push([]);}
+    else if(ch!=="\r") cell+=ch;
+  }
+  rows[rows.length-1].push(cell);
+  return rows;
+}
+function importGSheetCSV(text){
+  const rows=parseCSV(text);
+  const cell=(r,c)=>((rows[r]||[])[c]||"").trim();
+  const isNum=v=>/^[+-]?\d+$/.test(v);
+  const find=label=>{
+    for(let r=0;r<rows.length;r++) for(let c=0;c<(rows[r]||[]).length;c++)
+      if(cell(r,c)===label) return [r,c];
+    return null;
+  };
+  const out={abil:{},skills:{},atks:[]};
+  let hits=0, p;
+  if((p=find("CLASS(ES) & LEVEL(S)"))){out.name=cell(p[0],2); hits++;}
+  if((p=find("PROFICIENCY BONUS"))){
+    for(let c=0;c<p[1];c++) if(isNum(cell(p[0],c))){out.prof=+cell(p[0],c);hits++;break;}
+  }
+  if((p=find("INIT")) && isNum(cell(p[0]-2,p[1]))){out.init=+cell(p[0]-2,p[1]);hits++;}
+  for(const ab of ["STR","DEX","CON","INT","WIS","CHA"]){
+    for(let r=0;r<rows.length;r++){
+      if(cell(r,2)!==ab) continue;
+      for(let rr=r+1;rr<=r+3;rr++) if(isNum(cell(rr,2))){out.abil[ab.toLowerCase()]=+cell(rr,2);hits++;break;}
+      break;
+    }
+  }
+  const SAVES={Strength:"STR",Dexterity:"DEX",Constitution:"CON",Intelligence:"INT",Wisdom:"WIS",Charisma:"CHA"};
+  for(let r=0;r<rows.length;r++){
+    const n=cell(r,9), b=cell(r,8);
+    if(!isNum(b)) continue;
+    if(n in SKILL_ABIL){out.skills[n]=+b;hits++;}
+    else if(n in SAVES) out.skills[SAVES[n]+" save"]=+b;
+  }
+  if((p=find("ATK BONUS"))){
+    const [r0,cAtk]=p;
+    const row0=rows[r0]||[];
+    const cName=row0.findIndex(v=>v.trim()==="NAME"), cDmg=row0.findIndex(v=>v.trim()==="DAMAGE/TYPE");
+    const near=(r,c0,test)=>{
+      for(let c=c0-1;c<=c0+1;c++){const v=cell(r,c); if(v&&test(v)) return v;}
+      return null;
+    };
+    for(let r=r0+1;r<=r0+8 && cName>=0;r++){
+      const name=near(r,cName,v=>v!=="-");
+      const atk=near(r,cAtk,isNum);
+      const dmgraw=near(r,cDmg,v=>/\d*d\d+/.test(v));
+      if(!name||!atk||!dmgraw) continue;
+      const m=/(\d*)d(\d+)\s*\+?\s*(-?\d+)?/.exec(dmgraw);
+      out.atks.push({name:name.slice(0,24), hit:+atk,
+        dmg:(m[1]||"1")+"d"+m[2]+(m[3]?((+m[3]>=0?"+":"")+m[3]):"")});
+      hits++;
+    }
+  }
+  return hits>=6 ? out : null;   // too few anchors = not this template
+}
+function fillSheetForm(s){ // populate the open form for review; user still hits SAVE
+  const sign=v=>(v>=0?"+":"")+v;
+  if("prof" in s) $("sh-prof").value=s.prof;
+  if("init" in s) $("sh-init").value=s.init;
+  for(const k of ["str","dex","con","int","wis","cha"]) if(k in s.abil) $("sh-"+k).value=s.abil[k];
+  if(s.atks.length) $("sh-atks").value=s.atks.map(a=>a.name+" "+sign(a.hit)+" "+a.dmg).join("\n");
+  const sk=Object.entries(s.skills);
+  if(sk.length) $("sh-skills").value=sk.map(([k,v])=>k+" "+sign(v)).join("\n");
+}
+$("file-sheet").onchange=e=>{
+  const f=e.target.files[0]; e.target.value="";
+  if(!f || !$("sh-prof")) return;
+  const rd=new FileReader();
+  rd.onload=()=>{
+    const s=importGSheetCSV(rd.result);
+    if(!s){alert("Couldn't find the character data — export the sheet's main tab as CSV (File → Download → .csv) and try again.");return;}
+    fillSheetForm(s);
+  };
+  rd.readAsText(f);
+};
 let diceLog=[], diceN=1, diceMod=0, bannerTimer=null;
 function parseDice(expr){ // "2d6+3", "1d8-1", "d20" -> {n,d,mod} or null
   const m=/^\s*(\d{0,2})d(\d{1,3})\s*([+-]\s*\d{1,3})?\s*$/i.exec(String(expr||""));
@@ -1721,7 +1903,7 @@ function frame(t){
 }
 
 /* ---------------- input ---------------- */
-let pointers=new Map(), panRef=null, dragTok=null, pinchRef=null, spaceDown=false, downAt=null, fogPainting=false, lastTap=null;
+let pointers=new Map(), panRef=null, dragTok=null, pinchRef=null, spaceDown=false, downAt=null, fogPainting=false, lastTap=null, patrolRec=null;
 
 function tokenAt(sx,sy){
   const [wx,wy]=toWorld(sx,sy);
@@ -1763,6 +1945,27 @@ cv.addEventListener("pointerdown",e=>{
     dragTok=null; panRef=null; edDraft=null; edDrag=null; return;
   }
   if(state.mode==="edit"){edDown(e);return;}
+  // patrol recording: DM clicks drop waypoints for the selected token
+  if(patrolRec!=null && NET.mode!=="client" && e.button===0 && !spaceDown){
+    const t=S().tokens.find(t=>t.id===patrolRec);
+    if(t){
+      const [pwx,pwy]=toWorld(e.offsetX,e.offsetY);
+      let pt;
+      if(state.scene==="verso"){
+        const [i,j]=unIso(pwx,pwy);
+        pt=[Math.floor(i)+.5,Math.floor(j)+.5];
+      }else{
+        pt=[pwx,pwy];
+        const g=state.map.grid;
+        if(g.snap&&g.show) pt=[Math.floor((pwx-g.ox)/g.size)*g.size+g.ox+g.size/2,
+                               Math.floor((pwy-g.oy)/g.size)*g.size+g.oy+g.size/2];
+      }
+      t.patrol=t.patrol||[];
+      t.patrol.push(pt);
+      markDirty(); renderPanel();
+    }
+    return;
+  }
   // double-tap / double-click pings the spot for everyone at the table
   if(e.button===0 && !spaceDown){
     const now=performance.now();
@@ -1934,6 +2137,7 @@ addEventListener("keydown",e=>{
     if(k==="d") edSetTool("draw");
     if(k==="v") edSetTool("select");
     if(k==="o") edSetTool("door");
+    if(k==="p") edSetTool("prop");
     return;
   }
   if(k==="v") setTool("select");
@@ -1957,7 +2161,7 @@ function updZoom(){$("st-zoom").textContent=Math.round(cam().s*100)+"%";}
    Rooms are drawn on a flat tile grid; play mode renders the same data iso. */
 const ET=34;                                  // editor px per tile at zoom 1
 const edCam={x:-120,y:-120,s:1};
-let edTool="draw", edSel=null, edDraft=null, edDrag=null, edHover=null, edTemplate=0, edFitDone=false, edRoomN=0;
+let edTool="draw", edSel=null, edDraft=null, edDrag=null, edHover=null, edTemplate=0, edFitDone=false, edRoomN=0, edPropType="table";
 const edTile=(sx,sy)=>{const [wx,wy]=toWorld(sx,sy);return [wx/ET,wy/ET];};
 function levelTouched(){markDirty(); netMarkLevel();}
 function newRoomId(){let id; do{id="room"+(++edRoomN);}while(ROOMS.some(r=>r.id===id)); return id;}
@@ -2063,6 +2267,15 @@ function drawEditor(){
     ctx.strokeStyle=existing?"#8A2E25":"#E9E2CE";
     ctx.lineWidth=6/c.s; ctx.globalAlpha=.85; ctx.stroke(); ctx.globalAlpha=1;
   }
+  // furniture glyphs
+  ctx.font="600 9px 'IBM Plex Mono', monospace";
+  ctx.textAlign="center"; ctx.textBaseline="middle";
+  for(const pr of (LEVEL.props||[])){
+    ctx.fillStyle="rgba(200,161,78,.75)";
+    ctx.fillRect((pr.x+.2)*ET,(pr.y+.2)*ET,ET*.6,ET*.6);
+    ctx.fillStyle="#070908";
+    ctx.fillText(PROP_LIB[pr.t]?PROP_LIB[pr.t].n[0]:"?",(pr.x+.5)*ET,(pr.y+.55)*ET);
+  }
   // draft rect
   if(edDraft){
     const rc=draftRect();
@@ -2092,11 +2305,13 @@ function drawEditor(){
 function edDown(e){
   const [fi,fj]=edTile(e.offsetX,e.offsetY);
   if(edTool==="door" && e.button===2){edRemoveDoor(fi,fj);return;}
+  if(edTool==="prop" && e.button===2){edProp(fi,fj,true);return;}
   if(e.button===1 || e.button===2 || spaceDown){
     panRef={x:e.offsetX,y:e.offsetY,cx:cam().x,cy:cam().y};
     return;
   }
   if(edTool==="door"){edToggleDoor(fi,fj);return;}
+  if(edTool==="prop"){edProp(fi,fj,false);return;}
   // resize handles of current selection: one per rect (both draw & select tools)
   const sr=ROOMS.find(r=>r.id===edSel);
   if(sr){
@@ -2212,11 +2427,21 @@ function edRemoveDoor(fi,fj){
   const i=DOORS.findIndex(o=>o.x===d.x&&o.y===d.y&&o.dir===d.dir);
   if(i>=0){edSnapshot(); DOORS.splice(i,1); levelTouched();}
 }
+function edProp(fi,fj,removeOnly){
+  const x=Math.floor(fi), y=Math.floor(fj);
+  const i=LEVEL.props.findIndex(p=>p.x===x&&p.y===y);
+  if(i>=0){edSnapshot(); LEVEL.props.splice(i,1); levelTouched(); return;}
+  if(removeOnly) return;
+  edSnapshot();
+  LEVEL.props.push({t:edPropType,x,y});
+  levelTouched();
+}
 function edSetTool(t){
   edTool=t; edDraft=null; edDrag=null; edHover=null;
   const hints={draw:"Drag empty grid = new room · Shift+drag = extend selected room (L-shapes) · Alt+click a section removes it",
     select:"Click selects · drag moves · corner squares resize each section · Delete removes room · Ctrl/Cmd+Z undoes",
-    door:"Click an edge: once = door, twice = open passage, thrice = remove · right-click = remove"};
+    door:"Click an edge: once = door, twice = open passage, thrice = remove · right-click = remove",
+    prop:"Click a tile to place the chosen furniture · click a furnished tile (or right-click) to remove"};
   $("st-hint").textContent=hints[t];
   renderPanel();
 }
@@ -2406,6 +2631,7 @@ setInterval(autosave,8000);
 let addColor=SWATCH[0];
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 
+
 /* character mini-sheet: same form for the DM (any token) and players (their claim) */
 function sheetFormHTML(t){
   const sh=t.sheet||{prof:2,init:0,abil:{str:0,dex:0,con:0,int:0,wis:0,cha:0},atks:[],skills:{}};
@@ -2420,7 +2646,11 @@ function sheetFormHTML(t){
     <textarea id="sh-atks" rows="3" placeholder="one per line:  Rapier +5 1d8+3">${esc((sh.atks||[]).map(a=>a.name+" "+sign(a.hit)+" "+a.dmg).join("\n"))}</textarea>
     <div class="row" style="margin-top:6px"><label>skill bonuses</label></div>
     <textarea id="sh-skills" rows="2" placeholder="one per line:  Stealth +7  (unlisted skills use the ability mod)">${esc(Object.entries(sh.skills||{}).map(([k,v])=>k+" "+sign(v)).join("\n"))}</textarea>
-    <button class="rbtn quiet" id="sh-save" style="width:100%;margin-top:8px">SAVE SHEET</button>
+    <div class="row" style="margin-top:8px">
+      <button class="rbtn quiet" id="sh-import" title="reads the CSV export of the v2.1 5e Google Sheet — File → Download → .csv on the main tab">IMPORT GSHEET CSV</button>
+      <button class="rbtn" id="sh-save">SAVE SHEET</button>
+    </div>
+    <div class="hint" style="margin-top:5px">Import fills the boxes from a Google Sheet CSV export — check them, then SAVE.</div>
   </div>`;
 }
 function readSheetForm(){
@@ -2472,6 +2702,7 @@ function renderPanel(){
         </div>
         <div class="rc-foot dm-only">
           <button class="rbtn" id="rc-toggle">${rev?"HIDE FROM PLAYERS":"REVEAL TO PLAYERS"}</button>
+          <button class="rbtn quiet" id="rc-light" title="cycle lit / dim / dark / flicker">☀ ${(r.light||"lit").toUpperCase()}</button>
         </div></div>`;
     }else{
       html+=`<div class="hint">Click a room on the map to read it. Reveal rooms as the party reaches them — in Player view, hidden rooms don't exist yet.</div>`;
@@ -2528,6 +2759,12 @@ function renderPanel(){
     <div class="row"><input type="text" id="tr-name" placeholder="name" style="flex:1"><input type="number" id="tr-total" placeholder="#" style="width:52px"><button class="rbtn quiet" id="tr-add" style="flex:none;padding:6px 10px">ADD</button></div>
   </div>`;
 
+  // events
+  html+=`<div class="sect"><h3>Events</h3>
+    <div class="row"><button class="rbtn" id="ev-pulse">PULSE PATROLS</button></div>
+    <div class="row"><input type="text" id="ev-text" placeholder="message the whole table…" style="flex:1"><button class="rbtn quiet" id="ev-send" style="flex:none;padding:6px 10px">SEND</button></div>
+    <div class="hint">PULSE walks every patrolling token one waypoint. SEND flashes the text on every screen — good for "the muzak stops."</div></div>`;
+
   // tokens
   const toks=S().tokens;
   html+=`<div class="sect"><h3>Tokens</h3><div class="toklist">`+
@@ -2537,9 +2774,17 @@ function renderPanel(){
       <span class="del" data-pc="${t.id}" title="toggle: players can see & claim this token" style="font-size:9px;letter-spacing:.05em;color:${t.pc?"var(--brass)":"#666"}">${t.pc?"PC":"npc"}</span>
       <span class="del" data-del="${t.id}" title="remove">✕</span>
     </div>`).join("")+
-    `</div></div>`;
-  // sheet for the selected token
+    `</div>`;
+  // patrol controls for the selected token
   const selT=toks.find(t=>t.id===state.selToken);
+  if(selT){
+    html+=`<div class="row" style="margin-top:7px">
+      <button class="rbtn quiet" id="pt-rec">${patrolRec===selT.id?"■ STOP RECORDING":"● RECORD PATROL"}</button>
+      ${selT.patrol&&selT.patrol.length?`<button class="rbtn quiet" id="pt-clear">CLEAR PATH (${selT.patrol.length})</button>`:""}
+    </div>`;
+    if(patrolRec===selT.id) html+=`<div class="hint">Click the map to drop waypoints for ${esc(selT.name)}, then STOP. PULSE (Events) walks the route.</div>`;
+  }
+  html+=`</div>`;
   if(selT) html+=sheetFormHTML(selT);
   // add token
   html+=`<div class="sect"><h3>Add Token</h3>
@@ -2562,6 +2807,15 @@ function renderPanel(){
       const id=state.selRoom;
       state.verso.revealed[id]=!state.verso.revealed[id];
       markDirty(); renderPanel();
+    };
+    const rcl=$("rc-light");
+    if(rcl) rcl.onclick=()=>{
+      const room=ROOMS.find(x=>x.id===state.selRoom);
+      if(!room) return;
+      const seq=["lit","dim","dark","flicker"];
+      const next=seq[(seq.indexOf(room.light||"lit")+1)%seq.length];
+      if(next==="lit") delete room.light; else room.light=next;
+      levelTouched(); renderPanel();
     };
     p.querySelectorAll("[data-room]").forEach(el=>{
       el.onclick=e=>{
@@ -2667,11 +2921,35 @@ function renderPanel(){
     if(tr.active>=tr.order.length) tr.active=0;
     netMark(); renderPanel();
   };});
+  /* events wiring */
+  const evP=$("ev-pulse"); if(evP) evP.onclick=()=>{
+    const n=pulsePatrols();
+    $("st-hint").textContent = n ? n+" patrol"+(n>1?"s":"")+" advanced one waypoint" : "no tokens have patrol paths — select a token and RECORD PATROL";
+  };
+  const evS=$("ev-send"); if(evS) evS.onclick=()=>{
+    const t=($("ev-text").value||"").trim();
+    if(!t) return;
+    const f={head:"THE TABLE",total:esc(t),detail:""};
+    NET.lastDice=Object.assign({},f,{stamp:++NET.diceStamp});
+    netMark(); clientBanner(NET.lastDice); pwinBanner(f,"");
+    $("ev-text").value="";
+  };
+  /* patrol wiring */
+  const ptR=$("pt-rec"); if(ptR && selT) ptR.onclick=()=>{
+    patrolRec = patrolRec===selT.id ? null : selT.id;
+    renderPanel();
+  };
+  const ptC=$("pt-clear"); if(ptC && selT) ptC.onclick=()=>{
+    delete selT.patrol; delete selT.pi;
+    if(patrolRec===selT.id) patrolRec=null;
+    markDirty(); renderPanel();
+  };
   /* sheet wiring (DM edits any selected token) */
   const shSave=$("sh-save"); if(shSave && selT) shSave.onclick=()=>{
     selT.sheet=readSheetForm();
     markDirty(); renderPanel();
   };
+  const shImp=$("sh-import"); if(shImp) shImp.onclick=()=>$("file-sheet").click();
   p.querySelectorAll(".sw").forEach(el=>{
     el.onclick=()=>{addColor=el.dataset.c;p.querySelectorAll(".sw").forEach(s=>s.classList.toggle("on",s===el));};
   });
@@ -2717,12 +2995,16 @@ function renderEditorPanel(){
       <button class="rbtn quiet" id="lv-verso">RESET TO VERSO</button>
     </div></div>`;
   html+=`<div class="sect"><h3>Tools</h3>
-    <div class="row">${toolBtn("draw","DRAW (D)")}${toolBtn("select","SELECT (V)")}${toolBtn("door","DOORS (O)")}</div>
+    <div class="row">${toolBtn("draw","DRAW (D)")}${toolBtn("select","SELECT (V)")}</div>
+    <div class="row">${toolBtn("door","DOORS (O)")}${toolBtn("prop","PROPS (P)")}</div>
     <div class="row"><button class="rbtn quiet" id="ed-undo" ${edUndoStack.length?"":"disabled style='opacity:.4'"}>↩ UNDO (CTRL+Z)</button></div>
     <div class="row"><label>template</label><select id="ed-template">${
       TEMPLATES.map((t,i)=>`<option value="${i}" ${i===edTemplate?"selected":""}>${t.name}</option>`).join("")
     }</select></div>
-    <div class="hint">New rooms use the template palette. L-shapes: select a room, then Shift+drag beside it. Doors: click the shared edge (right-click removes).</div></div>`;
+    ${edTool==="prop"?`<div class="row"><label>furniture</label><select id="ed-prop">${
+      Object.entries(PROP_LIB).map(([k,v])=>`<option value="${k}" ${k===edPropType?"selected":""}>${v.n}</option>`).join("")
+    }</select></div>`:""}
+    <div class="hint">New rooms use the template palette. L-shapes: select a room, then Shift+drag beside it. Doors: click the shared edge (right-click removes). Props: pick furniture, click tiles.</div></div>`;
   if(sel){
     html+=`<div class="sect"><h3>Room · ${esc(sel.id)}</h3>
       <div class="row"><label>name</label><input type="text" id="ed-name" value="${esc(sel.name)}"></div>
@@ -2734,6 +3016,7 @@ function renderEditorPanel(){
         <button class="rbtn quiet" id="ed-applytpl" style="flex:1;padding:5px" title="apply the selected template palette">TPL</button>
       </div>
       <label class="check"><input type="checkbox" id="ed-corr" ${sel.corridor?"checked":""}> corridor (thin label styling)</label>
+      <div class="row"><label>lighting</label><select id="ed-light">${["lit","dim","dark","flicker"].map(v=>`<option ${(sel.light||"lit")===v?"selected":""}>${v}</option>`).join("")}</select></div>
       <div class="row"><label>read-aloud</label></div>
       <textarea id="ed-read" rows="4" placeholder="What the players hear when they enter…">${esc(sel.read||"")}</textarea>
       <div class="row" style="margin-top:6px"><label>DM notes</label></div>
@@ -2782,6 +3065,7 @@ function renderEditorPanel(){
   };
   p.querySelectorAll("[data-edtool]").forEach(b=>{b.onclick=()=>edSetTool(b.dataset.edtool);});
   $("ed-template").onchange=e=>{edTemplate=+e.target.value;};
+  const edP=$("ed-prop"); if(edP) edP.onchange=e=>{edPropType=e.target.value;};
   $("lv-name").onchange=e=>{edSnapshot();LEVEL.name=e.target.value.trim()||"Untitled Level";$("tab-verso").textContent=LEVEL.name.toUpperCase();levelTouched();};
   $("lv-bg").oninput=e=>{snap1();LEVEL.bg=e.target.value;levelTouched();};
   $("lv-export").onclick=()=>{
@@ -2818,6 +3102,7 @@ function renderEditorPanel(){
       levelTouched(); renderPanel();
     };
     $("ed-corr").onchange=e=>{edSnapshot();if(e.target.checked)sel.corridor=true;else delete sel.corridor;levelTouched();};
+    $("ed-light").onchange=e=>{edSnapshot();const v=e.target.value;if(v==="lit")delete sel.light;else sel.light=v;levelTouched();};
     $("ed-read").onchange=e=>{edSnapshot();sel.read=e.target.value;levelTouched();};
     $("ed-dm").onchange=e=>{edSnapshot();sel.dm=e.target.value;levelTouched();};
     $("ed-clues").onchange=e=>{edSnapshot();sel.clues=e.target.value.split("\n").map(s=>s.trim()).filter(Boolean);levelTouched();};
@@ -2874,7 +3159,8 @@ function renderClientPanel(){
         </div>`).join("")+`</div>`;
       }
       html+=`<div class="row" style="margin-top:7px"><select id="pr-skill" style="flex:1">${
-        ["STR check","DEX check","CON check","INT check","WIS check","CHA check"]
+        ["STR check","DEX check","CON check","INT check","WIS check","CHA check",
+         "STR save","DEX save","CON save","INT save","WIS save","CHA save"]
           .concat(Object.keys(SKILL_ABIL))
           .map(k=>`<option>${k}</option>`).join("")
       }</select><button class="rbtn quiet" id="pr-skillgo" style="flex:none;padding:6px 10px">ROLL</button></div>`;
@@ -2937,6 +3223,7 @@ function renderClientPanel(){
       clientSend({type:"sheet",id:mine.id,sheet:s2});
       renderPanel();
     };
+    const shImp=$("sh-import"); if(shImp) shImp.onclick=()=>$("file-sheet").click();
   }
 }
 
