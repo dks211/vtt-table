@@ -2683,6 +2683,17 @@ function deserialize(d){
     state.map.brush=d.map.brush||90;
     state.map.tokens=(d.map.tokens||[]).map(t=>({...t}));
     uid=Math.max(uid,...state.map.tokens.map(t=>t.id+1),uid);
+    // saves from before the PC/claimable flag existed have no `pc` on any token —
+    // without a backfill that makes every character look like an NPC to the newer
+    // claim-list and room-visibility logic, silently hiding the party from itself.
+    // Only trust this for files where NO token has the field yet (a real legacy
+    // file), so a deliberately-all-NPC scene loaded from a current save is untouched.
+    for(const toks of [state.verso.tokens, state.map.tokens]){
+      if(toks.length && toks.every(t=>t.pc===undefined)){
+        const pcNames=new Set([...LEVEL.roster,...PARTY].filter(p=>p.pc).map(p=>p.name));
+        for(const t of toks) if(pcNames.has(t.name)) t.pc=true;
+      }
+    }
     if(d.map.imgURL){
       const img=new Image();
       img.onload=()=>{
