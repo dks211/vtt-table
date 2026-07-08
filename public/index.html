@@ -145,6 +145,15 @@ body.playerview #roomcard .rc-dm,body.playerview #roomcard .rc-clues,
 body.playerview .dm-only{display:none!important}
 
 @media (prefers-reduced-motion: reduce){ :root{--shimmer:0} }
+#tracker-float{position:fixed;left:calc(var(--rail-w) + 10px);top:calc(var(--top-h) + 10px);z-index:15;
+  display:none;flex-direction:column;gap:2px;max-height:46vh;overflow-y:auto;pointer-events:none;
+  background:rgba(14,20,17,.88);border:1px solid var(--brass-faint);border-radius:5px;padding:8px 11px;
+  font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--vellum-dim)}
+#tracker-float .tfh{font-size:9px;letter-spacing:.22em;color:var(--brass-dim);margin-bottom:3px}
+#tracker-float .tfr{display:flex;gap:8px;white-space:nowrap}
+#tracker-float .tfr.on{color:var(--brass)}
+#tracker-float .tfr .n{min-width:22px;text-align:right}
+body.netclient #tracker-float{left:10px}
 #net-banner{position:fixed;top:70px;left:50%;transform:translateX(-50%) scale(.8);opacity:0;pointer-events:none;
   text-align:center;transition:opacity .25s,transform .25s;z-index:40;text-shadow:0 2px 14px rgba(0,0,0,.9)}
 #net-banner.show{opacity:1;transform:translateX(-50%) scale(1)}
@@ -240,6 +249,7 @@ body.netclient #stage{left:0}
 <aside id="panel"></aside>
 
 <div id="net-banner"></div>
+<div id="tracker-float"></div>
 <button id="fit-float">⤢ FIT</button>
 <button id="panel-toggle">✕ CLOSE</button>
 <div id="dicebar">
@@ -1305,7 +1315,8 @@ function lightSnapshot(){
   return {type:"sync",scene:state.scene,revealed:state.verso.revealed,
     grid:state.map.grid,fogOn:state.map.fogOn,
     tokens:{map:state.map.tokens,verso:state.verso.tokens},
-    tracker:state.tracker,
+    // hidden initiative entries: players get the position, never the number
+    tracker:{order:state.tracker.order.map(e=>e.h?{name:e.name,h:1}:e), active:state.tracker.active},
     imgStamp:NET.imgStamp,dice:NET.lastDice};
 }
 function netBroadcast(msg){
@@ -1421,10 +1432,12 @@ function pulsePatrols(){ // advance every patrolling token one waypoint
   if(moved) markDirty();
   return moved;
 }
-function trackerSet(name,total,tok){
+function trackerSet(name,total,tok,hidden){
   const tr=state.tracker;
+  const en={name,total,tok};
+  if(hidden) en.h=1;
   const i=tr.order.findIndex(e=>(tok&&e.tok===tok)||e.name===name);
-  if(i>=0) tr.order[i]={name,total,tok}; else tr.order.push({name,total,tok});
+  if(i>=0) tr.order[i]=en; else tr.order.push(en);
   tr.order.sort((a,b)=>b.total-a.total);
   if(tr.active>=tr.order.length) tr.active=0;
   netMark(); renderPanel();
@@ -1757,7 +1770,7 @@ $("file-sheet").onchange=e=>{
   };
   rd.readAsText(f);
 };
-let diceLog=[], diceN=1, diceMod=0, bannerTimer=null;
+let diceLog=[], diceN=1, diceMod=0, bannerTimer=null, dmHidden=false;
 function parseDice(expr){ // "2d6+3", "1d8-1", "d20" -> {n,d,mod} or null
   const m=/^\s*(\d{0,2})d(\d{1,3})\s*([+-]\s*\d{1,3})?\s*$/i.exec(String(expr||""));
   if(!m) return null;
@@ -1779,13 +1792,18 @@ function roll(d,n,mod,who,label){
     var kept=null;
     var total=results.reduce((a,b)=>a+b,0)+mod;
   }
-  const entry={d,n:mode?2:n,mod,results,kept,mode,total,who,label:label||null,at:Date.now()};
+  const hush = who==="dm" && dmHidden;   // hidden DM roll: log only, no banners, nothing broadcast
+  const entry={d,n:mode?2:n,mod,results,kept,mode,total,who,label:label||null,hush,at:Date.now()};
   diceLog.unshift(entry); diceLog=diceLog.slice(0,10);
-  NET.lastDice=Object.assign(fmtRoll(entry),{stamp:++NET.diceStamp});
-  netMark();
+  if(!hush){
+    NET.lastDice=Object.assign(fmtRoll(entry),{stamp:++NET.diceStamp});
+    netMark();
+  }
   renderPanel();
-  pushRollBanner(entry);
-  if(NET.mode!=="client") clientBanner(NET.lastDice);
+  if(!hush){
+    pushRollBanner(entry);
+    if(NET.mode!=="client") clientBanner(NET.lastDice);
+  }
   return entry;
 }
 function fmtRoll(e){
@@ -1973,6 +1991,8 @@ cv.addEventListener("pointerdown",e=>{
       const [pwx,pwy]=toWorld(e.offsetX,e.offsetY);
       spawnPing(pwx,pwy);
       lastTap=null;
+      downAt=null;
+      return;   // the second tap pings; don't also grab a token or start a pan
     }else lastTap={t:now,x:e.offsetX,y:e.offsetY};
   }
   downAt={x:e.offsetX,y:e.offsetY,moved:false};
@@ -2667,6 +2687,55 @@ let addColor=SWATCH[0];
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 
 
+/* one-click rolls from a token's sheet — same UI for players (their claim)
+   and the DM (any selected token, e.g. rolling for NPCs) */
+function tokenRoll(t,o){ // o: {die,mod,expr,label,init}
+  const label=t.name+" · "+o.label;
+  if(NET.mode==="client"){clientSend({type:"roll",die:o.die,mod:o.mod,expr:o.expr,label,init:o.init});return;}
+  if(o.expr){const pd=parseDice(o.expr); if(pd) roll(pd.d,pd.n,pd.mod,"dm",label); return;}
+  const e=roll(o.die,1,o.mod||0,"dm",label);
+  if(o.init) trackerSet(t.name,e.total,t.id,false);
+}
+function sheetRollsHTML(t){
+  const sh=t.sheet;
+  if(!sh) return `<div class="hint">No sheet yet — fill in (or import) the form below and the roll buttons appear here.</div>`;
+  const sign=v=>(v>=0?"+":"")+v;
+  let h=`<div class="row"><button class="rbtn" id="sr-init">ROLL INITIATIVE ${sign(sh.init)}</button></div>`;
+  if(sh.atks.length){
+    h+=`<div class="toklist">`+sh.atks.map((a,i)=>`<div class="tok" style="cursor:default">
+      <span class="nm">${esc(a.name)}</span>
+      <button class="rbtn quiet" data-srhit="${i}" style="flex:none;padding:5px 7px">HIT ${sign(a.hit)}</button>
+      <button class="rbtn quiet" data-sradv="${i}" style="flex:none;padding:5px 6px" title="attack with advantage">A</button>
+      <button class="rbtn quiet" data-srdis="${i}" style="flex:none;padding:5px 6px" title="attack with disadvantage">D</button>
+      <button class="rbtn quiet" data-srdmg="${i}" style="flex:none;padding:5px 7px">${esc(a.dmg)}</button>
+    </div>`).join("")+`</div>`;
+  }
+  h+=`<div class="row" style="margin-top:7px"><select id="sr-skill" style="flex:1">${
+    ["STR check","DEX check","CON check","INT check","WIS check","CHA check",
+     "STR save","DEX save","CON save","INT save","WIS save","CHA save"]
+      .concat(Object.keys(SKILL_ABIL)).map(k=>`<option>${k}</option>`).join("")
+  }</select></div>
+  <div class="row"><button class="rbtn quiet" id="sr-roll">ROLL</button><button class="rbtn quiet" id="sr-adv">ADV</button><button class="rbtn quiet" id="sr-dis">DIS</button></div>`;
+  return h;
+}
+function wireSheetRolls(p,t){
+  const sh=t.sheet;
+  if(!sh || !$("sr-roll")) return;
+  const skillPick=()=>{
+    const k=$("sr-skill").value;
+    const chk=/^(\w{3}) check$/.exec(k);
+    return {k, bonus: chk ? (sh.abil[chk[1].toLowerCase()]||0) : skillBonus(sh,k)};
+  };
+  const si=$("sr-init"); if(si) si.onclick=()=>tokenRoll(t,{die:20,mod:sh.init,label:"Initiative",init:true});
+  p.querySelectorAll("[data-srhit]").forEach(el=>{el.onclick=()=>{const a=sh.atks[+el.dataset.srhit];if(a)tokenRoll(t,{die:20,mod:a.hit,label:a.name});};});
+  p.querySelectorAll("[data-sradv]").forEach(el=>{el.onclick=()=>{const a=sh.atks[+el.dataset.sradv];if(a)tokenRoll(t,{die:"adv",mod:a.hit,label:a.name+" (adv)"});};});
+  p.querySelectorAll("[data-srdis]").forEach(el=>{el.onclick=()=>{const a=sh.atks[+el.dataset.srdis];if(a)tokenRoll(t,{die:"dis",mod:a.hit,label:a.name+" (dis)"});};});
+  p.querySelectorAll("[data-srdmg]").forEach(el=>{el.onclick=()=>{const a=sh.atks[+el.dataset.srdmg];if(a)tokenRoll(t,{expr:a.dmg,label:a.name+" damage"});};});
+  $("sr-roll").onclick=()=>{const s=skillPick();tokenRoll(t,{die:20,mod:s.bonus,label:s.k});};
+  $("sr-adv").onclick=()=>{const s=skillPick();tokenRoll(t,{die:"adv",mod:s.bonus,label:s.k+" (adv)"});};
+  $("sr-dis").onclick=()=>{const s=skillPick();tokenRoll(t,{die:"dis",mod:s.bonus,label:s.k+" (dis)"});};
+}
+
 /* character mini-sheet: same form for the DM (any token) and players (their claim) */
 function sheetFormHTML(t){
   const sh=t.sheet||{prof:2,init:0,abil:{str:0,dex:0,con:0,int:0,wis:0,cha:0},atks:[],skills:{}};
@@ -2707,12 +2776,23 @@ function trackerListHTML(canEdit){
   if(!tr.order.length) return "";
   return `<div class="toklist">${tr.order.map((en,i)=>`
     <div class="tok" style="cursor:default;${i===tr.active?"border-color:var(--brass-dim);background:var(--felt-950)":""}">
-      <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;width:24px;text-align:right;color:${i===tr.active?"var(--brass)":"var(--vellum-dim)"}">${en.total}</span>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;width:24px;text-align:right;color:${i===tr.active?"var(--brass)":"var(--vellum-dim)"}">${(en.h&&!canEdit)?"—":en.total}</span>
       <span class="nm" style="${i===tr.active?"color:var(--brass)":""}">${i===tr.active?"▶ ":""}${esc(en.name)}</span>
-      ${canEdit?`<span class="del" data-trup="${i}" title="move up">▲</span><span class="del" data-trdel="${i}" title="remove">✕</span>`:""}
+      ${canEdit?`<span class="del" data-trh="${i}" title="${en.h?"hidden from players — click to reveal":"visible to players — click to hide"}">${en.h?"🕶":"👁"}</span><span class="del" data-trup="${i}" title="move up">▲</span><span class="del" data-trdel="${i}" title="remove">✕</span>`:""}
     </div>`).join("")}</div>`;
 }
+function updateTrackerFloat(){
+  const el=$("tracker-float");
+  if(!el) return;
+  const tr=state.tracker;
+  if(!tr.order.length || state.mode==="edit"){el.style.display="none";return;}
+  el.style.display="flex";
+  const dm=NET.mode!=="client";
+  el.innerHTML='<div class="tfh">INITIATIVE</div>'+tr.order.map((en,i)=>
+    `<div class="tfr${i===tr.active?" on":""}"><span class="n">${(en.h&&!dm)?"—":en.total}</span><span>${i===tr.active?"▶ ":""}${esc(en.name)}${(en.h&&dm)?" 🕶":""}</span></div>`).join("");
+}
 function renderPanel(){
+  updateTrackerFloat();
   // don't wipe a form someone is typing in (network syncs re-render constantly)
   const ae=document.activeElement;
   if(ae && ae.closest && ae.closest("#panel") &&
@@ -2781,8 +2861,9 @@ function renderPanel(){
     </div>
     <div class="row"><label>count</label><input type="number" id="dice-n" min="1" max="10" value="${diceN}">
       <label style="width:auto">mod</label><input type="number" id="dice-mod" value="${diceMod}" style="width:58px"></div>
+    <label class="check"><input type="checkbox" id="dice-hide" ${dmHidden?"checked":""}> hidden rolls — only you see the results</label>
     <div class="toklist">${diceLog.slice(0,6).map(e=>{const f=fmtRoll(e);
-      return `<div class="tok" style="cursor:default"><span class="nm" style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--vellum-dim)">${f.head} ${f.detail}</span><span style="font-family:Marcellus,serif;font-size:16px;color:var(--brass)">${f.total}</span></div>`;}).join("")}</div>
+      return `<div class="tok" style="cursor:default"><span class="nm" style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--vellum-dim)">${e.hush?"🕶 ":""}${f.head} ${f.detail}</span><span style="font-family:Marcellus,serif;font-size:16px;color:var(--brass)">${f.total}</span></div>`;}).join("")}</div>
     <div class="hint" style="margin-top:6px">Rolls flash on the player window. The tray at the bottom of that window is clickable too (for a table TV).</div></div>`;
 
   // initiative tracker
@@ -2792,6 +2873,7 @@ function renderPanel(){
       :`<div class="hint" style="margin-bottom:7px">Players' INITIATIVE button adds them automatically; ROLL PCS rolls for every PC token from its sheet.</div>`)+
     `<div class="row"><button class="rbtn quiet" id="tr-pcs">ROLL PCS</button></div>
     <div class="row"><input type="text" id="tr-name" placeholder="name" style="flex:1"><input type="number" id="tr-total" placeholder="#" style="width:52px"><button class="rbtn quiet" id="tr-add" style="flex:none;padding:6px 10px">ADD</button></div>
+    <label class="check"><input type="checkbox" id="tr-hide" checked> added entries hidden from players (5e style)</label>
   </div>`;
 
   // events
@@ -2820,6 +2902,7 @@ function renderPanel(){
     if(patrolRec===selT.id) html+=`<div class="hint">Click the map to drop waypoints for ${esc(selT.name)}, then STOP. PULSE (Events) walks the route.</div>`;
   }
   html+=`</div>`;
+  if(selT && selT.sheet) html+=`<div class="sect"><h3>Roll as ${esc(selT.name)}</h3>`+sheetRollsHTML(selT)+`</div>`;
   if(selT) html+=sheetFormHTML(selT);
   // add token
   html+=`<div class="sect"><h3>Add Token</h3>
@@ -2942,8 +3025,15 @@ function renderPanel(){
   const trAdd=$("tr-add"); if(trAdd) trAdd.onclick=()=>{
     const nm=($("tr-name").value||"").trim();
     if(!nm) return;
-    trackerSet(nm,(+$("tr-total").value||0)|0,null);
+    trackerSet(nm,(+$("tr-total").value||0)|0,null,$("tr-hide").checked);
   };
+  const dh=$("dice-hide"); if(dh) dh.onchange=e=>{dmHidden=e.target.checked;};
+  p.querySelectorAll("[data-trh]").forEach(el=>{el.onclick=()=>{
+    const en=state.tracker.order[+el.dataset.trh];
+    if(!en) return;
+    if(en.h) delete en.h; else en.h=1;
+    netMark(); renderPanel();
+  };});
   p.querySelectorAll("[data-trup]").forEach(el=>{el.onclick=()=>{
     const i=+el.dataset.trup, tr=state.tracker;
     if(i<=0) return;
@@ -2979,7 +3069,8 @@ function renderPanel(){
     if(patrolRec===selT.id) patrolRec=null;
     markDirty(); renderPanel();
   };
-  /* sheet wiring (DM edits any selected token) */
+  /* sheet wiring (DM edits any selected token; rolls as it too) */
+  if(selT) wireSheetRolls(p,selT);
   const shSave=$("sh-save"); if(shSave && selT) shSave.onclick=()=>{
     selT.sheet=readSheetForm();
     markDirty(); renderPanel();
@@ -3181,28 +3272,8 @@ function renderClientPanel(){
       <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.1em;color:${mine?"var(--brass)":"var(--vellum-dim)"}">${mine?"YOURS":taken?"TAKEN":"CLAIM"}</span>
     </div>`;}).join("")+`</div></div>`;
   const mine=S().tokens.find(t=>t.id===NET.myToken);
-  const sh=mine&&mine.sheet;
   if(mine){
-    html+=`<div class="sect"><h3>Your Rolls</h3>`;
-    if(sh){
-      html+=`<div class="row"><button class="rbtn" id="pr-init">ROLL INITIATIVE ${sh.init>=0?"+":""}${sh.init}</button></div>`;
-      if(sh.atks.length){
-        html+=`<div class="toklist">`+sh.atks.map((a,i)=>`<div class="tok" style="cursor:default">
-          <span class="nm">${esc(a.name)}</span>
-          <button class="rbtn quiet" data-atkhit="${i}" style="flex:none;padding:5px 8px">HIT ${a.hit>=0?"+":""}${a.hit}</button>
-          <button class="rbtn quiet" data-atkdmg="${i}" style="flex:none;padding:5px 8px">${esc(a.dmg)}</button>
-        </div>`).join("")+`</div>`;
-      }
-      html+=`<div class="row" style="margin-top:7px"><select id="pr-skill" style="flex:1">${
-        ["STR check","DEX check","CON check","INT check","WIS check","CHA check",
-         "STR save","DEX save","CON save","INT save","WIS save","CHA save"]
-          .concat(Object.keys(SKILL_ABIL))
-          .map(k=>`<option>${k}</option>`).join("")
-      }</select><button class="rbtn quiet" id="pr-skillgo" style="flex:none;padding:6px 10px">ROLL</button></div>`;
-    }else{
-      html+=`<div class="hint">No sheet yet — fill in the form below and your attack, skill and initiative buttons appear here.</div>`;
-    }
-    html+=`</div>`;
+    html+=`<div class="sect"><h3>Your Rolls</h3>`+sheetRollsHTML(mine)+`</div>`;
   }
   if(state.tracker.order.length){
     html+=`<div class="sect"><h3>Initiative</h3>`+trackerListHTML(false)+`</div>`;
@@ -3234,24 +3305,7 @@ function renderClientPanel(){
   });
   /* my rolls + my sheet */
   if(mine){
-    const label=n=>mine.name+" · "+n;
-    if(sh){
-      $("pr-init").onclick=()=>clientSend({type:"roll",die:20,mod:sh.init,label:label("Initiative"),init:true});
-      p.querySelectorAll("[data-atkhit]").forEach(el=>{el.onclick=()=>{
-        const a=sh.atks[+el.dataset.atkhit];
-        if(a) clientSend({type:"roll",die:20,mod:a.hit,label:label(a.name)});
-      };});
-      p.querySelectorAll("[data-atkdmg]").forEach(el=>{el.onclick=()=>{
-        const a=sh.atks[+el.dataset.atkdmg];
-        if(a) clientSend({type:"roll",expr:a.dmg,label:label(a.name+" damage")});
-      };});
-      $("pr-skillgo").onclick=()=>{
-        const k=$("pr-skill").value;
-        const chk=/^(\w{3}) check$/.exec(k);
-        const bonus=chk ? (sh.abil[chk[1].toLowerCase()]||0) : skillBonus(sh,k);
-        clientSend({type:"roll",die:20,mod:bonus,label:label(k)});
-      };
-    }
+    wireSheetRolls(p,mine);
     const shSave=$("sh-save"); if(shSave) shSave.onclick=()=>{
       const s2=readSheetForm();
       mine.sheet=s2;                                   // optimistic; host confirms via sync
