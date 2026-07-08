@@ -1835,7 +1835,7 @@ function updZoom(){$("st-zoom").textContent=Math.round(cam().s*100)+"%";}
    Rooms are drawn on a flat tile grid; play mode renders the same data iso. */
 const ET=34;                                  // editor px per tile at zoom 1
 const edCam={x:-120,y:-120,s:1};
-let edTool="draw", edSel=null, edDraft=null, edDrag=null, edTemplate=0, edFitDone=false, edRoomN=0;
+let edTool="draw", edSel=null, edDraft=null, edDrag=null, edHover=null, edTemplate=0, edFitDone=false, edRoomN=0;
 const edTile=(sx,sy)=>{const [wx,wy]=toWorld(sx,sy);return [wx/ET,wy/ET];};
 function levelTouched(){markDirty(); netMarkLevel();}
 function newRoomId(){let id; do{id="room"+(++edRoomN);}while(ROOMS.some(r=>r.id===id)); return id;}
@@ -1922,15 +1922,24 @@ function drawEditor(){
     ctx.fillStyle="rgba(7,9,8,.85)";
     ctx.fillText(r.name.toUpperCase()+(rev?"":" ○"),(bb.x0+bb.x1)/2*ET,(bb.y0+bb.y1)/2*ET);
   }
-  // doors / openings
+  // doors / openings (line widths in screen px so they stay clickable targets at any zoom)
   for(const d of DOORS){
     const len=d.len||1;
     const x2=d.dir==="h"?d.x+len:d.x, y2=d.dir==="h"?d.y:d.y+len;
     ctx.beginPath();
     ctx.moveTo(d.x*ET,d.y*ET); ctx.lineTo(x2*ET,y2*ET);
-    if(d.type==="open"){ctx.strokeStyle="#2B2125";ctx.lineWidth=7/Math.max(c.s,.4);}
-    else{ctx.strokeStyle="#C8A14E";ctx.lineWidth=4/Math.max(c.s,.4);ctx.setLineDash([6/c.s,4/c.s]);}
+    if(d.type==="open"){ctx.strokeStyle="#2B2125";ctx.lineWidth=7/c.s;}
+    else{ctx.strokeStyle="#C8A14E";ctx.lineWidth=4/c.s;ctx.setLineDash([6/c.s,4/c.s]);}
     ctx.stroke(); ctx.setLineDash([]);
+  }
+  // door tool: highlight the edge a click would toggle
+  if(edTool==="door" && edHover){
+    const hx2=edHover.dir==="h"?edHover.x+1:edHover.x, hy2=edHover.dir==="h"?edHover.y:edHover.y+1;
+    const existing=DOORS.find(o=>o.x===edHover.x&&o.y===edHover.y&&o.dir===edHover.dir);
+    ctx.beginPath();
+    ctx.moveTo(edHover.x*ET,edHover.y*ET); ctx.lineTo(hx2*ET,hy2*ET);
+    ctx.strokeStyle=existing?"#8A2E25":"#E9E2CE";
+    ctx.lineWidth=6/c.s; ctx.globalAlpha=.85; ctx.stroke(); ctx.globalAlpha=1;
   }
   // draft rect
   if(edDraft){
@@ -2005,6 +2014,7 @@ function edDown(e){
 function edMove(e){
   const [fi,fj]=edTile(e.offsetX,e.offsetY);
   $("st-pos").textContent=`tile ${Math.floor(fi)}, ${Math.floor(fj)}`;
+  edHover = edTool==="door" ? edNearestEdge(fi,fj) : null;
   if(!e.buttons) return;
   if(edDraft){edDraft.bi=fi;edDraft.bj=fj;return;}
   if(edDrag){
@@ -2057,8 +2067,11 @@ function edUp(){
   panRef=null;
 }
 function edNearestEdge(fi,fj){
+  // tolerance in tiles, but never less than ~12 screen px — zoomed out, a
+  // fixed tile fraction becomes an unclickably thin band
+  const tol=Math.min(.5, Math.max(.35, 12/(ET*edCam.s)));
   const dv=Math.abs(fi-Math.round(fi)), dh=Math.abs(fj-Math.round(fj));
-  if(Math.min(dv,dh)>.35) return null;
+  if(Math.min(dv,dh)>tol) return null;
   return dv<=dh ? {x:Math.round(fi),y:Math.floor(fj),dir:"v"} : {x:Math.floor(fi),y:Math.round(fj),dir:"h"};
 }
 function edToggleDoor(fi,fj){
@@ -2078,7 +2091,7 @@ function edRemoveDoor(fi,fj){
   if(i>=0){edSnapshot(); DOORS.splice(i,1); levelTouched();}
 }
 function edSetTool(t){
-  edTool=t; edDraft=null; edDrag=null;
+  edTool=t; edDraft=null; edDrag=null; edHover=null;
   const hints={draw:"Drag empty grid = new room · Shift+drag = extend selected room (L-shapes) · Alt+click a section removes it",
     select:"Click selects · drag moves · corner squares resize each section · Delete removes room · Ctrl/Cmd+Z undoes",
     door:"Click an edge: once = door, twice = open passage, thrice = remove · right-click = remove"};
