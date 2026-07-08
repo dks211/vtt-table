@@ -422,6 +422,7 @@ const state = {
   scene:"verso",
   mode:"play",     // "play" | "edit" (edit = top-down level editor, DM only)
   tool:"select",
+  tracker:{order:[],active:0},   // initiative: [{name,total,tok?}]
   selToken:null,
   selRoom:null,
   map:{
@@ -534,6 +535,7 @@ function drawMap(){
     emptyMapMessage();
     return;
   }
+  drawPings();
   ctx.restore();
 }
 function emptyMapMessage(){
@@ -1104,6 +1106,7 @@ function drawVerso(){
     }
     drawTokenIso(t,c.s);
   }
+  drawPings();
   ctx.restore();
 }
 function doorVisible(d){
@@ -1242,6 +1245,7 @@ function lightSnapshot(){
   return {type:"sync",scene:state.scene,revealed:state.verso.revealed,
     grid:state.map.grid,fogOn:state.map.fogOn,
     tokens:{map:state.map.tokens,verso:state.verso.tokens},
+    tracker:state.tracker,
     imgStamp:NET.imgStamp,dice:NET.lastDice};
 }
 function netBroadcast(msg){
@@ -1317,8 +1321,66 @@ function hostHandle(c,m){
     t.x=m.x; t.y=m.y; netMark();
   }
   if(m.type==="roll"){
-    roll(m.die==="adv"||m.die==="dis"?m.die:+m.die,1,0,"player");
+    const label=m.label?String(m.label).slice(0,48):null;
+    if(m.expr){
+      const pd=parseDice(m.expr);
+      if(pd) roll(pd.d,pd.n,pd.mod,"player",label);
+      return;
+    }
+    const die=(m.die==="adv"||m.die==="dis")?m.die:+m.die;
+    if(die!=="adv" && die!=="dis" && ![4,6,8,10,12,20,100].includes(die)) return;
+    const mod=Math.max(-30,Math.min(30,(+m.mod||0)|0));
+    const e=roll(die,1,mod,"player",label);
+    if(m.init){
+      const t=[...state.map.tokens,...state.verso.tokens].find(t=>t.owner===c.peer);
+      trackerSet(t?t.name:(label||"Player"), e.total, t&&t.id);
+    }
   }
+  if(m.type==="sheet"){
+    const t=[...state.map.tokens,...state.verso.tokens].find(t=>t.id===m.id);
+    if(!t || t.owner!==c.peer) return;                      // players edit only their own
+    const sh=sanitizeSheet(m.sheet);
+    if(sh){t.sheet=sh; netMark(); renderPanel();}
+  }
+  if(m.type==="ping"){
+    const wx=+m.x, wy=+m.y;
+    if(!isFinite(wx)||!isFinite(wy)) return;
+    const p={x:wx,y:wy,scene:state.scene,color:"#7FA8B8",stamp:String(m.stamp||Math.random())};
+    addPing(p);
+    netBroadcast({type:"ping",x:p.x,y:p.y,color:p.color,stamp:p.stamp});
+  }
+}
+function trackerSet(name,total,tok){
+  const tr=state.tracker;
+  const i=tr.order.findIndex(e=>(tok&&e.tok===tok)||e.name===name);
+  if(i>=0) tr.order[i]={name,total,tok}; else tr.order.push({name,total,tok});
+  tr.order.sort((a,b)=>b.total-a.total);
+  if(tr.active>=tr.order.length) tr.active=0;
+  netMark(); renderPanel();
+}
+function trackerAnnounce(){
+  const en=state.tracker.order[state.tracker.active];
+  if(!en) return;
+  const f={head:"INITIATIVE",total:esc(en.name),detail:"you're up"};
+  NET.lastDice=Object.assign({},f,{stamp:++NET.diceStamp});
+  netMark();
+  clientBanner(NET.lastDice);
+  pwinBanner(f,"");
+}
+function sanitizeSheet(s){
+  if(!s || typeof s!=="object") return null;
+  const num=(v,lo,hi)=>Math.max(lo,Math.min(hi,(+v||0)|0));
+  const out={prof:num(s.prof,0,10), init:num(s.init,-10,20), abil:{}, atks:[], skills:{}};
+  for(const k of ["str","dex","con","int","wis","cha"]) out.abil[k]=num(s.abil&&s.abil[k],-10,15);
+  out.atks=(Array.isArray(s.atks)?s.atks:[]).slice(0,8).map(a=>({
+    name:String(a&&a.name||"attack").slice(0,24),
+    hit:num(a&&a.hit,-10,25),
+    dmg:parseDice(a&&a.dmg)?String(a.dmg).trim().slice(0,12):"1d6"
+  }));
+  if(s.skills && typeof s.skills==="object"){
+    for(const k of Object.keys(s.skills).slice(0,30)) out.skills[String(k).slice(0,24)]=num(s.skills[k],-10,25);
+  }
+  return out;
 }
 /* host loops: light sync + fog */
 setInterval(()=>{
@@ -1414,6 +1476,7 @@ function clientHandle(m){
     state.verso.revealed=m.revealed||{};
     Object.assign(state.map.grid,m.grid||{});
     state.map.fogOn=m.fogOn!==false;
+    if(m.tracker) state.tracker=m.tracker;
     // apply tokens, but never overwrite the token I'm actively dragging
     const apply=(dst,src)=>{
       dst.length=0;
@@ -1445,6 +1508,11 @@ function clientHandle(m){
     loadLevel(m.data);
     if(!cliLevelFit){cliLevelFit=true; if(state.scene==="verso"){fitScene();updZoom();}}
   }
+  if(m.type==="ping" && !PINGS.some(q=>q.stamp===String(m.stamp))){
+    const wx=+m.x, wy=+m.y;
+    if(isFinite(wx)&&isFinite(wy))
+      addPing({x:wx,y:wy,scene:state.scene,color:m.color||"#7FA8B8",stamp:String(m.stamp)});
+  }
   if(m.type==="img"){
     const img=new Image();
     img.onload=()=>{state.map.img=img;state.map.imgURL=m.data;if(state.scene==="map")fitScene();};
@@ -1471,8 +1539,51 @@ function clientBanner(d){
 function clientSend(msg){if(clientConn)try{clientConn.send(JSON.stringify(msg));}catch(e){}}
 
 
+/* ---------------- map pings ---------------- */
+const PINGS=[]; // {x,y,scene,color,stamp,t0} — world coords of the active scene
+function addPing(p){PINGS.push({...p,t0:performance.now()});if(PINGS.length>12)PINGS.shift();}
+function spawnPing(wx,wy){
+  const p={x:wx,y:wy,scene:state.scene,
+    color:NET.mode==="client"?"#7FA8B8":"#C8A14E",
+    stamp:Math.random().toString(36).slice(2)};
+  addPing(p);
+  if(NET.mode==="host") netBroadcast({type:"ping",x:p.x,y:p.y,color:p.color,stamp:p.stamp});
+  else if(NET.mode==="client") clientSend({type:"ping",x:p.x,y:p.y,stamp:p.stamp});
+}
+function drawPings(){ // called inside each scene's world transform
+  const now=performance.now(), c=cam();
+  for(let i=PINGS.length-1;i>=0;i--){
+    const p=PINGS[i], age=(now-p.t0)/1400;
+    if(age>1){PINGS.splice(i,1);continue;}
+    if(p.scene!==state.scene) continue;
+    ctx.save();
+    ctx.strokeStyle=p.color; ctx.lineWidth=3/c.s; ctx.globalAlpha=(1-age)*.9;
+    ctx.beginPath(); ctx.arc(p.x,p.y,(10+age*70)/c.s,0,7); ctx.stroke();
+    ctx.globalAlpha=(1-age)*.5;
+    ctx.beginPath(); ctx.arc(p.x,p.y,(4+age*34)/c.s,0,7); ctx.stroke();
+    ctx.restore();
+  }
+}
+
+/* ---------------- dice ---------------- */
+const SKILL_ABIL={"Acrobatics":"dex","Animal Handling":"wis","Arcana":"int","Athletics":"str",
+  "Deception":"cha","History":"int","Insight":"wis","Intimidation":"cha","Investigation":"int",
+  "Medicine":"wis","Nature":"int","Perception":"wis","Performance":"cha","Persuasion":"cha",
+  "Religion":"int","Sleight of Hand":"dex","Stealth":"dex","Survival":"wis"};
+function skillBonus(sh,name){
+  if(sh.skills && name in sh.skills) return sh.skills[name];
+  const ab=SKILL_ABIL[name];
+  return ab ? (sh.abil[ab]||0) : 0;
+}
 let diceLog=[], diceN=1, diceMod=0, bannerTimer=null;
-function roll(d,n,mod,who){
+function parseDice(expr){ // "2d6+3", "1d8-1", "d20" -> {n,d,mod} or null
+  const m=/^\s*(\d{0,2})d(\d{1,3})\s*([+-]\s*\d{1,3})?\s*$/i.exec(String(expr||""));
+  if(!m) return null;
+  const d=+m[2];
+  if(![2,3,4,6,8,10,12,20,100].includes(d)) return null;
+  return {n:Math.max(1,Math.min(10,+m[1]||1)), d, mod:m[3]?+m[3].replace(/\s+/g,""):0};
+}
+function roll(d,n,mod,who,label){
   n=Math.max(1,Math.min(10,n|0)); mod=mod|0;
   let results=[],mode=null;
   if(d==="adv"||d==="dis"){
@@ -1486,7 +1597,7 @@ function roll(d,n,mod,who){
     var kept=null;
     var total=results.reduce((a,b)=>a+b,0)+mod;
   }
-  const entry={d,n:mode?2:n,mod,results,kept,mode,total,who,at:Date.now()};
+  const entry={d,n:mode?2:n,mod,results,kept,mode,total,who,label:label||null,at:Date.now()};
   diceLog.unshift(entry); diceLog=diceLog.slice(0,10);
   NET.lastDice=Object.assign(fmtRoll(entry),{stamp:++NET.diceStamp});
   netMark();
@@ -1498,24 +1609,26 @@ function roll(d,n,mod,who){
 function fmtRoll(e){
   const die=(e.mode? "d20 "+e.mode.toUpperCase() : e.n+"d"+e.d);
   const mod=e.mod? (e.mod>0?" +"+e.mod:" "+e.mod) : "";
-  return {head:die+mod, total:e.total,
+  return {head:(e.label? e.label+" · " : "")+die+mod, total:e.total,
     detail:"["+e.results.join(", ")+"]"+(e.kept!=null?" → keep "+e.kept:"")+(e.mod?" "+(e.mod>0?"+":"")+e.mod:"")};
 }
-function pushRollBanner(e){
+function pwinBanner(f,cls){
   if(!pwin || pwin.closed) return;
   try{
     const d=pwin.document, b=d.getElementById("dice-banner");
     if(!b) return;
-    const f=fmtRoll(e);
-    const crit = (e.d===20 && (e.kept!=null?e.kept:e.results[0]))===20 && e.n<=2;
-    const fumble=(e.d===20 && (e.kept!=null?e.kept:e.results[0]))===1 && e.n<=2;
     b.innerHTML='<div class="rb-head">'+f.head+'</div>'+
-      '<div class="rb-total'+(crit?' crit':'')+(fumble?' fumble':'')+'">'+f.total+'</div>'+
+      '<div class="rb-total'+(cls||'')+'">'+f.total+'</div>'+
       '<div class="rb-detail">'+f.detail+'</div>';
     b.classList.remove("show"); void b.offsetWidth; b.classList.add("show");
     if(bannerTimer) clearTimeout(bannerTimer);
     bannerTimer=setTimeout(()=>{try{b.classList.remove("show");}catch(_){}} ,5200);
   }catch(_){/* window mid-close */}
+}
+function pushRollBanner(e){
+  const crit = (e.d===20 && (e.kept!=null?e.kept:e.results[0]))===20 && e.n<=2;
+  const fumble=(e.d===20 && (e.kept!=null?e.kept:e.results[0]))===1 && e.n<=2;
+  pwinBanner(fmtRoll(e), crit?' crit':fumble?' fumble':'');
 }
 
 /* ---------------- player window (second screen) ---------------- */
@@ -1608,7 +1721,7 @@ function frame(t){
 }
 
 /* ---------------- input ---------------- */
-let pointers=new Map(), panRef=null, dragTok=null, pinchRef=null, spaceDown=false, downAt=null, fogPainting=false;
+let pointers=new Map(), panRef=null, dragTok=null, pinchRef=null, spaceDown=false, downAt=null, fogPainting=false, lastTap=null;
 
 function tokenAt(sx,sy){
   const [wx,wy]=toWorld(sx,sy);
@@ -1650,6 +1763,15 @@ cv.addEventListener("pointerdown",e=>{
     dragTok=null; panRef=null; edDraft=null; edDrag=null; return;
   }
   if(state.mode==="edit"){edDown(e);return;}
+  // double-tap / double-click pings the spot for everyone at the table
+  if(e.button===0 && !spaceDown){
+    const now=performance.now();
+    if(lastTap && now-lastTap.t<400 && Math.hypot(e.offsetX-lastTap.x,e.offsetY-lastTap.y)<24){
+      const [pwx,pwy]=toWorld(e.offsetX,e.offsetY);
+      spawnPing(pwx,pwy);
+      lastTap=null;
+    }else lastTap={t:now,x:e.offsetX,y:e.offsetY};
+  }
   downAt={x:e.offsetX,y:e.offsetY,moved:false};
   if(NET.mode==="client"){
     if(e.button===2){downAt=null;return;}
@@ -2284,7 +2406,52 @@ setInterval(autosave,8000);
 let addColor=SWATCH[0];
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 
+/* character mini-sheet: same form for the DM (any token) and players (their claim) */
+function sheetFormHTML(t){
+  const sh=t.sheet||{prof:2,init:0,abil:{str:0,dex:0,con:0,int:0,wis:0,cha:0},atks:[],skills:{}};
+  const sign=v=>(v>=0?"+":"")+v;
+  return `<div class="sect"><h3>Sheet · ${esc(t.name)}</h3>
+    <div class="row"><label>prof</label><input type="number" id="sh-prof" value="${sh.prof}" style="width:52px">
+      <label style="width:auto">init</label><input type="number" id="sh-init" value="${sh.init}" style="width:52px"></div>
+    <div class="row" style="flex-wrap:wrap;gap:5px">${["str","dex","con","int","wis","cha"].map(k=>
+      `<label style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--vellum-dim)">${k.toUpperCase()}<input type="number" id="sh-${k}" value="${sh.abil[k]||0}" style="width:42px;margin-left:3px"></label>`).join("")}</div>
+    <div class="hint" style="margin:4px 0">Ability boxes take the MODIFIER (+3, not 16).</div>
+    <div class="row"><label>attacks</label></div>
+    <textarea id="sh-atks" rows="3" placeholder="one per line:  Rapier +5 1d8+3">${esc((sh.atks||[]).map(a=>a.name+" "+sign(a.hit)+" "+a.dmg).join("\n"))}</textarea>
+    <div class="row" style="margin-top:6px"><label>skill bonuses</label></div>
+    <textarea id="sh-skills" rows="2" placeholder="one per line:  Stealth +7  (unlisted skills use the ability mod)">${esc(Object.entries(sh.skills||{}).map(([k,v])=>k+" "+sign(v)).join("\n"))}</textarea>
+    <button class="rbtn quiet" id="sh-save" style="width:100%;margin-top:8px">SAVE SHEET</button>
+  </div>`;
+}
+function readSheetForm(){
+  const num=id=>(+$(id).value||0)|0;
+  const abil={}; for(const k of ["str","dex","con","int","wis","cha"]) abil[k]=num("sh-"+k);
+  const atks=$("sh-atks").value.split("\n").map(s=>s.trim()).filter(Boolean).map(line=>{
+    const m=/^(.+?)\s+([+-]?\d+)\s+(\S+)$/.exec(line);
+    return m?{name:m[1],hit:+m[2],dmg:m[3]}:null;
+  }).filter(Boolean);
+  const skills={};
+  $("sh-skills").value.split("\n").map(s=>s.trim()).filter(Boolean).forEach(line=>{
+    const m=/^(.+?)\s+([+-]?\d+)$/.exec(line);
+    if(m) skills[m[1]]=+m[2];
+  });
+  return sanitizeSheet({prof:num("sh-prof"),init:num("sh-init"),abil,atks,skills});
+}
+function trackerListHTML(canEdit){
+  const tr=state.tracker;
+  if(!tr.order.length) return "";
+  return `<div class="toklist">${tr.order.map((en,i)=>`
+    <div class="tok" style="cursor:default;${i===tr.active?"border-color:var(--brass-dim);background:var(--felt-950)":""}">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;width:24px;text-align:right;color:${i===tr.active?"var(--brass)":"var(--vellum-dim)"}">${en.total}</span>
+      <span class="nm" style="${i===tr.active?"color:var(--brass)":""}">${i===tr.active?"▶ ":""}${esc(en.name)}</span>
+      ${canEdit?`<span class="del" data-trup="${i}" title="move up">▲</span><span class="del" data-trdel="${i}" title="remove">✕</span>`:""}
+    </div>`).join("")}</div>`;
+}
 function renderPanel(){
+  // don't wipe a form someone is typing in (network syncs re-render constantly)
+  const ae=document.activeElement;
+  if(ae && ae.closest && ae.closest("#panel") &&
+     (ae.tagName==="INPUT"||ae.tagName==="TEXTAREA"||ae.tagName==="SELECT")) return;
   if(NET.mode==="client"){renderClientPanel();return;}
   if(state.mode==="edit"){renderEditorPanel();return;}
   const p=$("panel");
@@ -2352,6 +2519,15 @@ function renderPanel(){
       return `<div class="tok" style="cursor:default"><span class="nm" style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--vellum-dim)">${f.head} ${f.detail}</span><span style="font-family:Marcellus,serif;font-size:16px;color:var(--brass)">${f.total}</span></div>`;}).join("")}</div>
     <div class="hint" style="margin-top:6px">Rolls flash on the player window. The tray at the bottom of that window is clickable too (for a table TV).</div></div>`;
 
+  // initiative tracker
+  html+=`<div class="sect"><h3>Initiative</h3>`+trackerListHTML(true)+
+    (state.tracker.order.length
+      ?`<div class="row" style="margin-top:7px"><button class="rbtn" id="tr-next">NEXT TURN</button><button class="rbtn quiet" id="tr-clear">CLEAR</button></div>`
+      :`<div class="hint" style="margin-bottom:7px">Players' INITIATIVE button adds them automatically; ROLL PCS rolls for every PC token from its sheet.</div>`)+
+    `<div class="row"><button class="rbtn quiet" id="tr-pcs">ROLL PCS</button></div>
+    <div class="row"><input type="text" id="tr-name" placeholder="name" style="flex:1"><input type="number" id="tr-total" placeholder="#" style="width:52px"><button class="rbtn quiet" id="tr-add" style="flex:none;padding:6px 10px">ADD</button></div>
+  </div>`;
+
   // tokens
   const toks=S().tokens;
   html+=`<div class="sect"><h3>Tokens</h3><div class="toklist">`+
@@ -2362,6 +2538,9 @@ function renderPanel(){
       <span class="del" data-del="${t.id}" title="remove">✕</span>
     </div>`).join("")+
     `</div></div>`;
+  // sheet for the selected token
+  const selT=toks.find(t=>t.id===state.selToken);
+  if(selT) html+=sheetFormHTML(selT);
   // add token
   html+=`<div class="sect"><h3>Add Token</h3>
     <div class="row"><input type="text" id="at-name" placeholder="name" style="flex:1"></div>
@@ -2457,6 +2636,42 @@ function renderPanel(){
       markDirty(); renderPanel();
     };
   });
+  /* initiative wiring */
+  const trNext=$("tr-next"); if(trNext) trNext.onclick=()=>{
+    const tr=state.tracker;
+    if(!tr.order.length) return;
+    tr.active=(tr.active+1)%tr.order.length;
+    trackerAnnounce(); renderPanel();
+  };
+  const trClear=$("tr-clear"); if(trClear) trClear.onclick=()=>{state.tracker={order:[],active:0};netMark();renderPanel();};
+  const trPcs=$("tr-pcs"); if(trPcs) trPcs.onclick=()=>{
+    for(const t of S().tokens.filter(t=>t.pc)){
+      const e=roll(20,1,t.sheet?t.sheet.init:0,"dm",t.name+" · Initiative");
+      trackerSet(t.name,e.total,t.id);
+    }
+  };
+  const trAdd=$("tr-add"); if(trAdd) trAdd.onclick=()=>{
+    const nm=($("tr-name").value||"").trim();
+    if(!nm) return;
+    trackerSet(nm,(+$("tr-total").value||0)|0,null);
+  };
+  p.querySelectorAll("[data-trup]").forEach(el=>{el.onclick=()=>{
+    const i=+el.dataset.trup, tr=state.tracker;
+    if(i<=0) return;
+    [tr.order[i-1],tr.order[i]]=[tr.order[i],tr.order[i-1]];
+    netMark(); renderPanel();
+  };});
+  p.querySelectorAll("[data-trdel]").forEach(el=>{el.onclick=()=>{
+    const tr=state.tracker;
+    tr.order.splice(+el.dataset.trdel,1);
+    if(tr.active>=tr.order.length) tr.active=0;
+    netMark(); renderPanel();
+  };});
+  /* sheet wiring (DM edits any selected token) */
+  const shSave=$("sh-save"); if(shSave && selT) shSave.onclick=()=>{
+    selT.sheet=readSheetForm();
+    markDirty(); renderPanel();
+  };
   p.querySelectorAll(".sw").forEach(el=>{
     el.onclick=()=>{addColor=el.dataset.c;p.querySelectorAll(".sw").forEach(s=>s.classList.toggle("on",s===el));};
   });
@@ -2645,6 +2860,32 @@ function renderClientPanel(){
       <span class="nm">${esc(t.name)}</span>
       <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.1em;color:${mine?"var(--brass)":"var(--vellum-dim)"}">${mine?"YOURS":taken?"TAKEN":"CLAIM"}</span>
     </div>`;}).join("")+`</div></div>`;
+  const mine=S().tokens.find(t=>t.id===NET.myToken);
+  const sh=mine&&mine.sheet;
+  if(mine){
+    html+=`<div class="sect"><h3>Your Rolls</h3>`;
+    if(sh){
+      html+=`<div class="row"><button class="rbtn" id="pr-init">ROLL INITIATIVE ${sh.init>=0?"+":""}${sh.init}</button></div>`;
+      if(sh.atks.length){
+        html+=`<div class="toklist">`+sh.atks.map((a,i)=>`<div class="tok" style="cursor:default">
+          <span class="nm">${esc(a.name)}</span>
+          <button class="rbtn quiet" data-atkhit="${i}" style="flex:none;padding:5px 8px">HIT ${a.hit>=0?"+":""}${a.hit}</button>
+          <button class="rbtn quiet" data-atkdmg="${i}" style="flex:none;padding:5px 8px">${esc(a.dmg)}</button>
+        </div>`).join("")+`</div>`;
+      }
+      html+=`<div class="row" style="margin-top:7px"><select id="pr-skill" style="flex:1">${
+        ["STR check","DEX check","CON check","INT check","WIS check","CHA check"]
+          .concat(Object.keys(SKILL_ABIL))
+          .map(k=>`<option>${k}</option>`).join("")
+      }</select><button class="rbtn quiet" id="pr-skillgo" style="flex:none;padding:6px 10px">ROLL</button></div>`;
+    }else{
+      html+=`<div class="hint">No sheet yet — fill in the form below and your attack, skill and initiative buttons appear here.</div>`;
+    }
+    html+=`</div>`;
+  }
+  if(state.tracker.order.length){
+    html+=`<div class="sect"><h3>Initiative</h3>`+trackerListHTML(false)+`</div>`;
+  }
   html+=`<div class="sect"><h3>Dice</h3>
     <div class="row" style="flex-wrap:wrap;gap:5px">
       ${[4,6,8,10,12,20,100].map(d=>`<button class="rbtn quiet" data-cdie="${d}" style="flex:none;padding:6px 9px">d${d}</button>`).join("")}
@@ -2652,8 +2893,9 @@ function renderClientPanel(){
       <button class="rbtn quiet" data-cdie="dis" style="flex:none;padding:6px 9px">DIS</button>
     </div>
     <div class="hint">Rolls go to the whole table.</div></div>`;
+  if(mine) html+=sheetFormHTML(mine);
   html+=`<div class="sect"><h3>Table</h3>
-    <div class="hint">Drag your token to move. Drag empty space to pan, pinch or scroll to zoom, ⤢ FIT to re-center. Rooms appear as the party discovers them.</div></div>`;
+    <div class="hint">Drag your token to move. Drag empty space to pan, pinch or scroll to zoom, ⤢ FIT to re-center. Double-tap anywhere to ping the map for the table. Rooms appear as the party discovers them.</div></div>`;
   p.innerHTML=html;
   p.querySelectorAll("[data-claim]").forEach(el=>{
     el.onclick=()=>{
@@ -2669,6 +2911,33 @@ function renderClientPanel(){
   p.querySelectorAll("[data-cdie]").forEach(el=>{
     el.onclick=()=>clientSend({type:"roll",die:el.dataset.cdie});
   });
+  /* my rolls + my sheet */
+  if(mine){
+    const label=n=>mine.name+" · "+n;
+    if(sh){
+      $("pr-init").onclick=()=>clientSend({type:"roll",die:20,mod:sh.init,label:label("Initiative"),init:true});
+      p.querySelectorAll("[data-atkhit]").forEach(el=>{el.onclick=()=>{
+        const a=sh.atks[+el.dataset.atkhit];
+        if(a) clientSend({type:"roll",die:20,mod:a.hit,label:label(a.name)});
+      };});
+      p.querySelectorAll("[data-atkdmg]").forEach(el=>{el.onclick=()=>{
+        const a=sh.atks[+el.dataset.atkdmg];
+        if(a) clientSend({type:"roll",expr:a.dmg,label:label(a.name+" damage")});
+      };});
+      $("pr-skillgo").onclick=()=>{
+        const k=$("pr-skill").value;
+        const chk=/^(\w{3}) check$/.exec(k);
+        const bonus=chk ? (sh.abil[chk[1].toLowerCase()]||0) : skillBonus(sh,k);
+        clientSend({type:"roll",die:20,mod:bonus,label:label(k)});
+      };
+    }
+    const shSave=$("sh-save"); if(shSave) shSave.onclick=()=>{
+      const s2=readSheetForm();
+      mine.sheet=s2;                                   // optimistic; host confirms via sync
+      clientSend({type:"sheet",id:mine.id,sheet:s2});
+      renderPanel();
+    };
+  }
 }
 
 /* ---------------- boot ---------------- */
