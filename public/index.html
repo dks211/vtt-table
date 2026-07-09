@@ -2858,7 +2858,8 @@ function renderRollsFloat(){
   const t=(rollsFloatOpen && state.mode!=="edit") ? rollsFloatToken() : null;
   if(!t || !t.sheet){el.style.display="none";el.innerHTML="";return;}
   const ae=document.activeElement;
-  if(ae && el.contains(ae)) return;            // don't rebuild under an open select
+  // only bail for an open select/input — a just-clicked button shouldn't freeze the display
+  if(ae && el.contains(ae) && (ae.tagName==="SELECT"||ae.tagName==="INPUT"||ae.tagName==="TEXTAREA")) return;
   el.style.display="block";
   el.innerHTML=`<div class="rfh" id="rf-head">🎲 ${esc(t.name).toUpperCase()}<span class="x" id="rf-close" title="dock back into the panel">✕</span></div>`
     +sheetRollsHTML(t);
