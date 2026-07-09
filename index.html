@@ -2831,7 +2831,7 @@ function sheetRollsHTML(t){
   if(sh.atks.length){
     h+=`<div class="toklist">`+sh.atks.map((a,i)=>`<div class="tok" style="cursor:default">
       <span class="nm">${esc(a.name)}</span>
-      <button class="rbtn" data-srhit="${i}" style="flex:none;padding:5px 7px">HIT ${sign(a.hit)}</button>
+      <button class="rbtn" data-srhit="${i}" style="flex:none;padding:5px 7px">ATK ${sign(a.hit)}</button>
       <button class="rbtn quiet" data-sradv="${i}" style="flex:none;padding:5px 6px" title="attack with advantage">A</button>
       <button class="rbtn quiet" data-srdis="${i}" style="flex:none;padding:5px 6px" title="attack with disadvantage">D</button>
       <button class="rbtn quiet" data-srdmg="${i}" style="flex:none;padding:5px 7px">${esc(a.dmg)}</button>
