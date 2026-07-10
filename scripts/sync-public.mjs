@@ -1,7 +1,16 @@
 import { copyFile, readFile } from "node:fs/promises";
 import process from "node:process";
 
-const files = ["index.html", "app-core.js"];
+const files = [
+  "index.html",
+  "app/core.js",
+  "app/state-render.js",
+  "app/network.js",
+  "app/table.js",
+  "app/editor.js",
+  "app/panel.js",
+  "app/boot.js",
+];
 const check = process.argv.includes("--check");
 let stale = false;
 

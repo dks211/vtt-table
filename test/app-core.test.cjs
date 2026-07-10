@@ -8,7 +8,7 @@ const {
   spellSaveDC,
   sanitizeLevelForClient,
   setBannerContent,
-} = require("../app-core.js");
+} = require("../app/core.js");
 
 test("parseDice accepts supported notation and applies limits", () => {
   assert.deepEqual(parseDice("2d4 + 2"), { n: 2, d: 4, mod: 2 });
