@@ -1,0 +1,9 @@
+{
+  "name": "palimpsest-vtt",
+  "private": true,
+  "scripts": {
+    "sync-public": "node scripts/sync-public.mjs",
+    "check-public": "node scripts/sync-public.mjs --check",
+    "test": "node --test && npm run check-public"
+  }
+}

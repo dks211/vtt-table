@@ -211,7 +211,7 @@ body.netclient #stage{left:0}
 <div id="dmgate">
   <div class="gcard">
     <h1>THE VERSO</h1>
-    <div class="gsub">DM CONSOLE · THE HOUSE REQUIRES A WORD</div>
+    <div class="gsub">DM CONSOLE · LOCAL SCREEN LOCK</div>
     <input type="password" id="dmpass" placeholder="passphrase" autocomplete="off">
     <button class="gbtn" id="dmgo">ENTER</button>
     <div class="gerr" id="dmerr"></div>
@@ -281,8 +281,10 @@ body.netclient #stage{left:0}
 <input type="file" id="file-sheet" accept=".csv,text/csv" hidden>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
+<script src="app-core.js"></script>
 <script>
 "use strict";
+const {escapeHTML:esc, parseDice, sanitizeSheet, spellAtkBonus, spellSaveDC, sanitizeLevelForClient, setBannerContent}=AppCore;
 /* =====================================================================
    THE VERSO — single-file table console
    Scenes: "map" (uploaded image, square grid, fog of war)
@@ -413,12 +415,7 @@ function levelData(){return {name:LEVEL.name, bg:LEVEL.bg, rooms:ROOMS, doors:DO
 function clientLevelData(){
   // the Token Library can hold NPC sheets (stat blocks) — never ship those to players,
   // even though placed tokens are already sanitized separately in lightSnapshot()
-  const d=levelData();
-  const roster=d.roster.map(q=>{
-    if(q.pc || !q.sheet) return q;
-    const c={...q}; delete c.sheet; return c;
-  });
-  return {...d, roster};
+  return sanitizeLevelForClient(levelData());
 }
 function loadLevel(lv){
   LEVEL.name=lv.name||"Untitled Level";
@@ -1489,32 +1486,11 @@ function trackerSet(name,total,tok,hidden){
 function trackerAnnounce(){
   const en=state.tracker.order[state.tracker.active];
   if(!en) return;
-  const f={head:"INITIATIVE",total:esc(en.name),detail:"you're up"};
+  const f={head:"INITIATIVE",total:en.name,detail:"you're up"};
   NET.lastDice=Object.assign({},f,{stamp:++NET.diceStamp});
   netMark();
   clientBanner(NET.lastDice);
   pwinBanner(f,"");
-}
-function sanitizeSheet(s){
-  if(!s || typeof s!=="object") return null;
-  const num=(v,lo,hi)=>Math.max(lo,Math.min(hi,(+v||0)|0));
-  const out={prof:num(s.prof,0,10),
-    init:(s.init==null||s.init==="")?null:num(s.init,-10,20),   // null = default to DEX
-    abil:{}, atks:[], skills:{}};
-  out.ac=(s.ac==null||s.ac==="")?null:num(s.ac,0,40);
-  out.hpMax=(s.hpMax==null||s.hpMax==="")?null:num(s.hpMax,0,999);
-  out.hp=(s.hp==null||s.hp==="")?out.hpMax:num(s.hp,0,999);     // current defaults to max
-  out.spellAbil=["str","dex","con","int","wis","cha"].includes(s.spellAbil)?s.spellAbil:null;
-  for(const k of ["str","dex","con","int","wis","cha"]) out.abil[k]=num(s.abil&&s.abil[k],-10,15);
-  out.atks=(Array.isArray(s.atks)?s.atks:[]).slice(0,8).map(a=>({
-    name:String(a&&a.name||"attack").slice(0,24),
-    hit:num(a&&a.hit,-10,25),
-    dmg:parseDice(a&&a.dmg)?String(a.dmg).trim().slice(0,12):"1d6"
-  }));
-  if(s.skills && typeof s.skills==="object"){
-    for(const k of Object.keys(s.skills).slice(0,30)) out.skills[String(k).slice(0,24)]=num(s.skills[k],-10,25);
-  }
-  return out;
 }
 /* host loops: light sync + fog */
 setInterval(()=>{
@@ -1666,7 +1642,7 @@ function clientHandle(m){
 }
 function clientBanner(d){
   const b=$("net-banner");
-  b.innerHTML='<div class="rb-head">'+d.head+'</div><div class="rb-total">'+d.total+'</div><div class="rb-detail">'+d.detail+'</div>';
+  setBannerContent(document,b,d);
   b.classList.remove("show");void b.offsetWidth;b.classList.add("show");
   setTimeout(()=>b.classList.remove("show"),4500);
 }
@@ -1731,10 +1707,6 @@ function skillBonus(sh,name){
   const ab=SKILL_ABIL[name];
   return ab ? (sh.abil[ab]||0) : 0;
 }
-// standard 5e formulas: spell attack = prof + casting-ability mod; save DC = 8 + that
-function spellAtkBonus(sh){return sh.spellAbil==null ? null : sh.prof+(sh.abil[sh.spellAbil]||0);}
-function spellSaveDC(sh){return sh.spellAbil==null ? null : 8+sh.prof+(sh.abil[sh.spellAbil]||0);}
-
 /* ---------------- gsheet character import ----------------
    Reads the CSV export of the popular "v2.1" 5e Google Sheet template.
    Label-anchored, so it tolerates the row drift between characters. */
@@ -1846,13 +1818,6 @@ $("file-sheet").onchange=e=>{
   rd.readAsText(f);
 };
 let diceLog=[], diceN=1, diceMod=0, bannerTimer=null, dmHidden=false;
-function parseDice(expr){ // "2d6+3", "1d8-1", "d20" -> {n,d,mod} or null
-  const m=/^\s*(\d{0,2})d(\d{1,3})\s*([+-]\s*\d{1,3})?\s*$/i.exec(String(expr||""));
-  if(!m) return null;
-  const d=+m[2];
-  if(![2,3,4,6,8,10,12,20,100].includes(d)) return null;
-  return {n:Math.max(1,Math.min(10,+m[1]||1)), d, mod:m[3]?+m[3].replace(/\s+/g,""):0};
-}
 function roll(d,n,mod,who,label){
   n=Math.max(1,Math.min(10,n|0)); mod=mod|0;
   let results=[],mode=null;
@@ -1892,9 +1857,7 @@ function pwinBanner(f,cls){
   try{
     const d=pwin.document, b=d.getElementById("dice-banner");
     if(!b) return;
-    b.innerHTML='<div class="rb-head">'+f.head+'</div>'+
-      '<div class="rb-total'+(cls||'')+'">'+f.total+'</div>'+
-      '<div class="rb-detail">'+f.detail+'</div>';
+    setBannerContent(d,b,f,cls);
     b.classList.remove("show"); void b.offsetWidth; b.classList.add("show");
     if(bannerTimer) clearTimeout(bannerTimer);
     bannerTimer=setTimeout(()=>{try{b.classList.remove("show");}catch(_){}} ,5200);
@@ -2779,7 +2742,6 @@ setInterval(autosave,8000);
 
 /* ---------------- right panel ---------------- */
 let addColor=SWATCH[0];
-function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 
 
 /* one-click rolls from a token's sheet — same UI for players (their claim)
@@ -3062,7 +3024,7 @@ function renderPanel(){
     <div class="row"><input type="text" id="dice-custom" placeholder="custom: 8d6, 2d4+2…" style="flex:1"><button class="rbtn quiet" id="dice-customgo" style="flex:none;padding:6px 10px">ROLL</button></div>
     <label class="check"><input type="checkbox" id="dice-hide" ${dmHidden?"checked":""}> hidden rolls — only you see the results</label>
     <div class="toklist">${diceLog.slice(0,6).map(e=>{const f=fmtRoll(e);
-      return `<div class="tok" style="cursor:default"><span class="nm" style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--vellum-dim)">${e.hush?"🕶 ":""}${f.head} ${f.detail}</span><span style="font-family:Marcellus,serif;font-size:16px;color:var(--brass)">${f.total}</span></div>`;}).join("")}</div>
+      return `<div class="tok" style="cursor:default"><span class="nm" style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--vellum-dim)">${e.hush?"🕶 ":""}${esc(f.head)} ${esc(f.detail)}</span><span style="font-family:Marcellus,serif;font-size:16px;color:var(--brass)">${esc(f.total)}</span></div>`;}).join("")}</div>
     <div class="hint" style="margin-top:6px">Rolls flash on the player window. The tray at the bottom of that window is clickable too (for a table TV).</div></div>`;
 
   // initiative tracker
@@ -3276,7 +3238,7 @@ function renderPanel(){
   const evS=$("ev-send"); if(evS) evS.onclick=()=>{
     const t=($("ev-text").value||"").trim();
     if(!t) return;
-    const f={head:"THE TABLE",total:esc(t),detail:""};
+    const f={head:"THE TABLE",total:t,detail:""};
     NET.lastDice=Object.assign({},f,{stamp:++NET.diceStamp});
     netMark(); clientBanner(NET.lastDice); pwinBanner(f,"");
     $("ev-text").value="";
@@ -3592,7 +3554,8 @@ fitScene(); updZoom();
 renderPanel();
 requestAnimationFrame(frame);
 {
-  const DM_PASS="mindthecarpet";   // <-- change this to whatever you like
+  // Convenience screen lock only. Deployment access is enforced by Worker Basic Auth.
+  const DM_SCREEN_WORD="mindthecarpet";
   const jc=new URLSearchParams(location.search).get("join");
   const gate=$("dmgate");
   let unlocked=false;
@@ -3604,7 +3567,7 @@ requestAnimationFrame(frame);
     gate.remove();
   }else{
     const tryPass=()=>{
-      if($("dmpass").value===DM_PASS){
+      if($("dmpass").value===DM_SCREEN_WORD){
         try{sessionStorage.setItem("verso-dm","ok");}catch(e){}
         gate.remove();
       }else{
