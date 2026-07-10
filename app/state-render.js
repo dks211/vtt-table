@@ -1,5 +1,5 @@
 "use strict";
-const {escapeHTML:esc, parseDice, sanitizeSheet, spellAtkBonus, spellSaveDC, sanitizeLevelForClient, setBannerContent}=AppCore;
+const {LEVEL_SCHEMA_VERSION, SESSION_SCHEMA_VERSION, escapeHTML:esc, parseDice, sanitizeSheet, spellAtkBonus, spellSaveDC, sanitizeLevelForClient, setBannerContent, normalizeLevel, normalizeSession}=AppCore;
 /* =====================================================================
    THE VERSO — single-file table console
    Scenes: "map" (uploaded image, square grid, fog of war)
@@ -126,29 +126,21 @@ const TEMPLATES=[
  {name:"Dark Cloak",      floorA:"#33272A",floorB:"#2B2125",wall:"#5A4A40"},
  {name:"Steel Platform",  floorA:"#3E424A",floorB:"#363A42",wall:"#5A5E66"}
 ];
-function levelData(){return {name:LEVEL.name, bg:LEVEL.bg, rooms:ROOMS, doors:DOORS, roster:LEVEL.roster, props:LEVEL.props};}
+function levelData(){return {schemaVersion:LEVEL_SCHEMA_VERSION,name:LEVEL.name,bg:LEVEL.bg,rooms:ROOMS,doors:DOORS,roster:LEVEL.roster,props:LEVEL.props};}
 function clientLevelData(){
   // the Token Library can hold NPC sheets (stat blocks) — never ship those to players,
   // even though placed tokens are already sanitized separately in lightSnapshot()
   return sanitizeLevelForClient(levelData());
 }
 function loadLevel(lv){
-  LEVEL.name=lv.name||"Untitled Level";
-  LEVEL.bg=lv.bg||"#0A0F0C";
-  LEVEL.roster=(lv.roster||PARTY).map(p=>{
-    const q={...p};
-    if(p.sheet) q.sheet=JSON.parse(JSON.stringify(p.sheet));   // sheets travel with the level
-    return q;
-  });
-  LEVEL.props=(lv.props||[]).map(p=>({...p}));
-  // rooms are unions of rectangles; older single-rect data migrates to rects:[rect]
-  ROOMS=(lv.rooms||[]).map(r=>{
-    const room={...r, clues:[...(r.clues||[])]};
-    room.rects=(r.rects&&r.rects.length ? r.rects : [r.rect]).map(c=>({...c}));
-    delete room.rect;
-    return room;
-  });
-  DOORS=(lv.doors||[]).map(d=>({...d}));
+  const data=normalizeLevel(lv,{fallbackRoster:PARTY});
+  LEVEL.schemaVersion=data.schemaVersion;
+  LEVEL.name=data.name;
+  LEVEL.bg=data.bg;
+  LEVEL.roster=data.roster;
+  LEVEL.props=data.props;
+  ROOMS=data.rooms;
+  DOORS=data.doors;
   const ids=new Set(ROOMS.map(r=>r.id));
   for(const k of Object.keys(state.verso.revealed)) if(!ids.has(k)) delete state.verso.revealed[k];
   if(state.selRoom && !ids.has(state.selRoom)) state.selRoom=null;

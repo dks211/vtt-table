@@ -5,6 +5,139 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
+  const LEVEL_SCHEMA_VERSION = 1;
+  const SESSION_SCHEMA_VERSION = 2;
+
+  const clone = value => JSON.parse(JSON.stringify(value));
+  const objectOrNull = value => value && typeof value === "object" && !Array.isArray(value) ? value : null;
+  const finite = (value, fallback = 0) => Number.isFinite(+value) ? +value : fallback;
+  const integer = (value, fallback = 0) => Math.trunc(finite(value, fallback));
+
+  function uniqueId(value, prefix, used, index) {
+    let id = String(value || "").trim().replace(/[^A-Za-z0-9_-]/g, "-").slice(0, 64);
+    if (!id || used.has(id)) id = `${prefix}-${index + 1}`;
+    while (used.has(id)) id = `${prefix}-${index + 1}-${used.size + 1}`;
+    used.add(id);
+    return id;
+  }
+
+  function normalizeRect(rect, roomName) {
+    if (!objectOrNull(rect)) throw new Error(`Room "${roomName}" has invalid geometry.`);
+    const normalized = {
+      x: integer(rect.x),
+      y: integer(rect.y),
+      w: integer(rect.w),
+      h: integer(rect.h),
+    };
+    if (normalized.w < 1 || normalized.h < 1)
+      throw new Error(`Room "${roomName}" must be at least one tile wide and high.`);
+    return normalized;
+  }
+
+  function normalizeLevel(input, options = {}) {
+    const level = objectOrNull(input);
+    if (!level) throw new Error("Level data must be a JSON object.");
+    const version = level.schemaVersion == null ? 0 : integer(level.schemaVersion, -1);
+    if (version < 0 || version > LEVEL_SCHEMA_VERSION)
+      throw new Error(`Unsupported level schema version: ${level.schemaVersion}.`);
+    if (!Array.isArray(level.rooms)) throw new Error("Level data must include a rooms array.");
+
+    const roomIds = new Set();
+    const rooms = level.rooms.map((source, index) => {
+      const room = objectOrNull(source);
+      if (!room) throw new Error(`Room ${index + 1} must be an object.`);
+      const name = String(room.name || `Room ${index + 1}`).slice(0, 120);
+      const rawRects = Array.isArray(room.rects) && room.rects.length ? room.rects : room.rect ? [room.rect] : [];
+      if (!rawRects.length) throw new Error(`Room "${name}" has no geometry.`);
+      const normalized = { ...clone(room), id: uniqueId(room.id, "room", roomIds, index), name };
+      normalized.rects = rawRects.map(rect => normalizeRect(rect, name));
+      normalized.clues = Array.isArray(room.clues) ? room.clues.map(value => String(value).slice(0, 1000)) : [];
+      delete normalized.rect;
+      return normalized;
+    });
+
+    const doorIds = new Set();
+    const doors = (Array.isArray(level.doors) ? level.doors : []).map((source, index) => {
+      const door = objectOrNull(source);
+      if (!door) throw new Error(`Door ${index + 1} must be an object.`);
+      if (door.dir !== "h" && door.dir !== "v") throw new Error(`Door ${index + 1} has an invalid direction.`);
+      return {
+        ...clone(door),
+        id: uniqueId(door.id, "door", doorIds, index),
+        x: finite(door.x),
+        y: finite(door.y),
+        dir: door.dir,
+        type: door.type === "open" ? "open" : "door",
+        len: Math.max(1, integer(door.len, 1)),
+      };
+    });
+
+    const propIds = new Set();
+    const props = (Array.isArray(level.props) ? level.props : []).map((source, index) => {
+      const prop = objectOrNull(source);
+      if (!prop) throw new Error(`Prop ${index + 1} must be an object.`);
+      return {
+        ...clone(prop),
+        id: uniqueId(prop.id, "prop", propIds, index),
+        t: String(prop.t || "table").slice(0, 64),
+        x: finite(prop.x),
+        y: finite(prop.y),
+      };
+    });
+
+    const rosterSource = Array.isArray(level.roster) ? level.roster : (options.fallbackRoster || []);
+    const rosterIds = new Set();
+    const roster = rosterSource.map((source, index) => {
+      const entry = objectOrNull(source);
+      if (!entry) throw new Error(`Roster entry ${index + 1} must be an object.`);
+      const normalized = {
+        ...clone(entry),
+        id: uniqueId(entry.id, "roster", rosterIds, index),
+        name: String(entry.name || `Token ${index + 1}`).slice(0, 120),
+      };
+      if (entry.sheet) normalized.sheet = sanitizeSheet(entry.sheet);
+      return normalized;
+    });
+
+    return {
+      schemaVersion: LEVEL_SCHEMA_VERSION,
+      name: String(level.name || "Untitled Level").slice(0, 120),
+      bg: /^#[0-9a-f]{6}$/i.test(level.bg || "") ? level.bg : "#0A0F0C",
+      rooms,
+      doors,
+      props,
+      roster,
+    };
+  }
+
+  function normalizeSession(input, options = {}) {
+    const session = objectOrNull(input);
+    if (!session) throw new Error("Session data must be a JSON object.");
+    const version = session.schemaVersion == null ? integer(session.v, 1) : integer(session.schemaVersion, -1);
+    if (version < 1 || version > SESSION_SCHEMA_VERSION)
+      throw new Error(`Unsupported session schema version: ${session.schemaVersion ?? session.v}.`);
+    const map = objectOrNull(session.map) || {};
+    const verso = objectOrNull(session.verso) || {};
+    return {
+      schemaVersion: SESSION_SCHEMA_VERSION,
+      scene: session.scene === "map" ? "map" : "verso",
+      map: {
+        name: map.name == null ? null : String(map.name).slice(0, 200),
+        imgURL: typeof map.imgURL === "string" ? map.imgURL : null,
+        fogURL: typeof map.fogURL === "string" ? map.fogURL : null,
+        grid: objectOrNull(map.grid) ? clone(map.grid) : {},
+        fogOn: map.fogOn !== false,
+        brush: Math.max(1, finite(map.brush, 90)),
+        tokens: Array.isArray(map.tokens) ? clone(map.tokens) : [],
+      },
+      verso: {
+        revealed: objectOrNull(verso.revealed) ? clone(verso.revealed) : {},
+        tokens: Array.isArray(verso.tokens) ? clone(verso.tokens) : [],
+      },
+      level: normalizeLevel(session.level || { rooms: [] }, options),
+    };
+  }
+
   function escapeHTML(value) {
     return String(value).replace(/[&<>"]/g, char => ({
       "&": "&amp;",
@@ -89,6 +222,8 @@
   }
 
   return Object.freeze({
+    LEVEL_SCHEMA_VERSION,
+    SESSION_SCHEMA_VERSION,
     escapeHTML,
     parseDice,
     sanitizeSheet,
@@ -96,5 +231,7 @@
     spellSaveDC,
     sanitizeLevelForClient,
     setBannerContent,
+    normalizeLevel,
+    normalizeSession,
   });
 });

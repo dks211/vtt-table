@@ -396,7 +396,7 @@ stage.addEventListener("drop",e=>{
 /* ---------------- save / load ---------------- */
 function serialize(){
   return {
-    v:1, scene:state.scene,
+    schemaVersion:SESSION_SCHEMA_VERSION, scene:state.scene,
     map:{
       name:state.map.name, imgURL:state.map.imgURL,
       grid:state.map.grid, fogOn:state.map.fogOn, brush:state.map.brush,
@@ -408,15 +408,15 @@ function serialize(){
   };
 }
 function deserialize(d){
-  try{
-    if(d.level && Array.isArray(d.level.rooms)) loadLevel(d.level);
-    state.verso.revealed=d.verso.revealed||{white:true};
-    state.verso.tokens=(d.verso.tokens||[]).map(t=>({...t}));
+    const session=normalizeSession(d,{fallbackRoster:PARTY});
+    loadLevel(session.level);
+    state.verso.revealed=session.verso.revealed;
+    state.verso.tokens=session.verso.tokens;
     uid=Math.max(uid,...state.verso.tokens.map(t=>t.id+1),1);
-    Object.assign(state.map.grid,d.map.grid||{});
-    state.map.fogOn=d.map.fogOn!==false;
-    state.map.brush=d.map.brush||90;
-    state.map.tokens=(d.map.tokens||[]).map(t=>({...t}));
+    Object.assign(state.map.grid,session.map.grid);
+    state.map.fogOn=session.map.fogOn;
+    state.map.brush=session.map.brush;
+    state.map.tokens=session.map.tokens;
     uid=Math.max(uid,...state.map.tokens.map(t=>t.id+1),uid);
     // saves from before the PC/claimable flag existed have no `pc` on any token —
     // without a backfill that makes every character look like an NPC to the newer
@@ -429,25 +429,24 @@ function deserialize(d){
         for(const t of toks) if(pcNames.has(t.name)) t.pc=true;
       }
     }
-    if(d.map.imgURL){
+    if(session.map.imgURL){
       const img=new Image();
       img.onload=()=>{
-        state.map.img=img; state.map.imgURL=d.map.imgURL; state.map.name=d.map.name;
+        state.map.img=img; state.map.imgURL=session.map.imgURL; state.map.name=session.map.name;
         const f=document.createElement("canvas");
         f.width=img.width;f.height=img.height;
         const fc=f.getContext("2d");
-        if(d.map.fogURL){
+        if(session.map.fogURL){
           const fi=new Image();
           fi.onload=()=>{fc.drawImage(fi,0,0);};
-          fi.src=d.map.fogURL;
+          fi.src=session.map.fogURL;
         }else{fc.fillStyle="#04130C";fc.fillRect(0,0,f.width,f.height);}
         state.map.fog=f;
-        if(d.scene) setScene(d.scene);
+        setScene(session.scene);
       };
-      img.src=d.map.imgURL;
-    }else if(d.scene){ setScene(d.scene); }
+      img.src=session.map.imgURL;
+    }else{ setScene(session.scene); }
     renderPanel();
-  }catch(err){console.error("load failed",err);}
 }
 $("btn-save").onclick=()=>{
   const blob=new Blob([JSON.stringify(serialize())],{type:"application/json"});
