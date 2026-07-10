@@ -17,6 +17,10 @@ The browser client is organized by responsibility:
 - `content/catalog.js` is the bundled Verso content pack plus the reusable room,
   prop, color, and roster catalogs.
 
+The level editor keeps the top-down plan as its primary workspace and displays a
+collapsible, auto-fitting isometric preview. The preview renders document geometry
+and props without live-session tokens, and is throttled to keep editing responsive.
+
 Level and session JSON carry independent schema versions. Imports are normalized
 and validated by `app/core.js`; legacy rectangle-based levels and `v:1` session
 saves migrate when loaded.

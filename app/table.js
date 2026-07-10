@@ -300,6 +300,7 @@ function frame(t){
   ctx.clearRect(0,0,W,H);
   if(App.session.mode==="edit"){
     drawEditor();
+    renderEditorPreview();
   }else{
     if(App.session.scene==="map") drawMap(); else drawVerso();
     drawRuler();

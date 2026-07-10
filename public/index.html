@@ -78,6 +78,23 @@ input[type=color]{padding:1px 2px;width:40px;height:26px;cursor:pointer}
   border:2px dashed var(--brass-dim);z-index:5;pointer-events:none;
   font-family:'Marcellus',serif;font-size:20px;letter-spacing:.1em;color:var(--brass)}
 #stage.dragging #dropzone{display:grid}
+#iso-preview{display:none;position:absolute;right:14px;bottom:14px;width:340px;height:230px;z-index:12;
+  background:rgba(10,15,12,.96);border:1px solid var(--brass-dim);border-radius:5px;overflow:hidden;
+  box-shadow:0 10px 30px rgba(0,0,0,.5)}
+body.editing #iso-preview{display:block}
+#iso-preview-head{height:30px;display:flex;align-items:center;padding:0 6px 0 10px;
+  background:var(--felt-900);border-bottom:1px solid var(--brass-faint);
+  font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.18em;color:var(--brass-dim)}
+#iso-preview-head span{flex:1}
+#iso-preview-head button{width:26px;height:26px;display:grid;place-items:center;color:var(--vellum-dim);border-radius:3px}
+#iso-preview-head button:hover{color:var(--brass);background:var(--felt-800)}
+#iso-preview-cv{display:block;width:100%;height:calc(100% - 30px)}
+#iso-preview.empty::after{content:"DRAW A ROOM TO PREVIEW";position:absolute;left:0;right:0;top:30px;bottom:0;
+  display:grid;place-items:center;font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.14em;color:var(--vellum-dim)}
+#iso-preview.collapsed{height:30px}
+#iso-preview.collapsed #iso-preview-head{border-bottom:0}
+#iso-preview.collapsed #iso-preview-cv,#iso-preview.collapsed::after{display:none}
+@media (max-width:760px){#iso-preview{width:230px;height:160px;right:8px;bottom:8px}}
 
 /* ---------- right panel ---------- */
 #panel{position:fixed;right:0;top:var(--top-h);bottom:26px;width:var(--panel-w);z-index:20;overflow-y:auto;
@@ -253,6 +270,13 @@ body.netclient #stage{left:0}
 <main id="stage">
   <canvas id="cv"></canvas>
   <div id="dropzone">DROP MAP IMAGE</div>
+  <div id="iso-preview">
+    <div id="iso-preview-head"><span>ISOMETRIC PREVIEW</span>
+      <button id="iso-preview-fit" title="Fit preview" aria-label="Fit isometric preview">⤢</button>
+      <button id="iso-preview-collapse" title="Collapse preview" aria-label="Collapse isometric preview" aria-pressed="false">▾</button>
+    </div>
+    <canvas id="iso-preview-cv"></canvas>
+  </div>
 </main>
 
 <aside id="panel"></aside>

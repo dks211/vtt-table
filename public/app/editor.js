@@ -4,8 +4,11 @@
 const ET=34;                                  // editor px per tile at zoom 1
 const edCam={x:-120,y:-120,s:1};
 let edTool="draw", edSel=null, edDraft=null, edDrag=null, edHover=null, edTemplate=0, edFitDone=false, edRoomN=0, edPropType="table", edRosterSel=null;
+const isoPreview=$("iso-preview"), isoPreviewCanvas=$("iso-preview-cv"), isoPreviewCtx=isoPreviewCanvas.getContext("2d");
+const isoPreviewCam={x:0,y:0,s:1};
+let isoPreviewFitDirty=true,isoPreviewDirty=true,isoPreviewGeometry="",isoPreviewSelection=null,isoPreviewLastDraw=0;
 const edTile=(sx,sy)=>{const [wx,wy]=toWorld(sx,sy);return [wx/ET,wy/ET];};
-function levelTouched(){markDirty(); netMarkLevel();}
+function levelTouched(){markDirty();netMarkLevel();isoPreviewFitDirty=true;isoPreviewDirty=true;}
 function newRoomId(){let id; do{id="room"+(++edRoomN);}while(App.document.rooms.some(r=>r.id===id)); return id;}
 function newEntityId(prefix,items){
   let n=items.length+1,id=prefix+n;
@@ -63,6 +66,51 @@ function edFit(){
   edCam.y=(minY-2)*ET-(H/edCam.s-bh)/2;
   updZoom();
 }
+function fitIsoPreview(width,height){
+  if(!App.document.rooms.length){isoPreviewCam.x=-width/2;isoPreviewCam.y=-height/2;isoPreviewCam.s=1;return;}
+  let minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9;
+  for(const room of App.document.rooms) for(const rect of room.rects){
+    for(const [i,j] of [[rect.x,rect.y],[rect.x+rect.w,rect.y],[rect.x+rect.w,rect.y+rect.h],[rect.x,rect.y+rect.h]]){
+      minX=Math.min(minX,isoX(i,j));maxX=Math.max(maxX,isoX(i,j));
+      minY=Math.min(minY,isoY(i,j));maxY=Math.max(maxY,isoY(i,j));
+    }
+  }
+  const bw=Math.max(1,maxX-minX),bh=Math.max(1,maxY-minY+70);
+  isoPreviewCam.s=Math.min(width/bw,height/bh)*.82;
+  isoPreviewCam.x=minX-(width/isoPreviewCam.s-bw)/2;
+  isoPreviewCam.y=minY-42-(height/isoPreviewCam.s-bh)/2;
+}
+function renderEditorPreview(){
+  if(App.session.mode!=="edit"||isoPreview.classList.contains("collapsed")) return;
+  const rect=isoPreviewCanvas.getBoundingClientRect(),width=rect.width,height=rect.height;
+  if(!(width>0&&height>0)) return;
+  const geometry=App.document.rooms.map(room=>room.rects.map(r=>[r.x,r.y,r.w,r.h])).flat(2).join(",");
+  if(geometry!==isoPreviewGeometry){isoPreviewGeometry=geometry;isoPreviewFitDirty=true;isoPreviewDirty=true;}
+  if(edSel!==isoPreviewSelection){isoPreviewSelection=edSel;isoPreviewDirty=true;}
+  const dpr=Math.min(devicePixelRatio||1,2),pixelW=Math.round(width*dpr),pixelH=Math.round(height*dpr);
+  if(isoPreviewCanvas.width!==pixelW||isoPreviewCanvas.height!==pixelH){
+    isoPreviewCanvas.width=pixelW;isoPreviewCanvas.height=pixelH;isoPreviewFitDirty=true;isoPreviewDirty=true;
+  }
+  if(!isoPreviewDirty&&tNow-isoPreviewLastDraw<100) return;
+  if(isoPreviewFitDirty){fitIsoPreview(width,height);isoPreviewFitDirty=false;}
+  isoPreviewDirty=false;isoPreviewLastDraw=tNow;
+  isoPreview.classList.toggle("empty",!App.document.rooms.length);
+  const oldCtx=ctx,oldW=W,oldH=H,oldView=RVIEW,oldCam=CAMOVR,oldSel=App.session.selRoom,oldTokens=App.session.verso.tokens;
+  ctx=isoPreviewCtx;W=width;H=height;RVIEW="dm";CAMOVR=isoPreviewCam;App.session.selRoom=edSel;App.session.verso.tokens=[];
+  try{
+    ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,width,height);
+    drawVerso();
+  }finally{
+    ctx=oldCtx;W=oldW;H=oldH;RVIEW=oldView;CAMOVR=oldCam;App.session.selRoom=oldSel;App.session.verso.tokens=oldTokens;
+  }
+}
+$("iso-preview-fit").onclick=()=>{isoPreviewFitDirty=true;isoPreviewDirty=true;};
+$("iso-preview-collapse").onclick=()=>{
+  const collapsed=isoPreview.classList.toggle("collapsed"),button=$("iso-preview-collapse");
+  button.textContent=collapsed?"▴":"▾";button.title=collapsed?"Expand preview":"Collapse preview";
+  button.setAttribute("aria-label",button.title);button.setAttribute("aria-pressed",String(collapsed));
+  if(!collapsed){isoPreviewFitDirty=true;isoPreviewDirty=true;}
+};
 function drawEditor(){
   const c=edCam;
   ctx.fillStyle="#0C1310"; ctx.fillRect(0,0,W,H);
@@ -305,6 +353,7 @@ function edSetTool(t){
 function setMode(m){
   if(m==="edit" && NET.mode==="client") return;
   App.session.mode=m;
+  document.body.classList.toggle("editing",m==="edit");
   $("tab-edit").classList.toggle("on",m==="edit");
   if(m==="edit"){
     App.session.scene="verso"; App.session.selToken=null;
@@ -339,7 +388,7 @@ $("t-fogh").onclick=()=>setTool("fogh");
 $("t-fit").onclick=()=>{if(App.session.mode==="edit")edFit();else fitScene();};
 
 function setScene(s){
-  if(App.session.mode==="edit"){ App.session.mode="play"; $("tab-edit").classList.remove("on"); setView(App.session.view); setTool(App.session.tool); }
+  if(App.session.mode==="edit"){ App.session.mode="play";document.body.classList.remove("editing");$("tab-edit").classList.remove("on");setView(App.session.view);setTool(App.session.tool); }
   App.session.scene=s; App.session.selToken=null;
   $("tab-map").classList.toggle("on",s==="map");
   $("tab-verso").classList.toggle("on",s==="verso");
@@ -494,4 +543,4 @@ setInterval(autosave,8000);
   }catch(e){/* nothing stored yet */}
 })();
 
-Object.assign(App.services.editor,{setTool,setScene,setView,serialize,deserialize,newEntityId});
+Object.assign(App.services.editor,{setTool,setScene,setView,serialize,deserialize,newEntityId,renderEditorPreview,fitIsoPreview});
