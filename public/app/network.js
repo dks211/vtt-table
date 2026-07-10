@@ -28,11 +28,11 @@ const ICE_READY=Promise.race([
 function peerOpts(){return ICE?{config:{iceServers:ICE,sdpSemantics:"unified-plan"}}:{};}
 
 function moveAllowed(x,y){
-  if(state.scene==="verso"){
+  if(App.session.scene==="verso"){
     const r=roomAtTile(x,y);
-    return !!(r && state.verso.revealed[r.id]);
+    return !!(r && App.session.verso.revealed[r.id]);
   }
-  const m=state.map;
+  const m=App.session.map;
   if(!m.img) return false;
   if(x<0||y<0||x>m.img.width||y>m.img.height) return false;
   if(!m.fog||!m.fogOn) return true;
@@ -52,11 +52,11 @@ function clientToken(t){
   return c;
 }
 function lightSnapshot(){
-  return {type:"sync",scene:state.scene,revealed:state.verso.revealed,
-    grid:state.map.grid,fogOn:state.map.fogOn,
-    tokens:{map:state.map.tokens.map(clientToken),verso:state.verso.tokens.map(clientToken)},
+  return {type:"sync",scene:App.session.scene,revealed:App.session.verso.revealed,
+    grid:App.session.map.grid,fogOn:App.session.map.fogOn,
+    tokens:{map:App.session.map.tokens.map(clientToken),verso:App.session.verso.tokens.map(clientToken)},
     // hidden initiative entries: players get the position, never the number
-    tracker:{order:state.tracker.order.map(e=>e.h?{name:e.name,h:1}:e), active:state.tracker.active},
+    tracker:{order:App.session.tracker.order.map(e=>e.h?{name:e.name,h:1}:e), active:App.session.tracker.active},
     imgStamp:NET.imgStamp,dice:NET.lastDice};
 }
 function netBroadcast(msg){
@@ -67,8 +67,8 @@ function sendFullTo(c){
   try{
     c.send(JSON.stringify({type:"level",data:clientLevelData()}));
     c.send(JSON.stringify(lightSnapshot()));
-    if(state.map.imgURL) c.send(JSON.stringify({type:"img",data:state.map.imgURL,stamp:NET.imgStamp}));
-    if(state.map.fog) c.send(JSON.stringify({type:"fog",data:state.map.fog.toDataURL("image/png")}));
+    if(App.session.map.imgURL) c.send(JSON.stringify({type:"img",data:App.session.map.imgURL,stamp:NET.imgStamp}));
+    if(App.session.map.fog) c.send(JSON.stringify({type:"fog",data:App.session.map.fog.toDataURL("image/png")}));
   }catch(e){}
 }
 
@@ -98,7 +98,7 @@ function startHost(){
     c.on("close",()=>{
       NET.conns.delete(c.peer);
       // release that player's claims
-      for(const t of [...state.map.tokens,...state.verso.tokens]) if(t.owner===c.peer) delete t.owner;
+      for(const t of [...App.session.map.tokens,...App.session.verso.tokens]) if(t.owner===c.peer) delete t.owner;
       updNetStatus(); netMark(); renderPanel();
     });
     c.on("data",raw=>{
@@ -119,10 +119,10 @@ function updNetStatus(){
 }
 function hostHandle(c,m){
   if(m.type==="claim"){
-    const t=[...state.map.tokens,...state.verso.tokens].find(t=>t.id===m.id);
+    const t=[...App.session.map.tokens,...App.session.verso.tokens].find(t=>t.id===m.id);
     if(!t || !t.pc) return;                                 // only designated player tokens
     if(t.owner && t.owner!==c.peer) return;                 // already someone else's
-    for(const o of [...state.map.tokens,...state.verso.tokens]) if(o.owner===c.peer) delete o.owner;
+    for(const o of [...App.session.map.tokens,...App.session.verso.tokens]) if(o.owner===c.peer) delete o.owner;
     t.owner=c.peer; netMark(); renderPanel();
   }
   if(m.type==="move"){
@@ -143,12 +143,12 @@ function hostHandle(c,m){
     const mod=Math.max(-30,Math.min(30,(+m.mod||0)|0));
     const e=roll(die,1,mod,"player",label);
     if(m.init){
-      const t=[...state.map.tokens,...state.verso.tokens].find(t=>t.owner===c.peer);
+      const t=[...App.session.map.tokens,...App.session.verso.tokens].find(t=>t.owner===c.peer);
       trackerSet(t?t.name:(label||"Player"), e.total, t&&t.id);
     }
   }
   if(m.type==="sheet"){
-    const t=[...state.map.tokens,...state.verso.tokens].find(t=>t.id===m.id);
+    const t=[...App.session.map.tokens,...App.session.verso.tokens].find(t=>t.id===m.id);
     if(!t || t.owner!==c.peer) return;                      // players edit only their own
     const sh=sanitizeSheet(m.sheet);
     if(sh){t.sheet=sh; netMark(); renderPanel();}
@@ -156,7 +156,7 @@ function hostHandle(c,m){
   if(m.type==="ping"){
     const wx=+m.x, wy=+m.y;
     if(!isFinite(wx)||!isFinite(wy)) return;
-    const p={x:wx,y:wy,scene:state.scene,color:"#7FA8B8",stamp:String(m.stamp||Math.random())};
+    const p={x:wx,y:wy,scene:App.session.scene,color:"#7FA8B8",stamp:String(m.stamp||Math.random())};
     addPing(p);
     netBroadcast({type:"ping",x:p.x,y:p.y,color:p.color,stamp:p.stamp});
   }
@@ -173,7 +173,7 @@ function pulsePatrols(){ // advance every patrolling token one waypoint
   return moved;
 }
 function trackerSet(name,total,tok,hidden){
-  const tr=state.tracker;
+  const tr=App.session.tracker;
   const en={name,total,tok};
   if(hidden) en.h=1;
   const i=tr.order.findIndex(e=>(tok&&e.tok===tok)||e.name===name);
@@ -183,7 +183,7 @@ function trackerSet(name,total,tok,hidden){
   netMark(); renderPanel();
 }
 function trackerAnnounce(){
-  const en=state.tracker.order[state.tracker.active];
+  const en=App.session.tracker.order[App.session.tracker.active];
   if(!en) return;
   const f={head:"INITIATIVE",total:en.name,detail:"you're up"};
   NET.lastDice=Object.assign({},f,{stamp:++NET.diceStamp});
@@ -197,9 +197,9 @@ setInterval(()=>{
   if(NET.dirty){NET.dirty=false; netBroadcast(lightSnapshot());}
 },350);
 setInterval(()=>{
-  if(NET.mode!=="host"||!NET.fogDirty||!state.map.fog) return;
+  if(NET.mode!=="host"||!NET.fogDirty||!App.session.map.fog) return;
   NET.fogDirty=false;
-  netBroadcast({type:"fog",data:state.map.fog.toDataURL("image/png")});
+  netBroadcast({type:"fog",data:App.session.map.fog.toDataURL("image/png")});
 },1500);
 /* heartbeat — lets clients detect a dead channel instead of showing a stale table */
 setInterval(()=>{if(NET.mode==="host")netBroadcast({type:"hb"});},5000);
@@ -220,7 +220,7 @@ function joinTable(code){
   NET.mode="client"; NET.code=code.trim();
   document.body.classList.add("netclient");
   setDrawer(true);   // phones: start with the drawer up so players can claim a token
-  setView("pl"); state.view="pl";
+  setView("pl"); App.session.view="pl";
   resize(); fitScene(); updZoom();            // stage geometry changed with the netclient layout
   clientConnect(false);
   /* watchdog: the host heartbeats every 5s — silence means the channel died
@@ -281,11 +281,11 @@ function cliRescue(delay){
 let firstSync=true;
 function clientHandle(m){
   if(m.type==="sync"){
-    if(m.scene!==state.scene){state.scene=m.scene; fitScene(); updZoom();}
-    state.verso.revealed=m.revealed||{};
-    Object.assign(state.map.grid,m.grid||{});
-    state.map.fogOn=m.fogOn!==false;
-    if(m.tracker) state.tracker=m.tracker;
+    if(m.scene!==App.session.scene){App.session.scene=m.scene; fitScene(); updZoom();}
+    App.session.verso.revealed=m.revealed||{};
+    Object.assign(App.session.map.grid,m.grid||{});
+    App.session.map.fogOn=m.fogOn!==false;
+    if(m.tracker) App.session.tracker=m.tracker;
     // apply tokens, but never overwrite the token I'm actively dragging
     const apply=(dst,src)=>{
       dst.length=0;
@@ -293,20 +293,20 @@ function clientHandle(m){
     };
     const mineNow=S().tokens.find(t=>t.id===NET.myToken);
     const keep=(clientDragging&&mineNow)?{...mineNow}:null;
-    apply(state.map.tokens,m.tokens.map||[]);
-    apply(state.verso.tokens,m.tokens.verso||[]);
+    apply(App.session.map.tokens,m.tokens.map||[]);
+    apply(App.session.verso.tokens,m.tokens.verso||[]);
     if(keep){
       const t=S().tokens.find(t=>t.id===keep.id);
       if(t){t.x=keep.x;t.y=keep.y;dragTok=t;}   // rebind the live drag to the fresh object
     }
     // verify my claim still holds
     if(NET.myToken!=null){
-      const t=[...state.map.tokens,...state.verso.tokens].find(t=>t.id===NET.myToken);
+      const t=[...App.session.map.tokens,...App.session.verso.tokens].find(t=>t.id===NET.myToken);
       if(!t||t.owner!==NET.myId) NET.myToken=null;
     }
     // claim sent but not yet confirmed (or re-sent after a reconnect): adopt it once the host agrees
     if(NET.myToken==null && cliWantTok!=null){
-      const t=[...state.map.tokens,...state.verso.tokens].find(t=>t.id===cliWantTok);
+      const t=[...App.session.map.tokens,...App.session.verso.tokens].find(t=>t.id===cliWantTok);
       if(t && t.owner===NET.myId) NET.myToken=cliWantTok;
     }
     if(m.dice && (!NET.lastDice||m.dice.stamp!==NET.lastDice.stamp)){NET.lastDice=m.dice;clientBanner(m.dice);}
@@ -315,25 +315,25 @@ function clientHandle(m){
   }
   if(m.type==="level" && m.data){
     loadLevel(m.data);
-    if(!cliLevelFit){cliLevelFit=true; if(state.scene==="verso"){fitScene();updZoom();}}
+    if(!cliLevelFit){cliLevelFit=true; if(App.session.scene==="verso"){fitScene();updZoom();}}
   }
   if(m.type==="ping" && !PINGS.some(q=>q.stamp===String(m.stamp))){
     const wx=+m.x, wy=+m.y;
     if(isFinite(wx)&&isFinite(wy))
-      addPing({x:wx,y:wy,scene:state.scene,color:m.color||"#7FA8B8",stamp:String(m.stamp)});
+      addPing({x:wx,y:wy,scene:App.session.scene,color:m.color||"#7FA8B8",stamp:String(m.stamp)});
   }
   if(m.type==="img"){
     const img=new Image();
-    img.onload=()=>{state.map.img=img;state.map.imgURL=m.data;if(state.scene==="map")fitScene();};
+    img.onload=()=>{App.session.map.img=img;App.session.map.imgURL=m.data;if(App.session.scene==="map")fitScene();};
     img.src=m.data;
   }
   if(m.type==="fog"){
     const fi=new Image();
     fi.onload=()=>{
-      if(!state.map.fog||state.map.fog.width!==fi.width){
-        const f=document.createElement("canvas");f.width=fi.width;f.height=fi.height;state.map.fog=f;
+      if(!App.session.map.fog||App.session.map.fog.width!==fi.width){
+        const f=document.createElement("canvas");f.width=fi.width;f.height=fi.height;App.session.map.fog=f;
       }
-      const fc=state.map.fog.getContext("2d");
+      const fc=App.session.map.fog.getContext("2d");
       fc.clearRect(0,0,fi.width,fi.height);fc.drawImage(fi,0,0);
     };
     fi.src=m.data;
@@ -346,3 +346,5 @@ function clientBanner(d){
   setTimeout(()=>b.classList.remove("show"),4500);
 }
 function clientSend(msg){if(clientConn)try{clientConn.send(JSON.stringify(msg));}catch(e){}}
+
+Object.assign(App.services.network,{hostTable,joinTable,netMark,netMarkFog,netMarkLevel,clientSend,trackerSet});

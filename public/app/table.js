@@ -3,7 +3,7 @@
 const PINGS=[]; // {x,y,scene,color,stamp,t0} — world coords of the active scene
 function addPing(p){PINGS.push({...p,t0:performance.now()});if(PINGS.length>12)PINGS.shift();}
 function spawnPing(wx,wy){
-  const p={x:wx,y:wy,scene:state.scene,
+  const p={x:wx,y:wy,scene:App.session.scene,
     color:NET.mode==="client"?"#7FA8B8":"#C8A14E",
     stamp:Math.random().toString(36).slice(2)};
   addPing(p);
@@ -12,9 +12,9 @@ function spawnPing(wx,wy){
 }
 function drawPatrolPath(){ // DM-only: dashed loop for the selected token's patrol
   if(RVIEW!=="dm" || NET.mode==="client") return;
-  const t=S().tokens.find(t=>t.id===state.selToken);
+  const t=S().tokens.find(t=>t.id===App.session.selToken);
   if(!t || !t.patrol || !t.patrol.length) return;
-  const pts=t.patrol.map(([a,b])=> state.scene==="verso" ? [isoX(a,b),isoY(a,b)] : [a,b]);
+  const pts=t.patrol.map(([a,b])=> App.session.scene==="verso" ? [isoX(a,b),isoY(a,b)] : [a,b]);
   const c=cam();
   ctx.save();
   ctx.strokeStyle="#7FA8B8"; ctx.lineWidth=2/c.s; ctx.setLineDash([8/c.s,6/c.s]);
@@ -34,7 +34,7 @@ function drawPings(){ // called inside each scene's world transform
   for(let i=PINGS.length-1;i>=0;i--){
     const p=PINGS[i], age=(now-p.t0)/1400;
     if(age>1){PINGS.splice(i,1);continue;}
-    if(p.scene!==state.scene) continue;
+    if(p.scene!==App.session.scene) continue;
     ctx.save();
     ctx.strokeStyle=p.color; ctx.lineWidth=3/c.s; ctx.globalAlpha=(1-age)*.9;
     ctx.beginPath(); ctx.arc(p.x,p.y,(10+age*70)/c.s,0,7); ctx.stroke();
@@ -288,7 +288,7 @@ function renderPlayerWindow(){
   const oc=ctx,oW=W,oH=H,ov=RVIEW;
   ctx=pctx; W=pW; H=pH; RVIEW="pl";
   ctx.clearRect(0,0,pW,pH);
-  if(state.scene==="map") drawMap(); else drawVerso();
+  if(App.session.scene==="map") drawMap(); else drawVerso();
   drawRuler();
   ctx=oc; W=oW; H=oH; RVIEW=ov; CAMOVR=null;
 }
@@ -296,12 +296,12 @@ function renderPlayerWindow(){
 /* ---------------- main loop ---------------- */
 function frame(t){
   tNow=t;
-  RVIEW=state.view; CAMOVR=null;
+  RVIEW=App.session.view; CAMOVR=null;
   ctx.clearRect(0,0,W,H);
-  if(state.mode==="edit"){
+  if(App.session.mode==="edit"){
     drawEditor();
   }else{
-    if(state.scene==="map") drawMap(); else drawVerso();
+    if(App.session.scene==="map") drawMap(); else drawVerso();
     drawRuler();
   }
   renderPlayerWindow();
@@ -313,10 +313,10 @@ let pointers=new Map(), panRef=null, dragTok=null, pinchRef=null, spaceDown=fals
 
 function tokenAt(sx,sy){
   const [wx,wy]=toWorld(sx,sy);
-  if(state.scene==="map"){
-    const g=state.map.grid.size;
-    for(let k=state.map.tokens.length-1;k>=0;k--){
-      const t=state.map.tokens[k];
+  if(App.session.scene==="map"){
+    const g=App.session.map.grid.size;
+    for(let k=App.session.map.tokens.length-1;k>=0;k--){
+      const t=App.session.map.tokens[k];
       if(Math.hypot(wx-t.x,wy-t.y)<=g*.45*t.size) return t;
     }
   }else{
@@ -324,12 +324,12 @@ function tokenAt(sx,sy){
     // a player can only ever move their own claimed token — if it's anywhere under
     // the tap, grab it outright rather than losing to whatever else is on that tile
     if(NET.mode==="client" && NET.myToken!=null){
-      const mine=state.verso.tokens.find(t=>t.id===NET.myToken);
+      const mine=App.session.verso.tokens.find(t=>t.id===NET.myToken);
       if(mine && Math.hypot(i-mine.x,j-mine.y)<.75*mine.size) return mine;
     }
     // otherwise prefer whichever token is drawn on top, so an exact tile-stack
     // (e.g. an NPC standing where a PC snapped to) resolves to what's visible
-    const byTop=[...state.verso.tokens].sort((a,b)=>(b.x+b.y)-(a.x+a.y));
+    const byTop=[...App.session.verso.tokens].sort((a,b)=>(b.x+b.y)-(a.x+a.y));
     let best=null,bd=1e9;
     for(const t of byTop){
       const d=Math.hypot(i-t.x,j-t.y);
@@ -340,11 +340,11 @@ function tokenAt(sx,sy){
   return null;
 }
 function paintFog(sx,sy){
-  const m=state.map; if(!m.img||!m.fog) return;
+  const m=App.session.map; if(!m.img||!m.fog) return;
   const [wx,wy]=toWorld(sx,sy);
   const fctx=m.fog.getContext("2d");
   fctx.save();
-  fctx.globalCompositeOperation = state.tool==="fogr" ? "destination-out" : "source-over";
+  fctx.globalCompositeOperation = App.session.tool==="fogr" ? "destination-out" : "source-over";
   fctx.fillStyle="#04130C";
   fctx.beginPath(); fctx.arc(wx,wy,m.brush,0,7); fctx.fill();
   fctx.restore();
@@ -359,19 +359,19 @@ cv.addEventListener("pointerdown",e=>{
     pinchRef={d:Math.hypot(a.x-b.x,a.y-b.y)};
     dragTok=null; panRef=null; edDraft=null; edDrag=null; return;
   }
-  if(state.mode==="edit"){edDown(e);return;}
+  if(App.session.mode==="edit"){edDown(e);return;}
   // patrol recording: DM clicks drop waypoints for the selected token
   if(patrolRec!=null && NET.mode!=="client" && e.button===0 && !spaceDown){
     const t=S().tokens.find(t=>t.id===patrolRec);
     if(t){
       const [pwx,pwy]=toWorld(e.offsetX,e.offsetY);
       let pt;
-      if(state.scene==="verso"){
+      if(App.session.scene==="verso"){
         const [i,j]=unIso(pwx,pwy);
         pt=[Math.floor(i)+.5,Math.floor(j)+.5];
       }else{
         pt=[pwx,pwy];
-        const g=state.map.grid;
+        const g=App.session.map.grid;
         if(g.snap&&g.show) pt=[Math.floor((pwx-g.ox)/g.size)*g.size+g.ox+g.size/2,
                                Math.floor((pwy-g.oy)/g.size)*g.size+g.oy+g.size/2];
       }
@@ -396,15 +396,15 @@ cv.addEventListener("pointerdown",e=>{
   if(NET.mode==="client"){
     if(e.button===2){downAt=null;return;}
     const wantPanC = spaceDown || e.button===1;
-    if(!wantPanC && state.tool!=="ruler"){
+    if(!wantPanC && App.session.tool!=="ruler"){
       const t=tokenAt(e.offsetX,e.offsetY);
       if(t && t.id===NET.myToken){
         dragTok=t; clientDragging=true;
         cliOX=t.x; cliOY=t.y;
-        state.selToken=t.id; return;
+        App.session.selToken=t.id; return;
       }
     }
-    if(state.tool==="ruler" && !wantPanC){
+    if(App.session.tool==="ruler" && !wantPanC){
       const [wx,wy]=toWorld(e.offsetX,e.offsetY);
       ruler={x1:wx,y1:wy,x2:wx,y2:wy}; return;
     }
@@ -416,22 +416,22 @@ cv.addEventListener("pointerdown",e=>{
     if(t && confirm('Remove token "'+t.name+'"?')){
       const arr=S().tokens, i=arr.indexOf(t);
       if(i>=0) arr.splice(i,1);
-      if(state.selToken===t.id) state.selToken=null;
+      if(App.session.selToken===t.id) App.session.selToken=null;
       markDirty(); renderPanel(); downAt=null; return;
     }
   }
   const wantPan = spaceDown || e.button===1 || e.button===2;
-  if(state.tool==="ruler" && !wantPan){
+  if(App.session.tool==="ruler" && !wantPan){
     const [wx,wy]=toWorld(e.offsetX,e.offsetY);
     ruler={x1:wx,y1:wy,x2:wx,y2:wy};
     return;
   }
-  if((state.tool==="fogr"||state.tool==="fogh") && state.scene==="map" && !wantPan){
+  if((App.session.tool==="fogr"||App.session.tool==="fogh") && App.session.scene==="map" && !wantPan){
     fogPainting=true; paintFog(e.offsetX,e.offsetY); return;
   }
   if(!wantPan){
     const t=tokenAt(e.offsetX,e.offsetY);
-    if(t){dragTok=t; state.selToken=t.id; renderPanel(); return;}
+    if(t){dragTok=t; App.session.selToken=t.id; renderPanel(); return;}
   }
   panRef={x:e.offsetX,y:e.offsetY,cx:cam().x,cy:cam().y};
 });
@@ -440,9 +440,9 @@ cv.addEventListener("pointermove",e=>{
   if(p){p.x=e.offsetX;p.y=e.offsetY;}
   // status coords
   const [wx,wy]=toWorld(e.offsetX,e.offsetY);
-  if(state.mode==="edit"){
+  if(App.session.mode==="edit"){
     /* edMove writes the tile readout */
-  }else if(state.scene==="verso"){
+  }else if(App.session.scene==="verso"){
     const [i,j]=unIso(wx,wy);
     $("st-pos").textContent=`tile ${i.toFixed(1)}, ${j.toFixed(1)}`;
   }else{
@@ -455,15 +455,15 @@ cv.addEventListener("pointermove",e=>{
     if(pinchRef.d>0) zoomAt(mx,my,d/pinchRef.d);
     pinchRef.d=d; updZoom(); return;
   }
-  if(state.mode==="edit"){edMove(e);return;}
+  if(App.session.mode==="edit"){edMove(e);return;}
   if(downAt && Math.hypot(e.offsetX-downAt.x,e.offsetY-downAt.y)>4) downAt.moved=true;
-  if(ruler && state.tool==="ruler" && e.buttons){
+  if(ruler && App.session.tool==="ruler" && e.buttons){
     const [rx,ry]=toWorld(e.offsetX,e.offsetY);
     ruler.x2=rx; ruler.y2=ry; return;
   }
   if(fogPainting && e.buttons){paintFog(e.offsetX,e.offsetY);return;}
   if(dragTok && e.buttons){
-    if(state.scene==="map"){dragTok.x=wx;dragTok.y=wy;}
+    if(App.session.scene==="map"){dragTok.x=wx;dragTok.y=wy;}
     else{const [i,j]=unIso(wx,wy);dragTok.x=i;dragTok.y=j;}
     markDirty(); return;
   }
@@ -476,14 +476,14 @@ cv.addEventListener("pointermove",e=>{
 cv.addEventListener("pointerup",e=>{
   pointers.delete(e.pointerId);
   if(pointers.size<2) pinchRef=null;
-  if(state.mode==="edit"){edUp();return;}
-  if(ruler && state.tool==="ruler"){ setTimeout(()=>{ruler=null;},900); }
+  if(App.session.mode==="edit"){edUp();return;}
+  if(ruler && App.session.tool==="ruler"){ setTimeout(()=>{ruler=null;},900); }
   if(dragTok && NET.mode==="client"){
-    if(state.scene==="map" && state.map.grid.snap && state.map.grid.show){
-      const g=state.map.grid.size;
-      dragTok.x=Math.floor((dragTok.x-state.map.grid.ox)/g)*g+state.map.grid.ox+g/2;
-      dragTok.y=Math.floor((dragTok.y-state.map.grid.oy)/g)*g+state.map.grid.oy+g/2;
-    }else if(state.scene==="verso"){
+    if(App.session.scene==="map" && App.session.map.grid.snap && App.session.map.grid.show){
+      const g=App.session.map.grid.size;
+      dragTok.x=Math.floor((dragTok.x-App.session.map.grid.ox)/g)*g+App.session.map.grid.ox+g/2;
+      dragTok.y=Math.floor((dragTok.y-App.session.map.grid.oy)/g)*g+App.session.map.grid.oy+g/2;
+    }else if(App.session.scene==="verso"){
       dragTok.x=Math.floor(dragTok.x)+.5;
       dragTok.y=Math.floor(dragTok.y)+.5;
     }
@@ -497,26 +497,26 @@ cv.addEventListener("pointerup",e=>{
   }
   if(dragTok){
     // snap
-    if(state.scene==="map" && state.map.grid.snap && state.map.grid.show){
-      const g=state.map.grid.size;
-      dragTok.x=Math.floor((dragTok.x-state.map.grid.ox)/g)*g+state.map.grid.ox+g/2;
-      dragTok.y=Math.floor((dragTok.y-state.map.grid.oy)/g)*g+state.map.grid.oy+g/2;
-    }else if(state.scene==="verso"){
+    if(App.session.scene==="map" && App.session.map.grid.snap && App.session.map.grid.show){
+      const g=App.session.map.grid.size;
+      dragTok.x=Math.floor((dragTok.x-App.session.map.grid.ox)/g)*g+App.session.map.grid.ox+g/2;
+      dragTok.y=Math.floor((dragTok.y-App.session.map.grid.oy)/g)*g+App.session.map.grid.oy+g/2;
+    }else if(App.session.scene==="verso"){
       dragTok.x=Math.floor(dragTok.x)+.5;
       dragTok.y=Math.floor(dragTok.y)+.5;
     }
     markDirty();
   }
   // click (no drag): select room in verso
-  if(downAt && !downAt.moved && !dragTok && state.scene==="verso" && state.tool==="select"){
+  if(downAt && !downAt.moved && !dragTok && App.session.scene==="verso" && App.session.tool==="select"){
     const [wx,wy]=toWorld(e.offsetX,e.offsetY);
     const [i,j]=unIso(wx,wy);
     const r=roomAtTile(i,j);
-    state.selRoom = r ? r.id : null;
+    App.session.selRoom = r ? r.id : null;
     renderPanel();
   }
-  if(downAt && !downAt.moved && !dragTok && state.scene==="map" && state.tool==="select"){
-    state.selToken=null; renderPanel();
+  if(downAt && !downAt.moved && !dragTok && App.session.scene==="map" && App.session.tool==="select"){
+    App.session.selToken=null; renderPanel();
   }
   dragTok=null; panRef=null; fogPainting=false; downAt=null;
 });
@@ -537,7 +537,7 @@ cv.addEventListener("wheel",e=>{
     zoomAt(e.offsetX,e.offsetY,Math.exp(-e.deltaY*dm*.0018));
     updZoom(); return;
   }
-  if(state.mode==="edit"){
+  if(App.session.mode==="edit"){
     // editor: two-finger scroll pans, so DRAW mode never needs a tool switch
     const c=cam();
     c.x+=e.deltaX*dm/c.s; c.y+=e.deltaY*dm/c.s;
@@ -568,11 +568,11 @@ addEventListener("keydown",e=>{
   if(e.target.tagName==="INPUT"||e.target.tagName==="SELECT"||e.target.tagName==="TEXTAREA") return;
   if(e.code==="Space"){spaceDown=true;cv.style.cursor="grabbing";e.preventDefault();}
   const k=e.key.toLowerCase();
-  if(state.mode==="edit"){
+  if(App.session.mode==="edit"){
     if((e.metaKey||e.ctrlKey) && k==="z"){edUndoPop();e.preventDefault();return;}
     if((k==="delete"||k==="backspace") && edSel){
-      const i=ROOMS.findIndex(r=>r.id===edSel);
-      if(i>=0){edSnapshot();ROOMS.splice(i,1);delete state.verso.revealed[edSel];edSel=null;pruneDoors();levelTouched();renderPanel();}
+      const i=App.document.rooms.findIndex(r=>r.id===edSel);
+      if(i>=0){edSnapshot();App.document.rooms.splice(i,1);delete App.session.verso.revealed[edSel];edSel=null;pruneDoors();levelTouched();renderPanel();}
     }
     if(e.key==="Escape"){edSel=null;renderPanel();}
     if(k==="f") edFit();
@@ -584,13 +584,13 @@ addEventListener("keydown",e=>{
   }
   if(k==="v") setTool("select");
   if(k==="m") setTool("ruler");
-  if(k==="r" && state.scene==="map") setTool("fogr");
-  if(k==="h" && state.scene==="map") setTool("fogh");
+  if(k==="r" && App.session.scene==="map") setTool("fogr");
+  if(k==="h" && App.session.scene==="map") setTool("fogh");
   if(k==="f") fitScene();
-  if(k==="g" && state.scene==="map"){state.map.grid.show=!state.map.grid.show;renderPanel();}
-  if((k==="delete"||k==="backspace") && state.selToken!=null){
-    const arr=S().tokens; const i=arr.findIndex(t=>t.id===state.selToken);
-    if(i>=0){arr.splice(i,1);state.selToken=null;renderPanel();markDirty();}
+  if(k==="g" && App.session.scene==="map"){App.session.map.grid.show=!App.session.map.grid.show;renderPanel();}
+  if((k==="delete"||k==="backspace") && App.session.selToken!=null){
+    const arr=S().tokens; const i=arr.findIndex(t=>t.id===App.session.selToken);
+    if(i>=0){arr.splice(i,1);App.session.selToken=null;renderPanel();markDirty();}
   }
 });
 addEventListener("keyup",e=>{
@@ -598,3 +598,5 @@ addEventListener("keyup",e=>{
 });
 
 function updZoom(){$("st-zoom").textContent=Math.round(cam().s*100)+"%";}
+
+Object.assign(App.services.table,{frame,roll,openPlayerWindow,updZoom});

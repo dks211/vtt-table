@@ -113,12 +113,12 @@ function wireSheetRolls(p,t){
 let rollsFloatOpen=false;
 function rollsFloatToken(){
   return NET.mode==="client" ? S().tokens.find(t=>t.id===NET.myToken)
-                             : S().tokens.find(t=>t.id===state.selToken);
+                             : S().tokens.find(t=>t.id===App.session.selToken);
 }
 function renderRollsFloat(){
   const el=$("rolls-float");
   if(!el) return;
-  const t=(rollsFloatOpen && state.mode!=="edit") ? rollsFloatToken() : null;
+  const t=(rollsFloatOpen && App.session.mode!=="edit") ? rollsFloatToken() : null;
   if(!t || !t.sheet){el.style.display="none";el.innerHTML="";return;}
   const ae=document.activeElement;
   // only bail for an open select/input — a just-clicked button shouldn't freeze the display
@@ -187,7 +187,7 @@ function readSheetForm(){
     spellAbil:$("sh-spellabil").value||null,abil,atks,skills});
 }
 function trackerListHTML(canEdit){
-  const tr=state.tracker;
+  const tr=App.session.tracker;
   if(!tr.order.length) return "";
   return `<div class="toklist">${tr.order.map((en,i)=>`
     <div class="tok" style="cursor:default;${i===tr.active?"border-color:var(--brass-dim);background:var(--felt-950)":""}">
@@ -199,8 +199,8 @@ function trackerListHTML(canEdit){
 function updateTrackerFloat(){
   const el=$("tracker-float");
   if(!el) return;
-  const tr=state.tracker;
-  if(!tr.order.length || state.mode==="edit"){el.style.display="none";return;}
+  const tr=App.session.tracker;
+  if(!tr.order.length || App.session.mode==="edit"){el.style.display="none";return;}
   el.style.display="flex";
   const dm=NET.mode!=="client";
   el.innerHTML='<div class="tfh">INITIATIVE</div>'+tr.order.map((en,i)=>
@@ -214,15 +214,15 @@ function renderPanel(){
   if(ae && ae.closest && ae.closest("#panel") &&
      (ae.tagName==="INPUT"||ae.tagName==="TEXTAREA"||ae.tagName==="SELECT")) return;
   if(NET.mode==="client"){renderClientPanel();return;}
-  if(state.mode==="edit"){renderEditorPanel();return;}
+  if(App.session.mode==="edit"){renderEditorPanel();return;}
   const p=$("panel");
   let html="";
 
-  if(state.scene==="verso"){
-    const r=ROOMS.find(r=>r.id===state.selRoom);
+  if(App.session.scene==="verso"){
+    const r=App.document.rooms.find(r=>r.id===App.session.selRoom);
     html+=`<div class="sect"><h3>Room</h3>`;
     if(r){
-      const rev=!!state.verso.revealed[r.id];
+      const rev=!!App.session.verso.revealed[r.id];
       html+=`<div id="roomcard">
         <div class="rc-head"><div class="rc-name">${esc(r.name)}</div>
         <div class="rc-sub">${esc(r.sub).toUpperCase()} · ${rev?"REVEALED":"HIDDEN"}</div></div>
@@ -243,27 +243,27 @@ function renderPanel(){
     }
     html+=`</div>`;
     html+=`<div class="sect dm-only"><h3>Reveal</h3><div class="toklist">`+
-      ROOMS.map(r=>`<div class="tok" data-room="${r.id}">
-        <span class="dot" style="background:${state.verso.revealed[r.id]?"#C8A14E":"#3a3a35"}"></span>
+      App.document.rooms.map(r=>`<div class="tok" data-room="${r.id}">
+        <span class="dot" style="background:${App.session.verso.revealed[r.id]?"#C8A14E":"#3a3a35"}"></span>
         <span class="nm">${esc(r.name)}</span>
-        <span class="del" data-rev="${r.id}" title="${state.verso.revealed[r.id]?"hide from players":"reveal to players"}" style="color:${state.verso.revealed[r.id]?"#C8A14E":"#666"}">${state.verso.revealed[r.id]?"●":"○"}</span>
+        <span class="del" data-rev="${r.id}" title="${App.session.verso.revealed[r.id]?"hide from players":"reveal to players"}" style="color:${App.session.verso.revealed[r.id]?"#C8A14E":"#666"}">${App.session.verso.revealed[r.id]?"●":"○"}</span>
       </div>`).join("")+`</div></div>`;
   }else{
     html+=`<div class="sect"><h3>Map</h3>`;
-    if(state.map.img){
-      html+=`<div class="hint" style="margin-bottom:8px">${esc(state.map.name||"map")} · ${state.map.img.width}×${state.map.img.height}px</div>`;
+    if(App.session.map.img){
+      html+=`<div class="hint" style="margin-bottom:8px">${esc(App.session.map.name||"map")} · ${App.session.map.img.width}×${App.session.map.img.height}px</div>`;
     }
     html+=`<button class="rbtn" id="btn-import" style="width:100%">IMPORT MAP IMAGE</button></div>`;
     html+=`<div class="sect"><h3>Grid</h3>
-      <label class="check"><input type="checkbox" id="g-show" ${state.map.grid.show?"checked":""}> show grid (G)</label>
-      <label class="check"><input type="checkbox" id="g-snap" ${state.map.grid.snap?"checked":""}> snap tokens</label>
-      <div class="row"><label>size px</label><input type="range" id="g-size" min="20" max="220" value="${state.map.grid.size}"><input type="number" id="g-size-n" value="${state.map.grid.size}"></div>
-      <div class="row"><label>offset x</label><input type="range" id="g-ox" min="0" max="${state.map.grid.size}" value="${state.map.grid.ox}"></div>
-      <div class="row"><label>offset y</label><input type="range" id="g-oy" min="0" max="${state.map.grid.size}" value="${state.map.grid.oy}"></div>
+      <label class="check"><input type="checkbox" id="g-show" ${App.session.map.grid.show?"checked":""}> show grid (G)</label>
+      <label class="check"><input type="checkbox" id="g-snap" ${App.session.map.grid.snap?"checked":""}> snap tokens</label>
+      <div class="row"><label>size px</label><input type="range" id="g-size" min="20" max="220" value="${App.session.map.grid.size}"><input type="number" id="g-size-n" value="${App.session.map.grid.size}"></div>
+      <div class="row"><label>offset x</label><input type="range" id="g-ox" min="0" max="${App.session.map.grid.size}" value="${App.session.map.grid.ox}"></div>
+      <div class="row"><label>offset y</label><input type="range" id="g-oy" min="0" max="${App.session.map.grid.size}" value="${App.session.map.grid.oy}"></div>
       <div class="hint">Match size to one 5-ft square on your Inkarnate export, then nudge offsets until lines sit on your walls.</div></div>`;
     html+=`<div class="sect dm-only"><h3>Fog of War</h3>
-      <label class="check"><input type="checkbox" id="f-on" ${state.map.fogOn?"checked":""}> fog enabled</label>
-      <div class="row"><label>brush</label><input type="range" id="f-brush" min="20" max="300" value="${state.map.brush}"></div>
+      <label class="check"><input type="checkbox" id="f-on" ${App.session.map.fogOn?"checked":""}> fog enabled</label>
+      <div class="row"><label>brush</label><input type="range" id="f-brush" min="20" max="300" value="${App.session.map.brush}"></div>
       <div class="row">
         <button class="rbtn quiet" id="f-all">COVER ALL</button>
         <button class="rbtn quiet" id="f-none">CLEAR ALL</button>
@@ -288,7 +288,7 @@ function renderPanel(){
 
   // initiative tracker
   html+=`<div class="sect"><h3>Initiative</h3>`+trackerListHTML(true)+
-    (state.tracker.order.length
+    (App.session.tracker.order.length
       ?`<div class="row" style="margin-top:7px"><button class="rbtn" id="tr-next">NEXT TURN</button><button class="rbtn quiet" id="tr-clear">CLEAR</button></div>`
       :`<div class="hint" style="margin-bottom:7px">Players' INITIATIVE button adds them automatically; ROLL PCS rolls for every PC token from its sheet.</div>`)+
     `<div class="row"><button class="rbtn quiet" id="tr-pcs">ROLL PCS</button></div>
@@ -305,7 +305,7 @@ function renderPanel(){
   // tokens
   const toks=S().tokens;
   html+=`<div class="sect"><h3>Tokens</h3><div class="toklist">`+
-    toks.map(t=>`<div class="tok ${state.selToken===t.id?"sel":""}" data-tok="${t.id}">
+    toks.map(t=>`<div class="tok ${App.session.selToken===t.id?"sel":""}" data-tok="${t.id}">
       <span class="dot" style="background:${t.color}">${esc(t.letter)}</span>
       <span class="nm">${esc(t.name)}${t.owner?' <span style="font-size:9px;color:var(--under)">· claimed</span>':''}</span>
       <span class="del" data-pc="${t.id}" title="toggle: players can see & claim this token" style="font-size:9px;letter-spacing:.05em;color:${t.pc?"var(--brass)":"#666"}">${t.pc?"PC":"npc"}</span>
@@ -313,7 +313,7 @@ function renderPanel(){
     </div>`).join("")+
     `</div>`;
   // patrol controls for the selected token
-  const selT=toks.find(t=>t.id===state.selToken);
+  const selT=toks.find(t=>t.id===App.session.selToken);
   if(selT){
     html+=`<div class="row" style="margin-top:7px">
       <button class="rbtn quiet" id="pt-rec">${patrolRec===selT.id?"■ STOP RECORDING":"● RECORD PATROL"}</button>
@@ -337,23 +337,23 @@ function renderPanel(){
     <label class="check"><input type="checkbox" id="at-pc"> players can claim (PC)</label>
     <button class="rbtn" id="addtok-btn">PLACE TOKEN</button>
     <div class="hint" style="margin-top:8px">Library shortcuts (edit in EDITOR → Token Library):</div>
-    <div class="toklist" style="margin-top:5px">${LEVEL.roster.map((p,i)=>`<div class="tok" data-party="${i}">
+    <div class="toklist" style="margin-top:5px">${App.document.level.roster.map((p,i)=>`<div class="tok" data-party="${i}">
       <span class="dot" style="background:${p.color}">${esc(p.letter)}</span><span class="nm">${esc(p.name)}</span>${p.pc?'<span style="font-size:9px;color:var(--brass)">PC</span>':''}</div>`).join("")}</div>
   </div>`;
 
   p.innerHTML=html;
 
   /* wire panel events */
-  if(state.scene==="verso"){
+  if(App.session.scene==="verso"){
     const tg=$("rc-toggle");
     if(tg) tg.onclick=()=>{
-      const id=state.selRoom;
-      state.verso.revealed[id]=!state.verso.revealed[id];
+      const id=App.session.selRoom;
+      App.session.verso.revealed[id]=!App.session.verso.revealed[id];
       markDirty(); renderPanel();
     };
     const rcl=$("rc-light");
     if(rcl) rcl.onclick=()=>{
-      const room=ROOMS.find(x=>x.id===state.selRoom);
+      const room=App.document.rooms.find(x=>x.id===App.session.selRoom);
       if(!room) return;
       const seq=["lit","dim","dark","flicker"];
       const next=seq[(seq.indexOf(room.light||"lit")+1)%seq.length];
@@ -362,7 +362,7 @@ function renderPanel(){
     };
     const rct=$("rc-tokens");
     if(rct) rct.onclick=()=>{
-      const room=ROOMS.find(x=>x.id===state.selRoom);
+      const room=App.document.rooms.find(x=>x.id===App.session.selRoom);
       if(!room) return;
       if(room.tokensAlways) delete room.tokensAlways; else room.tokensAlways=true;
       levelTouched(); renderPanel();
@@ -371,32 +371,32 @@ function renderPanel(){
       el.onclick=e=>{
         if(e.target.dataset.rev){
           const id=e.target.dataset.rev;
-          state.verso.revealed[id]=!state.verso.revealed[id];
+          App.session.verso.revealed[id]=!App.session.verso.revealed[id];
           markDirty(); renderPanel(); return;
         }
-        state.selRoom=el.dataset.room; renderPanel();
+        App.session.selRoom=el.dataset.room; renderPanel();
       };
     });
   }else{
     const bi=$("btn-import"); if(bi) bi.onclick=()=>$("file-img").click();
-    const gs=$("g-show"); if(gs) gs.onchange=e=>{state.map.grid.show=e.target.checked;markDirty();};
-    const gp=$("g-snap"); if(gp) gp.onchange=e=>{state.map.grid.snap=e.target.checked;markDirty();};
+    const gs=$("g-show"); if(gs) gs.onchange=e=>{App.session.map.grid.show=e.target.checked;markDirty();};
+    const gp=$("g-snap"); if(gp) gp.onchange=e=>{App.session.map.grid.snap=e.target.checked;markDirty();};
     const sz=$("g-size"), szn=$("g-size-n");
-    if(sz) sz.oninput=e=>{state.map.grid.size=+e.target.value;szn.value=e.target.value;markDirty();};
-    if(szn) szn.onchange=e=>{state.map.grid.size=Math.max(10,+e.target.value||70);sz.value=state.map.grid.size;markDirty();};
-    const ox=$("g-ox"); if(ox) ox.oninput=e=>{state.map.grid.ox=+e.target.value;markDirty();};
-    const oy=$("g-oy"); if(oy) oy.oninput=e=>{state.map.grid.oy=+e.target.value;markDirty();};
-    const fo=$("f-on"); if(fo) fo.onchange=e=>{state.map.fogOn=e.target.checked;markDirty();};
-    const fb=$("f-brush"); if(fb) fb.oninput=e=>{state.map.brush=+e.target.value;};
+    if(sz) sz.oninput=e=>{App.session.map.grid.size=+e.target.value;szn.value=e.target.value;markDirty();};
+    if(szn) szn.onchange=e=>{App.session.map.grid.size=Math.max(10,+e.target.value||70);sz.value=App.session.map.grid.size;markDirty();};
+    const ox=$("g-ox"); if(ox) ox.oninput=e=>{App.session.map.grid.ox=+e.target.value;markDirty();};
+    const oy=$("g-oy"); if(oy) oy.oninput=e=>{App.session.map.grid.oy=+e.target.value;markDirty();};
+    const fo=$("f-on"); if(fo) fo.onchange=e=>{App.session.map.fogOn=e.target.checked;markDirty();};
+    const fb=$("f-brush"); if(fb) fb.oninput=e=>{App.session.map.brush=+e.target.value;};
     const fa=$("f-all"); if(fa) fa.onclick=()=>{
-      if(!state.map.fog) return;
-      const fc=state.map.fog.getContext("2d");
+      if(!App.session.map.fog) return;
+      const fc=App.session.map.fog.getContext("2d");
       fc.globalCompositeOperation="source-over";
-      fc.fillStyle="#04130C"; fc.fillRect(0,0,state.map.fog.width,state.map.fog.height); markDirty(); netMarkFog();
+      fc.fillStyle="#04130C"; fc.fillRect(0,0,App.session.map.fog.width,App.session.map.fog.height); markDirty(); netMarkFog();
     };
     const fn=$("f-none"); if(fn) fn.onclick=()=>{
-      if(!state.map.fog) return;
-      state.map.fog.getContext("2d").clearRect(0,0,state.map.fog.width,state.map.fog.height); markDirty(); netMarkFog();
+      if(!App.session.map.fog) return;
+      App.session.map.fog.getContext("2d").clearRect(0,0,App.session.map.fog.width,App.session.map.fog.height); markDirty(); netMarkFog();
     };
   }
   p.querySelectorAll("[data-die]").forEach(el=>{
@@ -432,11 +432,11 @@ function renderPanel(){
     el.onclick=e=>{
       if(e.target.dataset.del||e.target.dataset.pc) return;
       const id=+el.dataset.tok;
-      state.selToken=id;
+      App.session.selToken=id;
       const t=S().tokens.find(t=>t.id===id);
       if(t){ // center camera on token
         const c=cam();
-        if(state.scene==="map"){c.x=t.x-W/(2*c.s);c.y=t.y-H/(2*c.s);}
+        if(App.session.scene==="map"){c.x=t.x-W/(2*c.s);c.y=t.y-H/(2*c.s);}
         else{c.x=isoX(t.x,t.y)-W/(2*c.s);c.y=isoY(t.x,t.y)-H/(2*c.s);}
       }
       renderPanel();
@@ -447,18 +447,18 @@ function renderPanel(){
       const id=+el.dataset.del;
       const arr=S().tokens, i=arr.findIndex(t=>t.id===id);
       if(i>=0) arr.splice(i,1);
-      if(state.selToken===id) state.selToken=null;
+      if(App.session.selToken===id) App.session.selToken=null;
       markDirty(); renderPanel();
     };
   });
   /* initiative wiring */
   const trNext=$("tr-next"); if(trNext) trNext.onclick=()=>{
-    const tr=state.tracker;
+    const tr=App.session.tracker;
     if(!tr.order.length) return;
     tr.active=(tr.active+1)%tr.order.length;
     trackerAnnounce(); renderPanel();
   };
-  const trClear=$("tr-clear"); if(trClear) trClear.onclick=()=>{state.tracker={order:[],active:0};netMark();renderPanel();};
+  const trClear=$("tr-clear"); if(trClear) trClear.onclick=()=>{App.session.tracker={order:[],active:0};netMark();renderPanel();};
   const trPcs=$("tr-pcs"); if(trPcs) trPcs.onclick=()=>{
     for(const t of S().tokens.filter(t=>t.pc)){
       const e=roll(20,1,t.sheet?initOf(t.sheet):0,"dm",t.name+" · Initiative");
@@ -472,19 +472,19 @@ function renderPanel(){
   };
   const dh=$("dice-hide"); if(dh) dh.onchange=e=>{dmHidden=e.target.checked;};
   p.querySelectorAll("[data-trh]").forEach(el=>{el.onclick=()=>{
-    const en=state.tracker.order[+el.dataset.trh];
+    const en=App.session.tracker.order[+el.dataset.trh];
     if(!en) return;
     if(en.h) delete en.h; else en.h=1;
     netMark(); renderPanel();
   };});
   p.querySelectorAll("[data-trup]").forEach(el=>{el.onclick=()=>{
-    const i=+el.dataset.trup, tr=state.tracker;
+    const i=+el.dataset.trup, tr=App.session.tracker;
     if(i<=0) return;
     [tr.order[i-1],tr.order[i]]=[tr.order[i],tr.order[i-1]];
     netMark(); renderPanel();
   };});
   p.querySelectorAll("[data-trdel]").forEach(el=>{el.onclick=()=>{
-    const tr=state.tracker;
+    const tr=App.session.tracker;
     tr.order.splice(+el.dataset.trdel,1);
     if(tr.active>=tr.order.length) tr.active=0;
     netMark(); renderPanel();
@@ -520,10 +520,10 @@ function renderPanel(){
     markDirty(); renderPanel();
   };
   const shLib=$("sh-tolib"); if(shLib && selT) shLib.onclick=()=>{
-    const entry={name:selT.name, letter:selT.letter, color:selT.color, sheet:readSheetForm()};
+    const i=App.document.level.roster.findIndex(q=>q.name===selT.name);
+    const entry={id:i>=0?App.document.level.roster[i].id:newEntityId("roster",App.document.level.roster),name:selT.name, letter:selT.letter, color:selT.color, sheet:readSheetForm()};
     if(selT.pc) entry.pc=true;
-    const i=LEVEL.roster.findIndex(q=>q.name===selT.name);
-    if(i>=0) LEVEL.roster[i]=entry; else LEVEL.roster.push(entry);
+    if(i>=0) App.document.level.roster[i]=entry; else App.document.level.roster.push(entry);
     levelTouched();
     $("st-hint").textContent=selT.name+" saved to the Token Library — persists with the level";
   };
@@ -538,13 +538,13 @@ function renderPanel(){
     placeToken(name, name.replace(/[^A-Za-z]/g,"").slice(0,2).toUpperCase()||"?", addColor, size, $("at-pc").checked);
   };
   p.querySelectorAll("[data-party]").forEach(el=>{
-    el.onclick=()=>{const pp=LEVEL.roster[+el.dataset.party];placeToken(pp.name,pp.letter,pp.color,1,!!pp.pc,pp.sheet);};
+    el.onclick=()=>{const pp=App.document.level.roster[+el.dataset.party];placeToken(pp.name,pp.letter,pp.color,1,!!pp.pc,pp.sheet);};
   });
 }
 function placeToken(name,letter,color,size,pc,sheet){
   const c=cam();
   let x,y;
-  if(state.scene==="map"){
+  if(App.session.scene==="map"){
     [x,y]=toWorld(W/2,H/2);
   }else{
     const [wx,wy]=toWorld(W/2,H/2);
@@ -554,17 +554,17 @@ function placeToken(name,letter,color,size,pc,sheet){
   const t=mkTok(name,letter,color,x,y,size,pc);
   if(sheet) t.sheet=JSON.parse(JSON.stringify(sheet));
   S().tokens.push(t);
-  state.selToken=t.id;
+  App.session.selToken=t.id;
   markDirty(); renderPanel();
 }
 
 function renderEditorPanel(){
   const p=$("panel");
-  const sel=ROOMS.find(r=>r.id===edSel);
+  const sel=App.document.rooms.find(r=>r.id===edSel);
   const toolBtn=(t,label)=>`<button class="rbtn ${edTool===t?"":"quiet"}" data-edtool="${t}" style="flex:1">${label}</button>`;
   let html=`<div class="sect"><h3>Level</h3>
-    <div class="row"><label>name</label><input type="text" id="lv-name" value="${esc(LEVEL.name)}"></div>
-    <div class="row"><label>backdrop</label><input type="color" id="lv-bg" value="${LEVEL.bg}"></div>
+    <div class="row"><label>name</label><input type="text" id="lv-name" value="${esc(App.document.level.name)}"></div>
+    <div class="row"><label>backdrop</label><input type="color" id="lv-bg" value="${App.document.level.bg}"></div>
     <div class="row">
       <button class="rbtn quiet" id="lv-export">EXPORT</button>
       <button class="rbtn quiet" id="lv-import">IMPORT</button>
@@ -609,7 +609,7 @@ function renderEditorPanel(){
     html+=`<div class="sect"><h3>Room</h3><div class="hint">Select a room to edit its name, palette, read-aloud text, DM notes and clues — the same card you use at the table.</div></div>`;
   }
   html+=`<div class="sect"><h3>Token Library</h3>
-    <div class="toklist">${LEVEL.roster.map((q,i)=>`<div class="tok" style="cursor:default">
+    <div class="toklist">${App.document.level.roster.map((q,i)=>`<div class="tok" style="cursor:default">
       <span class="dot" style="background:${q.color}">${esc(q.letter)}</span>
       <span class="nm">${esc(q.name)}</span>
       <span class="del" data-rpc="${i}" title="toggle: players can claim this token" style="color:${q.pc?"var(--brass)":"#666"}">${q.pc?"PC":"npc"}</span>
@@ -620,9 +620,9 @@ function renderEditorPanel(){
     <label class="check"><input type="checkbox" id="ros-pc" checked> players can claim (PC)</label>
     <button class="rbtn quiet" id="ros-add" style="width:100%">ADD TO LIBRARY</button>
     <div class="hint" style="margin-top:6px">The library is this level's cast — it fills the shortcuts list when placing tokens, and ✎ sheets travel with each placed token. Players joining online can only see and claim PC tokens.</div></div>`;
-  const rosEntry=(edRosterSel!=null)?LEVEL.roster[edRosterSel]:null;
+  const rosEntry=(edRosterSel!=null)?App.document.level.roster[edRosterSel]:null;
   if(rosEntry) html+=sheetFormHTML(rosEntry);
-  html+=`<div class="sect"><h3>How this works</h3><div class="hint">The editor is a top-down view of the same level players see in isometric. Switch back to the ${esc(LEVEL.name)} tab to play it; reveal rooms from there as usual. Levels travel with SAVE/LOAD, or share them with EXPORT.</div></div>`;
+  html+=`<div class="sect"><h3>How this works</h3><div class="hint">The editor is a top-down view of the same level players see in isometric. Switch back to the ${esc(App.document.level.name)} tab to play it; reveal rooms from there as usual. Levels travel with SAVE/LOAD, or share them with EXPORT.</div></div>`;
   p.innerHTML=html;
 
   let snapped=false;
@@ -630,12 +630,12 @@ function renderEditorPanel(){
   $("ed-undo").onclick=()=>edUndoPop();
   p.querySelectorAll("[data-rpc]").forEach(el=>{el.onclick=()=>{
     edSnapshot();
-    const q=LEVEL.roster[+el.dataset.rpc];
+    const q=App.document.level.roster[+el.dataset.rpc];
     if(q.pc) delete q.pc; else q.pc=true;
     levelTouched(); renderPanel();
   };});
   p.querySelectorAll("[data-rdel]").forEach(el=>{el.onclick=()=>{
-    edSnapshot(); LEVEL.roster.splice(+el.dataset.rdel,1); edRosterSel=null; levelTouched(); renderPanel();
+    edSnapshot(); App.document.level.roster.splice(+el.dataset.rdel,1); edRosterSel=null; levelTouched(); renderPanel();
   };});
   p.querySelectorAll("[data-rsheet]").forEach(el=>{el.onclick=()=>{
     const i=+el.dataset.rsheet;
@@ -652,20 +652,20 @@ function renderEditorPanel(){
     const name=($("ros-name").value||"").trim();
     if(!name) return;
     edSnapshot();
-    const entry={name, letter:name.replace(/[^A-Za-z]/g,"").slice(0,2).toUpperCase()||"?", color:$("ros-color").value};
+    const entry={id:newEntityId("roster",App.document.level.roster),name, letter:name.replace(/[^A-Za-z]/g,"").slice(0,2).toUpperCase()||"?", color:$("ros-color").value};
     if($("ros-pc").checked) entry.pc=true;
-    LEVEL.roster.push(entry);
+    App.document.level.roster.push(entry);
     levelTouched(); renderPanel();
   };
   p.querySelectorAll("[data-edtool]").forEach(b=>{b.onclick=()=>edSetTool(b.dataset.edtool);});
   $("ed-template").onchange=e=>{edTemplate=+e.target.value;};
   const edP=$("ed-prop"); if(edP) edP.onchange=e=>{edPropType=e.target.value;};
-  $("lv-name").onchange=e=>{edSnapshot();LEVEL.name=e.target.value.trim()||"Untitled Level";$("tab-verso").textContent=LEVEL.name.toUpperCase();levelTouched();};
-  $("lv-bg").oninput=e=>{snap1();LEVEL.bg=e.target.value;levelTouched();};
+  $("lv-name").onchange=e=>{edSnapshot();App.document.level.name=e.target.value.trim()||"Untitled Level";$("tab-verso").textContent=App.document.level.name.toUpperCase();levelTouched();};
+  $("lv-bg").oninput=e=>{snap1();App.document.level.bg=e.target.value;levelTouched();};
   $("lv-export").onclick=()=>{
     const a=document.createElement("a");
     a.href=URL.createObjectURL(new Blob([JSON.stringify(levelData(),null,1)],{type:"application/json"}));
-    a.download=(LEVEL.name||"level").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")+".level.json";
+    a.download=(App.document.level.name||"level").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")+".level.json";
     a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),5000);
   };
   $("lv-import").onclick=()=>$("file-level").click();
@@ -679,7 +679,7 @@ function renderEditorPanel(){
     if(!confirm("Replace the current level with The Verso — Back of House?"))return;
     edSnapshot();
     loadLevel(VERSO_LEVEL);
-    if(ROOMS.some(r=>r.id==="white") && !Object.keys(state.verso.revealed).length) state.verso.revealed.white=true;
+    if(App.document.rooms.some(r=>r.id==="white") && !Object.keys(App.session.verso.revealed).length) App.session.verso.revealed.white=true;
     edSel=null; edFit(); levelTouched();
   };
   if(sel){
@@ -702,8 +702,8 @@ function renderEditorPanel(){
     $("ed-dm").onchange=e=>{edSnapshot();sel.dm=e.target.value;levelTouched();};
     $("ed-clues").onchange=e=>{edSnapshot();sel.clues=e.target.value.split("\n").map(s=>s.trim()).filter(Boolean);levelTouched();};
     $("ed-del").onclick=()=>{
-      const i=ROOMS.findIndex(r=>r.id===sel.id);
-      if(i>=0){edSnapshot();ROOMS.splice(i,1);delete state.verso.revealed[sel.id];edSel=null;pruneDoors();levelTouched();renderPanel();}
+      const i=App.document.rooms.findIndex(r=>r.id===sel.id);
+      if(i>=0){edSnapshot();App.document.rooms.splice(i,1);delete App.session.verso.revealed[sel.id];edSel=null;pruneDoors();levelTouched();renderPanel();}
     };
   }
 }
@@ -717,7 +717,7 @@ $("file-level").onchange=e=>{
       if(!d || !Array.isArray(d.rooms)) throw new Error("not a level file");
       edSnapshot();
       loadLevel(d);
-      edSel=null; if(state.mode==="edit") edFit(); levelTouched();
+      edSel=null; if(App.session.mode==="edit") edFit(); levelTouched();
     }catch(err){alert("Couldn't read that level file: "+err.message);}
   };
   rd.readAsText(f);
@@ -747,7 +747,7 @@ function renderClientPanel(){
         :sheetRollsHTML(mine)+(mine.sheet?`<button class="rbtn quiet" id="sr-pop" style="width:100%;margin-top:6px">POP OUT OVER MAP</button>`:""))+
       `</div>`;
   }
-  if(state.tracker.order.length){
+  if(App.session.tracker.order.length){
     html+=`<div class="sect"><h3>Initiative</h3>`+trackerListHTML(false)+`</div>`;
   }
   html+=`<div class="sect"><h3>Dice</h3>
@@ -803,3 +803,5 @@ function renderClientPanel(){
     const shImp=$("sh-import"); if(shImp) shImp.onclick=()=>$("file-sheet").click();
   }
 }
+
+Object.assign(App.services.panel,{renderPanel,renderEditorPanel,renderClientPanel});

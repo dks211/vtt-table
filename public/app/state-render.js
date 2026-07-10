@@ -1,12 +1,12 @@
 "use strict";
-const {LEVEL_SCHEMA_VERSION, SESSION_SCHEMA_VERSION, escapeHTML:esc, parseDice, sanitizeSheet, spellAtkBonus, spellSaveDC, sanitizeLevelForClient, setBannerContent, normalizeLevel, normalizeSession}=AppCore;
+const {LEVEL_SCHEMA_VERSION, SESSION_SCHEMA_VERSION, escapeHTML:esc, parseDice, sanitizeSheet, spellAtkBonus, spellSaveDC, sanitizeLevelForClient, setBannerContent, normalizeLevel, normalizeSession}=App.core;
 /* =====================================================================
-   THE VERSO — single-file table console
+   PALIMPSEST VTT — state and isometric rendering
    Scenes: "map" (uploaded image, square grid, fog of war)
            "verso" (built-in isometric Back of House)
    ===================================================================== */
 
-const {VERSO_LEVEL,VERSO_START,DEFAULT_ROSTER:PARTY,SWATCHES:SWATCH,ROOM_TEMPLATES:TEMPLATES,PROP_LIBRARY:PROP_LIB}=VTTContent;
+const {VERSO_LEVEL,VERSO_START,DEFAULT_ROSTER:PARTY,SWATCHES:SWATCH,ROOM_TEMPLATES:TEMPLATES,PROP_LIBRARY:PROP_LIB}=App.content;
 const $ = id => document.getElementById(id);
 const cv = $("cv");
 let ctx = cv.getContext("2d");
@@ -21,11 +21,9 @@ const isoY = (i,j)=> (i+j)*TH/2;
 const unIso = (x,y)=> [ (x/(TW/2)+y/(TH/2))/2, (y/(TH/2)-x/(TW/2))/2 ];
 
 /* ---------------- level system ----------------
-   ROOMS/DOORS are the live, editable level; the Verso ships as the built-in
+   App.document.rooms/App.document.doors are the live, editable level; the Verso ships as the built-in
    default. Levels round-trip as JSON via the editor's export/import. */
-let ROOMS=[], DOORS=[];
-const LEVEL={name:"The Verso · Back of House", bg:"#0A0F0C"};
-function levelData(){return {schemaVersion:LEVEL_SCHEMA_VERSION,name:LEVEL.name,bg:LEVEL.bg,rooms:ROOMS,doors:DOORS,roster:LEVEL.roster,props:LEVEL.props};}
+function levelData(){return {schemaVersion:LEVEL_SCHEMA_VERSION,name:App.document.level.name,bg:App.document.level.bg,rooms:App.document.rooms,doors:App.document.doors,roster:App.document.level.roster,props:App.document.level.props};}
 function clientLevelData(){
   // the Token Library can hold NPC sheets (stat blocks) — never ship those to players,
   // even though placed tokens are already sanitized separately in lightSnapshot()
@@ -33,22 +31,22 @@ function clientLevelData(){
 }
 function loadLevel(lv){
   const data=normalizeLevel(lv,{fallbackRoster:PARTY});
-  LEVEL.schemaVersion=data.schemaVersion;
-  LEVEL.name=data.name;
-  LEVEL.bg=data.bg;
-  LEVEL.roster=data.roster;
-  LEVEL.props=data.props;
-  ROOMS=data.rooms;
-  DOORS=data.doors;
-  const ids=new Set(ROOMS.map(r=>r.id));
-  for(const k of Object.keys(state.verso.revealed)) if(!ids.has(k)) delete state.verso.revealed[k];
-  if(state.selRoom && !ids.has(state.selRoom)) state.selRoom=null;
-  const tab=$("tab-verso"); if(tab) tab.textContent=LEVEL.name.toUpperCase();
+  App.document.level.schemaVersion=data.schemaVersion;
+  App.document.level.name=data.name;
+  App.document.level.bg=data.bg;
+  App.document.level.roster=data.roster;
+  App.document.level.props=data.props;
+  App.document.rooms=data.rooms;
+  App.document.doors=data.doors;
+  const ids=new Set(App.document.rooms.map(r=>r.id));
+  for(const k of Object.keys(App.session.verso.revealed)) if(!ids.has(k)) delete App.session.verso.revealed[k];
+  if(App.session.selRoom && !ids.has(App.session.selRoom)) App.session.selRoom=null;
+  const tab=$("tab-verso"); if(tab) tab.textContent=App.document.level.name.toUpperCase();
   netMarkLevel(); netMark();
   renderPanel();
 }
 
-/* ---------------- state ---------------- */
+/* ---------------- App.session ---------------- */
 let uid = 1;
 const mkTok = (name,letter,color,x,y,size=1,pc=false)=>{
   const t={id:uid++,name,letter,color,x,y,size};
@@ -56,7 +54,7 @@ const mkTok = (name,letter,color,x,y,size=1,pc=false)=>{
   return t;
 };
 
-const state = {
+App.session = {
   view:"dm",
   scene:"verso",
   mode:"play",     // "play" | "edit" (edit = top-down level editor, DM only)
@@ -78,8 +76,8 @@ const state = {
   }
 };
 
-const S  = ()=> state[state.scene];
-const cam= ()=> CAMOVR || (state.mode==="edit" ? edCam : S().cam);
+const S  = ()=> App.session[App.session.scene];
+const cam= ()=> CAMOVR || (App.session.mode==="edit" ? edCam : S().cam);
 
 /* ---------------- canvas sizing ---------------- */
 let W=0,H=0,DPR=1;
@@ -118,16 +116,16 @@ function zoomAt(sx,sy,f){
 function fitScene(){
   if(!(W>0&&H>0)) return;   // stage not laid out yet (hidden tab) — a resize will refit
   const c=cam();
-  if(state.scene==="map"){
-    if(!state.map.img){c.x=-W/2;c.y=-H/2;c.s=1;return;}
-    const iw=state.map.img.width, ih=state.map.img.height;
+  if(App.session.scene==="map"){
+    if(!App.session.map.img){c.x=-W/2;c.y=-H/2;c.s=1;return;}
+    const iw=App.session.map.img.width, ih=App.session.map.img.height;
     c.s=Math.min(W/iw,H/ih)*.94;
     c.x=-(W/c.s-iw)/2; c.y=-(H/c.s-ih)/2;
   }else{
     // players only see revealed rooms — fit those, not the whole hidden floor plan
-    let fitRooms=ROOMS;
+    let fitRooms=App.document.rooms;
     if(NET.mode==="client"){
-      const rev=ROOMS.filter(r=>state.verso.revealed[r.id]);
+      const rev=App.document.rooms.filter(r=>App.session.verso.revealed[r.id]);
       if(rev.length) fitRooms=rev;
     }
     let minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9;
@@ -143,7 +141,7 @@ function fitScene(){
 
 /* ---------------- drawing: map scene ---------------- */
 function drawMap(){
-  const m=state.map, c=cam();
+  const m=App.session.map, c=cam();
   ctx.save();
   ctx.scale(c.s,c.s); ctx.translate(-c.x,-c.y);
   if(m.img){
@@ -193,7 +191,7 @@ function drawTokenFlat(t,g,s){
   ctx.beginPath(); ctx.arc(t.x,t.y,r,0,7); ctx.fillStyle=t.color; ctx.fill();
   ctx.shadowColor="transparent";
   ctx.lineWidth=Math.max(2,g*.05);
-  ctx.strokeStyle = (RVIEW==="dm"&&state.selToken===t.id) ? "#E9E2CE" : "rgba(7,9,8,.6)";
+  ctx.strokeStyle = (RVIEW==="dm"&&App.session.selToken===t.id) ? "#E9E2CE" : "rgba(7,9,8,.6)";
   ctx.stroke();
   ctx.fillStyle="#070908"; ctx.textAlign="center"; ctx.textBaseline="middle";
   ctx.font=`600 ${r*.8}px 'IBM Plex Mono', monospace`;
@@ -633,14 +631,14 @@ function drawProps(r){
   }
 }
 function drawVerso(){
-  const v=state.verso, c=cam();
-  ctx.fillStyle=LEVEL.bg||"#0A0F0C"; ctx.fillRect(0,0,W,H);
+  const v=App.session.verso, c=cam();
+  ctx.fillStyle=App.document.level.bg||"#0A0F0C"; ctx.fillRect(0,0,W,H);
   ctx.save();
   ctx.scale(c.s,c.s); ctx.translate(-c.x,-c.y);
 
   const showHidden = RVIEW==="dm";
   // floors
-  for(const r of ROOMS){
+  for(const r of App.document.rooms){
     const rev = !!v.revealed[r.id];
     if(!rev && !showHidden) continue;
     ctx.save();
@@ -676,7 +674,7 @@ function drawVerso(){
     ctx.restore();
   }
   // walls (room perimeters)
-  for(const r of ROOMS){
+  for(const r of App.document.rooms){
     const rev = !!v.revealed[r.id];
     if(!rev && !showHidden) continue;
     ctx.save();
@@ -691,7 +689,7 @@ function drawVerso(){
     ctx.restore();
   }
   // room dressing
-  for(const r of ROOMS){
+  for(const r of App.document.rooms){
     const rev = !!v.revealed[r.id];
     if(!rev && !showHidden) continue;
     ctx.save();
@@ -701,7 +699,7 @@ function drawVerso(){
     ctx.restore();
   }
   // placed furniture (editor props)
-  for(const pr of (LEVEL.props||[])){
+  for(const pr of (App.document.level.props||[])){
     const lib=PROP_LIB[pr.t];
     if(!lib) continue;
     const room=roomAtTile(pr.x+.5,pr.y+.5);
@@ -713,7 +711,7 @@ function drawVerso(){
     ctx.restore();
   }
   // lighting overlays (dim / dark / flicker per room)
-  for(const r of ROOMS){
+  for(const r of App.document.rooms){
     if(!r.light) continue;
     const rev=v.revealed[r.id];
     if(!rev && !showHidden) continue;
@@ -731,7 +729,7 @@ function drawVerso(){
     ctx.restore();
   }
   // doors / openings
-  for(const d of DOORS){
+  for(const d of App.document.doors){
     const len=d.len||1;
     const x2 = d.dir==="h" ? d.x+len : d.x;
     const y2 = d.dir==="h" ? d.y : d.y+len;
@@ -752,7 +750,7 @@ function drawVerso(){
   }
   // room labels (DM always; players only when revealed)
   ctx.textAlign="center";
-  for(const r of ROOMS){
+  for(const r of App.document.rooms){
     const rev=!!v.revealed[r.id];
     if(!rev && !showHidden) continue;
     const bb=roomBBox(r);
@@ -761,7 +759,7 @@ function drawVerso(){
     ctx.save();
     ctx.globalAlpha = rev?1:.45;
     ctx.font="13px Marcellus, serif";
-    ctx.fillStyle = (RVIEW==="dm"&&state.selRoom===r.id) ? "#E9E2CE" : "#C8A14E";
+    ctx.fillStyle = (RVIEW==="dm"&&App.session.selRoom===r.id) ? "#E9E2CE" : "#C8A14E";
     ctx.strokeStyle="rgba(7,9,8,.85)"; ctx.lineWidth=3; ctx.lineJoin="round";
     const label=r.name.toUpperCase()+(rev?"":" · HIDDEN");
     ctx.strokeText(label,cx,cy); ctx.fillText(label,cx,cy);
@@ -796,11 +794,11 @@ function doorVisible(d){
   const probes = d.dir==="h"
     ? [[d.x+.5,d.y-.5],[d.x+.5,d.y+.5]]
     : [[d.x-.5,d.y+.5],[d.x+.5,d.y+.5]];
-  return probes.some(([i,j])=>{const r=roomAtTile(i,j);return r && state.verso.revealed[r.id];});
+  return probes.some(([i,j])=>{const r=roomAtTile(i,j);return r && App.session.verso.revealed[r.id];});
 }
 function roomHasTile(r,i,j){return r.rects.some(rc=>i>=rc.x&&i<rc.x+rc.w&&j>=rc.y&&j<rc.y+rc.h);}
 function roomAtTile(i,j){
-  for(const r of ROOMS){ if(roomHasTile(r,i,j)) return r; }
+  for(const r of App.document.rooms){ if(roomHasTile(r,i,j)) return r; }
   return null;
 }
 function roomTiles(r){ // union of the room's rects, deduped
@@ -838,7 +836,7 @@ function drawTokenIso(t,s){
   ctx.beginPath(); ctx.arc(cx,cy-r*.5,r,0,7);
   ctx.fillStyle=t.color; ctx.fill();
   ctx.lineWidth=2.4;
-  ctx.strokeStyle = (RVIEW==="dm"&&state.selToken===t.id) ? "#E9E2CE" : "rgba(7,9,8,.65)";
+  ctx.strokeStyle = (RVIEW==="dm"&&App.session.selToken===t.id) ? "#E9E2CE" : "rgba(7,9,8,.65)";
   ctx.stroke();
   ctx.fillStyle="#070908"; ctx.textAlign="center"; ctx.textBaseline="middle";
   ctx.font=`600 ${r*.78}px 'IBM Plex Mono', monospace`;
@@ -861,8 +859,8 @@ function drawRuler(){
   ctx.beginPath(); ctx.moveTo(sx1,sy1); ctx.lineTo(sx2,sy2); ctx.stroke();
   ctx.setLineDash([]);
   let label;
-  if(state.scene==="map"){
-    const g=state.map.grid.size||70;
+  if(App.session.scene==="map"){
+    const g=App.session.map.grid.size||70;
     const d=Math.hypot(ruler.x2-ruler.x1,ruler.y2-ruler.y1)/g;
     label=(d*5).toFixed(0)+" ft · "+d.toFixed(1)+" sq";
   }else{
@@ -879,3 +877,6 @@ function drawRuler(){
   ctx.fillText(label,mx,my-9);
   ctx.restore();
 }
+
+Object.assign(App.services.model,{levelData,clientLevelData,loadLevel});
+Object.assign(App.services.renderer,{resize,fitScene});

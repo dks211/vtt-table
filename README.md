@@ -6,12 +6,20 @@ Cloudflare serves their generated copies from `public/`.
 The browser client is organized by responsibility:
 
 - `app/core.js` contains pure, testable rules and safe rendering helpers.
+- `app/runtime.js` creates the `App` boundary: editable data in `App.document`,
+  live play state in `App.session`, and named module APIs in `App.services`.
 - `app/state-render.js` owns level state, cameras, and canvas rendering.
 - `app/network.js` owns PeerJS host/client synchronization.
 - `app/table.js` owns dice, player-window behavior, and canvas interaction.
 - `app/editor.js` owns level editing, map import, and session persistence.
 - `app/panel.js` owns the DM and player control panels.
 - `app/boot.js` wires initial state and the local DM screen lock.
+- `content/catalog.js` is the bundled Verso content pack plus the reusable room,
+  prop, color, and roster catalogs.
+
+Level and session JSON carry independent schema versions. Imports are normalized
+and validated by `app/core.js`; legacy rectangle-based levels and `v:1` session
+saves migrate when loaded.
 
 ## Development
 

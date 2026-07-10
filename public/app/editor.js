@@ -6,7 +6,12 @@ const edCam={x:-120,y:-120,s:1};
 let edTool="draw", edSel=null, edDraft=null, edDrag=null, edHover=null, edTemplate=0, edFitDone=false, edRoomN=0, edPropType="table", edRosterSel=null;
 const edTile=(sx,sy)=>{const [wx,wy]=toWorld(sx,sy);return [wx/ET,wy/ET];};
 function levelTouched(){markDirty(); netMarkLevel();}
-function newRoomId(){let id; do{id="room"+(++edRoomN);}while(ROOMS.some(r=>r.id===id)); return id;}
+function newRoomId(){let id; do{id="room"+(++edRoomN);}while(App.document.rooms.some(r=>r.id===id)); return id;}
+function newEntityId(prefix,items){
+  let n=items.length+1,id=prefix+n;
+  while(items.some(item=>item.id===id)) id=prefix+(++n);
+  return id;
+}
 /* undo: whole-level snapshots taken just before each editor mutation */
 const edUndoStack=[];
 function edSnapshot(){
@@ -21,7 +26,7 @@ function edUndoPop(){
 }
 const rcOverlap=(a,b)=>!(a.x+a.w<=b.x||b.x+b.w<=a.x||a.y+a.h<=b.y||b.y+b.h<=a.y);
 function overlapsOtherRooms(rects,excludeId){
-  return ROOMS.some(o=>o.id!==excludeId && o.rects.some(orc=>rects.some(rc=>rcOverlap(rc,orc))));
+  return App.document.rooms.some(o=>o.id!==excludeId && o.rects.some(orc=>rects.some(rc=>rcOverlap(rc,orc))));
 }
 function rectTouchesRoom(rc,r){ // shares an edge with (or overlaps) the room — keeps rooms contiguous
   const s=new Set(roomTiles(r).map(([i,j])=>i+","+j));
@@ -31,7 +36,7 @@ function rectTouchesRoom(rc,r){ // shares an edge with (or overlaps) the room �
   return false;
 }
 function pruneDoors(){ // drop doors left stranded when rooms move or die
-  DOORS=DOORS.filter(d=>{
+  App.document.doors=App.document.doors.filter(d=>{
     const probes=d.dir==="h"?[[d.x+.5,d.y-.5],[d.x+.5,d.y+.5]]:[[d.x-.5,d.y+.5],[d.x+.5,d.y+.5]];
     return probes.some(([i,j])=>roomAtTile(i,j));
   });
@@ -44,9 +49,9 @@ function draftRect(){
 function edFit(){
   if(!(W>0&&H>0)) return;
   let minX=0,minY=0,maxX=24,maxY=18;
-  if(ROOMS.length){
+  if(App.document.rooms.length){
     minX=1e9;minY=1e9;maxX=-1e9;maxY=-1e9;
-    for(const r of ROOMS){
+    for(const r of App.document.rooms){
       const bb=roomBBox(r);
       minX=Math.min(minX,bb.x0); minY=Math.min(minY,bb.y0);
       maxX=Math.max(maxX,bb.x1); maxY=Math.max(maxY,bb.y1);
@@ -74,8 +79,8 @@ function drawEditor(){
   ctx.strokeStyle="rgba(200,161,78,.3)";
   ctx.beginPath();ctx.moveTo(-6,0);ctx.lineTo(6,0);ctx.moveTo(0,-6);ctx.lineTo(0,6);ctx.stroke();
   // rooms (unions of rects, boundary-stroked)
-  for(const r of ROOMS){
-    const rev=!!state.verso.revealed[r.id];
+  for(const r of App.document.rooms){
+    const rev=!!App.session.verso.revealed[r.id];
     ctx.fillStyle=r.floorA; ctx.globalAlpha=.92;
     for(const rc of r.rects) ctx.fillRect(rc.x*ET,rc.y*ET,rc.w*ET,rc.h*ET);
     ctx.globalAlpha=1;
@@ -91,7 +96,7 @@ function drawEditor(){
     ctx.fillText(r.name.toUpperCase()+(rev?"":" ○"),(bb.x0+bb.x1)/2*ET,(bb.y0+bb.y1)/2*ET);
   }
   // doors / openings (line widths in screen px so they stay clickable targets at any zoom)
-  for(const d of DOORS){
+  for(const d of App.document.doors){
     const len=d.len||1;
     const x2=d.dir==="h"?d.x+len:d.x, y2=d.dir==="h"?d.y:d.y+len;
     ctx.beginPath();
@@ -103,7 +108,7 @@ function drawEditor(){
   // door tool: highlight the edge a click would toggle
   if(edTool==="door" && edHover){
     const hx2=edHover.dir==="h"?edHover.x+1:edHover.x, hy2=edHover.dir==="h"?edHover.y:edHover.y+1;
-    const existing=DOORS.find(o=>o.x===edHover.x&&o.y===edHover.y&&o.dir===edHover.dir);
+    const existing=App.document.doors.find(o=>o.x===edHover.x&&o.y===edHover.y&&o.dir===edHover.dir);
     ctx.beginPath();
     ctx.moveTo(edHover.x*ET,edHover.y*ET); ctx.lineTo(hx2*ET,hy2*ET);
     ctx.strokeStyle=existing?"#8A2E25":"#E9E2CE";
@@ -112,7 +117,7 @@ function drawEditor(){
   // furniture glyphs
   ctx.font="600 9px 'IBM Plex Mono', monospace";
   ctx.textAlign="center"; ctx.textBaseline="middle";
-  for(const pr of (LEVEL.props||[])){
+  for(const pr of (App.document.level.props||[])){
     ctx.fillStyle="rgba(200,161,78,.75)";
     ctx.fillRect((pr.x+.2)*ET,(pr.y+.2)*ET,ET*.6,ET*.6);
     ctx.fillStyle="#070908";
@@ -127,7 +132,7 @@ function drawEditor(){
     ctx.strokeRect(rc.x*ET,rc.y*ET,rc.w*ET,rc.h*ET); ctx.setLineDash([]);
   }
   // resize handles: one per rect of the selected room
-  const sr=ROOMS.find(r=>r.id===edSel);
+  const sr=App.document.rooms.find(r=>r.id===edSel);
   if(sr){
     const hs=9/c.s;
     ctx.fillStyle="#E9E2CE";
@@ -136,7 +141,7 @@ function drawEditor(){
     }
   }
   // token ghosts for reference
-  for(const t of state.verso.tokens){
+  for(const t of App.session.verso.tokens){
     ctx.globalAlpha=.55;
     ctx.beginPath(); ctx.arc(t.x*ET,t.y*ET,6/Math.max(c.s,.5),0,7);
     ctx.fillStyle=t.color; ctx.fill();
@@ -155,7 +160,7 @@ function edDown(e){
   if(edTool==="door"){edToggleDoor(fi,fj);return;}
   if(edTool==="prop"){edProp(fi,fj,false);return;}
   // resize handles of current selection: one per rect (both draw & select tools)
-  const sr=ROOMS.find(r=>r.id===edSel);
+  const sr=App.document.rooms.find(r=>r.id===edSel);
   if(sr){
     const lim=Math.min(14, ET*edCam.s*.75);   // don't let handles eat room-drags when zoomed out
     for(let ri=0;ri<sr.rects.length;ri++){
@@ -229,7 +234,7 @@ function edUp(){
     const rc=draftRect(), addTo=edDraft.addTo;
     edDraft=null;
     if(addTo){
-      const room=ROOMS.find(r=>r.id===addTo);
+      const room=App.document.rooms.find(r=>r.id===addTo);
       if(room && !overlapsOtherRooms([rc],room.id) && rectTouchesRoom(rc,room)){
         edSnapshot(); room.rects.push(rc); levelTouched();
       }
@@ -239,7 +244,7 @@ function edUp(){
       const room={id:newRoomId(), name:"New Room", sub:"", rects:[rc],
         floorA:t.floorA, floorB:t.floorB, wall:t.wall, read:"", dm:"", clues:[]};
       if(t.corridor) room.corridor=true;
-      ROOMS.push(room); edSel=room.id;
+      App.document.rooms.push(room); edSel=room.id;
       levelTouched();
     }
     renderPanel();
@@ -267,25 +272,25 @@ function edToggleDoor(fi,fj){
   const d=edNearestEdge(fi,fj);
   if(!d) return;
   edSnapshot();
-  const i=DOORS.findIndex(o=>o.x===d.x&&o.y===d.y&&o.dir===d.dir);
-  if(i<0) DOORS.push({...d,type:"door"});                   // none -> door
-  else if(DOORS[i].type==="door") DOORS[i].type="open";     // door -> opening
-  else DOORS.splice(i,1);                                   // opening -> none
+  const i=App.document.doors.findIndex(o=>o.x===d.x&&o.y===d.y&&o.dir===d.dir);
+  if(i<0) App.document.doors.push({...d,id:newEntityId("door",App.document.doors),type:"door"}); // none -> door
+  else if(App.document.doors[i].type==="door") App.document.doors[i].type="open";     // door -> opening
+  else App.document.doors.splice(i,1);                                   // opening -> none
   levelTouched();
 }
 function edRemoveDoor(fi,fj){
   const d=edNearestEdge(fi,fj);
   if(!d) return;
-  const i=DOORS.findIndex(o=>o.x===d.x&&o.y===d.y&&o.dir===d.dir);
-  if(i>=0){edSnapshot(); DOORS.splice(i,1); levelTouched();}
+  const i=App.document.doors.findIndex(o=>o.x===d.x&&o.y===d.y&&o.dir===d.dir);
+  if(i>=0){edSnapshot(); App.document.doors.splice(i,1); levelTouched();}
 }
 function edProp(fi,fj,removeOnly){
   const x=Math.floor(fi), y=Math.floor(fj);
-  const i=LEVEL.props.findIndex(p=>p.x===x&&p.y===y);
-  if(i>=0){edSnapshot(); LEVEL.props.splice(i,1); levelTouched(); return;}
+  const i=App.document.level.props.findIndex(p=>p.x===x&&p.y===y);
+  if(i>=0){edSnapshot(); App.document.level.props.splice(i,1); levelTouched(); return;}
   if(removeOnly) return;
   edSnapshot();
-  LEVEL.props.push({t:edPropType,x,y});
+  App.document.level.props.push({id:newEntityId("prop",App.document.level.props),t:edPropType,x,y});
   levelTouched();
 }
 function edSetTool(t){
@@ -299,26 +304,26 @@ function edSetTool(t){
 }
 function setMode(m){
   if(m==="edit" && NET.mode==="client") return;
-  state.mode=m;
+  App.session.mode=m;
   $("tab-edit").classList.toggle("on",m==="edit");
   if(m==="edit"){
-    state.scene="verso"; state.selToken=null;
+    App.session.scene="verso"; App.session.selToken=null;
     $("tab-map").classList.remove("on"); $("tab-verso").classList.remove("on");
     if(!edFitDone || !isFinite(edCam.s) || edCam.s<=0){edFit();edFitDone=true;}
     $("st-hint").textContent="Drag empty grid to draw a room · click to select · scroll pans · pinch (or ⌘+scroll) zooms";
     $("st-view").textContent="EDITOR";
   }else{
-    $("tab-verso").classList.toggle("on",state.scene==="verso");
-    $("tab-map").classList.toggle("on",state.scene==="map");
-    setView(state.view);
-    setTool(state.tool);
+    $("tab-verso").classList.toggle("on",App.session.scene==="verso");
+    $("tab-map").classList.toggle("on",App.session.scene==="map");
+    setView(App.session.view);
+    setTool(App.session.tool);
   }
   updZoom(); renderPanel();
 }
 
 /* ---------------- tools / tabs / view ---------------- */
 function setTool(t){
-  state.tool=t;
+  App.session.tool=t;
   for(const id of ["select","ruler","fogr","fogh"]) $("t-"+id).classList.toggle("on",id===t);
   cv.className = "tool-"+t;
   const hints={select:"Drag tokens · drag space to pan · wheel to zoom",
@@ -331,16 +336,16 @@ $("t-select").onclick=()=>setTool("select");
 $("t-ruler").onclick=()=>setTool("ruler");
 $("t-fogr").onclick=()=>setTool("fogr");
 $("t-fogh").onclick=()=>setTool("fogh");
-$("t-fit").onclick=()=>{if(state.mode==="edit")edFit();else fitScene();};
+$("t-fit").onclick=()=>{if(App.session.mode==="edit")edFit();else fitScene();};
 
 function setScene(s){
-  if(state.mode==="edit"){ state.mode="play"; $("tab-edit").classList.remove("on"); setView(state.view); setTool(state.tool); }
-  state.scene=s; state.selToken=null;
+  if(App.session.mode==="edit"){ App.session.mode="play"; $("tab-edit").classList.remove("on"); setView(App.session.view); setTool(App.session.tool); }
+  App.session.scene=s; App.session.selToken=null;
   $("tab-map").classList.toggle("on",s==="map");
   $("tab-verso").classList.toggle("on",s==="verso");
   const fogOK = s==="map";
   $("t-fogr").disabled=!fogOK; $("t-fogh").disabled=!fogOK;
-  if(!fogOK && (state.tool==="fogr"||state.tool==="fogh")) setTool("select");
+  if(!fogOK && (App.session.tool==="fogr"||App.session.tool==="fogh")) setTool("select");
   fitScene(); updZoom(); renderPanel();
 }
 $("tab-map").onclick=()=>setScene("map");
@@ -348,7 +353,7 @@ $("tab-verso").onclick=()=>setScene("verso");
 $("tab-edit").onclick=()=>setMode("edit");
 
 function setView(v){
-  state.view=v;
+  App.session.view=v;
   document.body.classList.toggle("playerview",v==="pl");
   $("vw-dm").classList.toggle("on",v==="dm");
   $("vw-pl").classList.toggle("on",v==="pl");
@@ -367,16 +372,16 @@ function loadImageFile(file){
 function loadImageURL(url,name){
   const img=new Image();
   img.onload=()=>{
-    state.map.img=img; state.map.imgURL=url; state.map.name=name||"map";
+    App.session.map.img=img; App.session.map.imgURL=url; App.session.map.name=name||"map";
     const f=document.createElement("canvas");
     f.width=img.width; f.height=img.height;
     const fc=f.getContext("2d");
     fc.fillStyle="#04130C"; fc.fillRect(0,0,f.width,f.height);
-    state.map.fog=f;
-    if(state.map.tokens.length===0){
-      const g=state.map.grid.size;
-      LEVEL.roster.filter(p=>p.pc).slice(0,6).forEach((p,i)=>{
-        state.map.tokens.push(mkTok(p.name,p.letter,p.color,g*(1.5+i),g*1.5,1,true));
+    App.session.map.fog=f;
+    if(App.session.map.tokens.length===0){
+      const g=App.session.map.grid.size;
+      App.document.level.roster.filter(p=>p.pc).slice(0,6).forEach((p,i)=>{
+        App.session.map.tokens.push(mkTok(p.name,p.letter,p.color,g*(1.5+i),g*1.5,1,true));
       });
     }
     setScene("map"); markDirty();
@@ -396,43 +401,43 @@ stage.addEventListener("drop",e=>{
 /* ---------------- save / load ---------------- */
 function serialize(){
   return {
-    schemaVersion:SESSION_SCHEMA_VERSION, scene:state.scene,
+    schemaVersion:SESSION_SCHEMA_VERSION, scene:App.session.scene,
     map:{
-      name:state.map.name, imgURL:state.map.imgURL,
-      grid:state.map.grid, fogOn:state.map.fogOn, brush:state.map.brush,
-      tokens:state.map.tokens,
-      fogURL: state.map.fog ? state.map.fog.toDataURL("image/png") : null
+      name:App.session.map.name, imgURL:App.session.map.imgURL,
+      grid:App.session.map.grid, fogOn:App.session.map.fogOn, brush:App.session.map.brush,
+      tokens:App.session.map.tokens,
+      fogURL: App.session.map.fog ? App.session.map.fog.toDataURL("image/png") : null
     },
-    verso:{revealed:state.verso.revealed, tokens:state.verso.tokens},
+    verso:{revealed:App.session.verso.revealed, tokens:App.session.verso.tokens},
     level:levelData()
   };
 }
 function deserialize(d){
     const session=normalizeSession(d,{fallbackRoster:PARTY});
     loadLevel(session.level);
-    state.verso.revealed=session.verso.revealed;
-    state.verso.tokens=session.verso.tokens;
-    uid=Math.max(uid,...state.verso.tokens.map(t=>t.id+1),1);
-    Object.assign(state.map.grid,session.map.grid);
-    state.map.fogOn=session.map.fogOn;
-    state.map.brush=session.map.brush;
-    state.map.tokens=session.map.tokens;
-    uid=Math.max(uid,...state.map.tokens.map(t=>t.id+1),uid);
+    App.session.verso.revealed=session.verso.revealed;
+    App.session.verso.tokens=session.verso.tokens;
+    uid=Math.max(uid,...App.session.verso.tokens.map(t=>t.id+1),1);
+    Object.assign(App.session.map.grid,session.map.grid);
+    App.session.map.fogOn=session.map.fogOn;
+    App.session.map.brush=session.map.brush;
+    App.session.map.tokens=session.map.tokens;
+    uid=Math.max(uid,...App.session.map.tokens.map(t=>t.id+1),uid);
     // saves from before the PC/claimable flag existed have no `pc` on any token —
     // without a backfill that makes every character look like an NPC to the newer
     // claim-list and room-visibility logic, silently hiding the party from itself.
     // Only trust this for files where NO token has the field yet (a real legacy
     // file), so a deliberately-all-NPC scene loaded from a current save is untouched.
-    for(const toks of [state.verso.tokens, state.map.tokens]){
+    for(const toks of [App.session.verso.tokens, App.session.map.tokens]){
       if(toks.length && toks.every(t=>t.pc===undefined)){
-        const pcNames=new Set([...LEVEL.roster,...PARTY].filter(p=>p.pc).map(p=>p.name));
+        const pcNames=new Set([...App.document.level.roster,...PARTY].filter(p=>p.pc).map(p=>p.name));
         for(const t of toks) if(pcNames.has(t.name)) t.pc=true;
       }
     }
     if(session.map.imgURL){
       const img=new Image();
       img.onload=()=>{
-        state.map.img=img; state.map.imgURL=session.map.imgURL; state.map.name=session.map.name;
+        App.session.map.img=img; App.session.map.imgURL=session.map.imgURL; App.session.map.name=session.map.name;
         const f=document.createElement("canvas");
         f.width=img.width;f.height=img.height;
         const fc=f.getContext("2d");
@@ -441,7 +446,7 @@ function deserialize(d){
           fi.onload=()=>{fc.drawImage(fi,0,0);};
           fi.src=session.map.fogURL;
         }else{fc.fillStyle="#04130C";fc.fillRect(0,0,f.width,f.height);}
-        state.map.fog=f;
+        App.session.map.fog=f;
         setScene(session.scene);
       };
       img.src=session.map.imgURL;
@@ -488,3 +493,5 @@ setInterval(autosave,8000);
     }
   }catch(e){/* nothing stored yet */}
 })();
+
+Object.assign(App.services.editor,{setTool,setScene,setView,serialize,deserialize,newEntityId});
