@@ -1,9 +1,11 @@
-import { copyFile, readFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile } from "node:fs/promises";
+import { dirname } from "node:path";
 import process from "node:process";
 
 const files = [
   "index.html",
   "app/core.js",
+  "content/catalog.js",
   "app/state-render.js",
   "app/network.js",
   "app/table.js",
@@ -26,6 +28,7 @@ for (const file of files) {
       stale = true;
     }
   } else {
+    await mkdir(dirname(publicFile), { recursive: true });
     await copyFile(file, publicFile);
     console.log(`synced ${file} -> ${publicFile}`);
   }
