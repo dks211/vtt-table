@@ -8,6 +8,11 @@ editor.setTool("select");
 renderer.fitScene(); table.updZoom();
 panel.renderPanel();
 requestAnimationFrame(table.frame);
+$("start-new").onclick=editor.newBlankLevel;
+$("start-open").onclick=()=>$("file-level").click();
+$("start-resume").onclick=editor.resumeAutosave;
+$("start-load").onclick=()=>$("file-json").click();
+$("start-verso").onclick=editor.startVerso;
 {
   // Convenience screen lock only. Deployment access is enforced by Worker Basic Auth.
   const DM_SCREEN_WORD="mindthecarpet";
@@ -20,11 +25,13 @@ requestAnimationFrame(table.frame);
     network.joinTable(jc.trim());
   }else if(unlocked){
     gate.remove();
+    editor.showStartScreen();
   }else{
     const tryPass=()=>{
       if($("dmpass").value===DM_SCREEN_WORD){
         try{sessionStorage.setItem("verso-dm","ok");}catch(e){}
         gate.remove();
+        editor.showStartScreen();
       }else{
         $("dmerr").textContent="the house does not recognize you";
         gate.classList.remove("shake");void gate.offsetWidth;gate.classList.add("shake");

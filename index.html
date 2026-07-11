@@ -227,6 +227,17 @@ body.netclient #stage{left:0}
 #dmgate .gerr{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--oxblood);height:14px;margin-top:10px}
 #dmgate.shake .gcard{animation:gshake .3s}
 @keyframes gshake{25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
+#startscreen{position:fixed;inset:0;z-index:90;display:none;place-items:center;background:#0A0F0C}
+#startscreen.show{display:grid}
+#startscreen .startbox{width:min(430px,calc(100vw - 32px));padding:28px;border:1px solid var(--brass-faint);border-radius:6px;background:var(--felt-900)}
+#startscreen h1{font-family:Marcellus,serif;font-size:24px;color:var(--brass);margin-bottom:4px}
+#startscreen .startsub{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.18em;color:var(--vellum-dim);margin-bottom:20px}
+#startscreen .startactions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#startscreen button{padding:10px;border:1px solid var(--brass-faint);border-radius:3px;color:var(--vellum-dim);font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.06em;text-align:left}
+#startscreen button:hover{border-color:var(--brass-dim);color:var(--brass);background:var(--felt-800)}
+#startscreen button.primary{grid-column:1/-1;border-color:var(--brass-dim);color:var(--brass)}
+#startscreen button[disabled]{opacity:.35;pointer-events:none}
+@media(max-width:520px){#startscreen .startactions{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -238,6 +249,19 @@ body.netclient #stage{left:0}
     <input type="password" id="dmpass" placeholder="passphrase" autocomplete="off">
     <button class="gbtn" id="dmgo">ENTER</button>
     <div class="gerr" id="dmerr"></div>
+  </div>
+</div>
+<div id="startscreen">
+  <div class="startbox">
+    <h1>PALIMPSEST VTT</h1>
+    <div class="startsub">QUICK ISOMETRIC TABLES</div>
+    <div class="startactions">
+      <button class="primary" id="start-new">NEW BLANK LEVEL</button>
+      <button id="start-open">OPEN LEVEL</button>
+      <button id="start-resume">RESUME AUTOSAVE</button>
+      <button id="start-load">LOAD SESSION</button>
+      <button id="start-verso">EXPLORE THE VERSO</button>
+    </div>
   </div>
 </div>
 <header id="topbar">

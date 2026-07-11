@@ -4,6 +4,16 @@
 const ET=34;                                  // editor px per tile at zoom 1
 const edCam={x:-120,y:-120,s:1};
 let edTool="draw", edSel=null, edDraft=null, edDrag=null, edHover=null, edTemplate=0, edFitDone=false, edRoomN=0, edPropType="table", edRosterSel=null;
+const edSelection=new Set();
+let edClipboard=[];
+const ROOM_PRESET_KEY="palimpsest-room-presets-v1";
+const BUILTIN_ROOM_PRESETS=[
+  {id:"builtin-small",name:"Small Room",room:{name:"Small Room",rects:[{x:0,y:0,w:4,h:4}],floorA:"#4A4A4E",floorB:"#3F3F44",wall:"#2C2C30",read:"",dm:"",clues:[]}},
+  {id:"builtin-hall",name:"Long Hall",room:{name:"Long Hall",rects:[{x:0,y:0,w:8,h:3}],floorA:"#5A2723",floorB:"#4D211E",wall:"#3A2E22",corridor:true,read:"",dm:"",clues:[]}},
+  {id:"builtin-l",name:"L Room",room:{name:"L Room",rects:[{x:0,y:0,w:6,h:3},{x:0,y:3,w:3,h:3}],floorA:"#5C4630",floorB:"#4F3C29",wall:"#6B5A33",read:"",dm:"",clues:[]}},
+];
+let userRoomPresets=[];
+try{userRoomPresets=JSON.parse(localStorage.getItem(ROOM_PRESET_KEY)||"[]");if(!Array.isArray(userRoomPresets))userRoomPresets=[];}catch(e){userRoomPresets=[];}
 const isoPreview=$("iso-preview"), isoPreviewCanvas=$("iso-preview-cv"), isoPreviewCtx=isoPreviewCanvas.getContext("2d");
 const isoPreviewHead=$("iso-preview-head");
 const isoPreviewCam={x:0,y:0,s:1};
@@ -17,21 +27,91 @@ function newEntityId(prefix,items){
   while(items.some(item=>item.id===id)) id=prefix+(++n);
   return id;
 }
-/* undo: whole-level snapshots taken just before each editor mutation */
-const edUndoStack=[];
+function setEdSelection(ids,primary){
+  edSelection.clear();for(const id of ids||[])if(App.document.rooms.some(r=>r.id===id))edSelection.add(id);
+  edSel=primary&&edSelection.has(primary)?primary:(edSelection.values().next().value||null);
+  isoPreviewDirty=true;
+}
+function selectedRooms(){return App.document.rooms.filter(r=>edSelection.has(r.id));}
+/* undo/redo: whole-level snapshots taken just before each editor mutation */
+const edUndoStack=[],edRedoStack=[];
 function edSnapshot(){
   edUndoStack.push(JSON.stringify(levelData()));
   if(edUndoStack.length>60) edUndoStack.shift();
+  edRedoStack.length=0;
 }
 function edUndoPop(){
   if(!edUndoStack.length) return;
+  edRedoStack.push(JSON.stringify(levelData()));
   loadLevel(JSON.parse(edUndoStack.pop()));
-  edSel=null; edDraft=null; edDrag=null;
+  setEdSelection([]);edDraft=null;edDrag=null;
   markDirty(); renderPanel();
+}
+function edRedoPop(){
+  if(!edRedoStack.length)return;
+  edUndoStack.push(JSON.stringify(levelData()));
+  loadLevel(JSON.parse(edRedoStack.pop()));
+  setEdSelection([]);edDraft=null;edDrag=null;
+  markDirty();renderPanel();
 }
 const rcOverlap=(a,b)=>!(a.x+a.w<=b.x||b.x+b.w<=a.x||a.y+a.h<=b.y||b.y+b.h<=a.y);
 function overlapsOtherRooms(rects,excludeId){
   return App.document.rooms.some(o=>o.id!==excludeId && o.rects.some(orc=>rects.some(rc=>rcOverlap(rc,orc))));
+}
+function groupOverlapsOthers(rooms,selectedIds){
+  return rooms.some(room=>App.document.rooms.some(other=>!selectedIds.has(other.id)&&other.rects.some(a=>room.rects.some(b=>rcOverlap(a,b)))));
+}
+function deleteSelection(){
+  if(!edSelection.size)return;
+  edSnapshot();
+  App.document.rooms=App.document.rooms.filter(room=>!edSelection.has(room.id));
+  for(const id of edSelection)delete App.session.verso.revealed[id];
+  setEdSelection([]);pruneDoors();levelTouched();renderPanel();
+}
+function copySelection(){edClipboard=selectedRooms().map(room=>JSON.parse(JSON.stringify(room)));}
+function placeRoomCopies(source,nameSuffix=" Copy"){
+  if(!source.length)return;
+  const raw=source.map(room=>JSON.parse(JSON.stringify(room)));
+  let offset=1,placed=null;
+  while(offset<40){
+    const candidate=raw.map(room=>({...room,id:newRoomId(),name:room.name+nameSuffix,rects:room.rects.map(r=>({...r,x:r.x+offset,y:r.y+offset}))}));
+    if(!groupOverlapsOthers(candidate,new Set())&&!candidate.some((room,i)=>candidate.slice(i+1).some(other=>room.rects.some(a=>other.rects.some(b=>rcOverlap(a,b)))))){placed=candidate;break;}
+    offset++;
+  }
+  if(!placed)return;
+  edSnapshot();App.document.rooms.push(...placed);setEdSelection(placed.map(r=>r.id),placed[0].id);levelTouched();renderPanel();
+}
+function pasteSelection(){placeRoomCopies(edClipboard);}
+function duplicateSelection(){const rooms=selectedRooms();if(rooms.length){edClipboard=rooms.map(r=>JSON.parse(JSON.stringify(r)));placeRoomCopies(edClipboard);}}
+function roomPresets(){return [...BUILTIN_ROOM_PRESETS,...userRoomPresets];}
+function saveRoomPreset(name){
+  const rooms=selectedRooms();if(rooms.length!==1)return;
+  name=String(name||rooms[0].name).trim();if(!name)return;
+  const room=JSON.parse(JSON.stringify(rooms[0])),bb=roomBBox(room);
+  delete room.id;room.name=name;room.rects=room.rects.map(r=>({...r,x:r.x-bb.x0,y:r.y-bb.y0}));
+  const preset={id:"user-"+Date.now().toString(36),name:room.name,room};
+  userRoomPresets.push(preset);try{localStorage.setItem(ROOM_PRESET_KEY,JSON.stringify(userRoomPresets));}catch(e){}
+  renderPanel();
+}
+function placeRoomPreset(id){
+  const preset=roomPresets().find(item=>item.id===id);if(!preset)return;
+  const [fi,fj]=edTile(W/2,H/2),room=JSON.parse(JSON.stringify(preset.room));
+  const bb=roomBBox(room),dx=Math.floor(fi)-bb.x0,dy=Math.floor(fj)-bb.y0;
+  room.rects=room.rects.map(r=>({...r,x:r.x+dx,y:r.y+dy}));
+  placeRoomCopies([room],"");
+}
+function deleteRoomPreset(id){
+  if(!id.startsWith("user-"))return;
+  userRoomPresets=userRoomPresets.filter(item=>item.id!==id);try{localStorage.setItem(ROOM_PRESET_KEY,JSON.stringify(userRoomPresets));}catch(e){}
+  renderPanel();
+}
+function nudgeSelection(dx,dy){
+  const rooms=selectedRooms();if(!rooms.length)return;
+  const ids=new Set(rooms.map(r=>r.id)),orig=rooms.map(r=>r.rects.map(c=>({...c})));
+  edSnapshot();
+  rooms.forEach(r=>r.rects=r.rects.map(c=>({...c,x:c.x+dx,y:c.y+dy})));
+  if(groupOverlapsOthers(rooms,ids)){rooms.forEach((r,i)=>r.rects=orig[i]);edUndoStack.pop();return;}
+  pruneDoors();levelTouched();renderPanel();
 }
 function rectTouchesRoom(rc,r){ // shares an edge with (or overlaps) the room — keeps rooms contiguous
   const s=new Set(roomTiles(r).map(([i,j])=>i+","+j));
@@ -88,7 +168,8 @@ function renderEditorPreview(){
   if(!(width>0&&height>0)) return;
   const geometry=App.document.rooms.map(room=>room.rects.map(r=>[r.x,r.y,r.w,r.h])).flat(2).join(",");
   if(geometry!==isoPreviewGeometry){isoPreviewGeometry=geometry;isoPreviewFitDirty=true;isoPreviewDirty=true;}
-  if(edSel!==isoPreviewSelection){isoPreviewSelection=edSel;isoPreviewDirty=true;}
+  const selectionKey=[...edSelection].sort().join(",");
+  if(selectionKey!==isoPreviewSelection){isoPreviewSelection=selectionKey;isoPreviewDirty=true;}
   const dpr=Math.min(devicePixelRatio||1,2),pixelW=Math.round(width*dpr),pixelH=Math.round(height*dpr);
   if(isoPreviewCanvas.width!==pixelW||isoPreviewCanvas.height!==pixelH){
     isoPreviewCanvas.width=pixelW;isoPreviewCanvas.height=pixelH;isoPreviewFitDirty=true;isoPreviewDirty=true;
@@ -183,8 +264,8 @@ function drawEditor(){
     ctx.globalAlpha=1;
     ctx.beginPath();
     for(const [x1,y1,x2,y2] of roomEdges(r)){ctx.moveTo(x1*ET,y1*ET);ctx.lineTo(x2*ET,y2*ET);}
-    ctx.lineWidth=(r.id===edSel?3:2)/c.s;
-    ctx.strokeStyle=r.id===edSel?"#E9E2CE":r.wall;
+    ctx.lineWidth=(edSelection.has(r.id)?3:2)/c.s;
+    ctx.strokeStyle=edSelection.has(r.id)?"#E9E2CE":r.wall;
     ctx.stroke();
     const bb=roomBBox(r);
     ctx.font="600 10px 'IBM Plex Mono', monospace";
@@ -229,7 +310,7 @@ function drawEditor(){
     ctx.strokeRect(rc.x*ET,rc.y*ET,rc.w*ET,rc.h*ET); ctx.setLineDash([]);
   }
   // resize handles: one per rect of the selected room
-  const sr=App.document.rooms.find(r=>r.id===edSel);
+  const sr=edSelection.size===1?App.document.rooms.find(r=>r.id===edSel):null;
   if(sr){
     const hs=9/c.s;
     ctx.fillStyle="#E9E2CE";
@@ -278,9 +359,14 @@ function edDown(e){
     return;
   }
   if(r){
-    edSel=r.id;
+    if(e.shiftKey){
+      if(edSelection.has(r.id))edSelection.delete(r.id);else edSelection.add(r.id);
+      edSel=edSelection.has(r.id)?r.id:(edSelection.values().next().value||null);isoPreviewDirty=true;renderPanel();return;
+    }
+    if(!edSelection.has(r.id))setEdSelection([r.id],r.id);
     edSnapshot();
-    edDrag={mode:"move",room:r,fi,fj,orig:r.rects.map(c=>({...c}))};
+    const rooms=selectedRooms();
+    edDrag={mode:"groupmove",rooms,ids:new Set(rooms.map(room=>room.id)),fi,fj,orig:rooms.map(room=>room.rects.map(c=>({...c})))};
     renderPanel();
     return;
   }
@@ -290,7 +376,7 @@ function edDown(e){
              addTo:(e.shiftKey&&sr)?sr.id:null};
     return;
   }
-  if(edSel){edSel=null;renderPanel();}
+  if(edSel){setEdSelection([]);renderPanel();}
   panRef={x:e.offsetX,y:e.offsetY,cx:cam().x,cy:cam().y};
 }
 function edMove(e){
@@ -304,11 +390,11 @@ function edMove(e){
     return;
   }
   if(edDrag){
-    const r=edDrag.room;
-    if(edDrag.mode==="move"){
+    if(edDrag.mode==="groupmove"){
       const di=Math.round(fi-edDrag.fi), dj=Math.round(fj-edDrag.fj);
-      r.rects=edDrag.orig.map(c=>({x:c.x+di,y:c.y+dj,w:c.w,h:c.h}));
+      edDrag.rooms.forEach((room,i)=>room.rects=edDrag.orig[i].map(c=>({x:c.x+di,y:c.y+dj,w:c.w,h:c.h})));
     }else{
+      const r=edDrag.room;
       const rc=r.rects[edDrag.ri];
       rc.w=Math.max(1,Math.round(fi)-rc.x);
       rc.h=Math.max(1,Math.round(fj)-rc.y);
@@ -325,7 +411,7 @@ function edUp(){
   if(edDraft){
     if(!edDraft.moved){ // a plain click isn't a room — deselect instead
       edDraft=null;
-      if(edSel){edSel=null;renderPanel();}
+      if(edSel){setEdSelection([]);renderPanel();}
       return;
     }
     const rc=draftRect(), addTo=edDraft.addTo;
@@ -341,17 +427,22 @@ function edUp(){
       const room={id:newRoomId(), name:"New Room", sub:"", rects:[rc],
         floorA:t.floorA, floorB:t.floorB, wall:t.wall, read:"", dm:"", clues:[]};
       if(t.corridor) room.corridor=true;
-      App.document.rooms.push(room); edSel=room.id;
+      App.document.rooms.push(room);setEdSelection([room.id],room.id);
       levelTouched();
     }
     renderPanel();
     return;
   }
   if(edDrag){
-    const r=edDrag.room;
-    if(overlapsOtherRooms(r.rects,r.id)) r.rects=edDrag.orig;   // no overlapping rooms
-    if(JSON.stringify(r.rects)===JSON.stringify(edDrag.orig)) edUndoStack.pop(); // plain click, nothing changed
-    else{pruneDoors(); levelTouched();}
+    if(edDrag.mode==="groupmove"){
+      if(groupOverlapsOthers(edDrag.rooms,edDrag.ids))edDrag.rooms.forEach((room,i)=>room.rects=edDrag.orig[i]);
+      const changed=edDrag.rooms.some((room,i)=>JSON.stringify(room.rects)!==JSON.stringify(edDrag.orig[i]));
+      if(!changed)edUndoStack.pop();else{pruneDoors();levelTouched();}
+    }else{
+      const r=edDrag.room;
+      if(overlapsOtherRooms(r.rects,r.id))r.rects=edDrag.orig;
+      if(JSON.stringify(r.rects)===JSON.stringify(edDrag.orig))edUndoStack.pop();else{pruneDoors();levelTouched();}
+    }
     edDrag=null;
     return;
   }
@@ -497,6 +588,35 @@ stage.addEventListener("drop",e=>{
 });
 
 /* ---------------- save / load ---------------- */
+const LOCAL_SESSION_KEY="palimpsest-session-v2";
+function hideStartScreen(){$("startscreen").classList.remove("show");}
+function showStartScreen(){
+  let hasLocal=false;
+  try{hasLocal=!!localStorage.getItem(LOCAL_SESSION_KEY);}catch(e){}
+  if(window.storage&&window.storage.get)hasLocal=true;
+  $("start-resume").disabled=!hasLocal;
+  $("startscreen").classList.add("show");
+}
+function newBlankLevel(){
+  edUndoStack.length=0;edRedoStack.length=0;edClipboard=[];
+  loadLevel({name:"Untitled Level",bg:"#0A0F0C",rooms:[],doors:[],roster:[]});
+  App.session.verso.revealed={};App.session.verso.tokens=[];App.session.tracker={order:[],active:0};
+  setEdSelection([]);edSetTool("draw");setMode("edit");edFit();levelTouched();hideStartScreen();
+}
+function startVerso(){
+  loadLevel(App.content.VERSO_LEVEL);
+  App.session.verso.revealed={...App.content.VERSO_START.revealed};
+  App.session.verso.tokens=App.content.VERSO_START.tokens.map(t=>mkTok(t.name,t.letter,t.color,t.x,t.y,t.size,t.pc));
+  setScene("verso");hideStartScreen();
+}
+async function resumeAutosave(){
+  try{
+    const local=localStorage.getItem(LOCAL_SESSION_KEY);
+    if(local){deserialize(JSON.parse(local));hideStartScreen();return true;}
+    if(window.storage&&window.storage.get){const remote=await window.storage.get("verso-session");if(remote&&remote.value){deserialize(JSON.parse(remote.value));hideStartScreen();return true;}}
+  }catch(e){alert("The autosave could not be restored.");}
+  return false;
+}
 function serialize(){
   return {
     schemaVersion:SESSION_SCHEMA_VERSION, scene:App.session.scene,
@@ -562,19 +682,20 @@ $("btn-load").onclick=()=>$("file-json").click();
 $("file-json").onchange=e=>{
   const f=e.target.files[0]; if(!f) return;
   const rd=new FileReader();
-  rd.onload=()=>{try{deserialize(JSON.parse(rd.result));}catch(err){alert("That file didn't parse as a saved session.");}};
+  rd.onload=()=>{try{deserialize(JSON.parse(rd.result));hideStartScreen();}catch(err){alert("That file didn't parse as a saved session.");}};
   rd.readAsText(f); e.target.value="";
 };
 
-/* autosave to claude.ai artifact storage when available */
+/* lightweight local autosave; artifact storage remains a compatibility fallback */
 let dirty=false;
 function markDirty(){dirty=true; netMark();}
 async function autosave(){
   if(NET.mode==="client") return;
   if(!dirty) return; dirty=false;
   try{
+    const d=serialize();
+    try{localStorage.setItem(LOCAL_SESSION_KEY,JSON.stringify(d));}catch(e){}
     if(typeof window.storage!=="undefined" && window.storage && window.storage.set){
-      const d=serialize();
       const s=JSON.stringify(d);
       if(s.length>4500000){ d.map.imgURL=null; d.map.fogURL=null; }
       await window.storage.set("verso-session",JSON.stringify(d));
@@ -582,14 +703,5 @@ async function autosave(){
   }catch(e){/* storage unavailable — file save still works */}
 }
 setInterval(autosave,8000);
-(async function tryRestore(){
-  if(new URLSearchParams(location.search).has("join")) return;
-  try{
-    if(typeof window.storage!=="undefined" && window.storage && window.storage.get){
-      const r=await window.storage.get("verso-session");
-      if(r && r.value) deserialize(JSON.parse(r.value));
-    }
-  }catch(e){/* nothing stored yet */}
-})();
 
-Object.assign(App.services.editor,{setTool,setScene,setView,serialize,deserialize,newEntityId,renderEditorPreview,fitIsoPreview});
+Object.assign(App.services.editor,{setTool,setScene,setView,serialize,deserialize,newEntityId,renderEditorPreview,fitIsoPreview,showStartScreen,hideStartScreen,newBlankLevel,startVerso,resumeAutosave});

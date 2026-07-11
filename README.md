@@ -22,6 +22,11 @@ collapsible, auto-fitting isometric preview. The preview renders document geomet
 and props without live-session tokens, and is throttled to keep editing responsive.
 It can be enlarged or popped out into a draggable, viewport-clamped floating tool.
 
+The start screen offers a blank level, level/session file loading, local autosave
+resume, and the bundled Verso example. Layout editing supports undo/redo,
+Shift-click multi-selection, group movement, copy/paste, duplication, and reusable
+room presets saved in the browser.
+
 Level and session JSON carry independent schema versions. Imports are normalized
 and validated by `app/core.js`; legacy rectangle-based levels and `v:1` session
 saves migrate when loaded.

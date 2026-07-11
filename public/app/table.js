@@ -570,12 +570,14 @@ addEventListener("keydown",e=>{
   if(e.code==="Space"){spaceDown=true;cv.style.cursor="grabbing";e.preventDefault();}
   const k=e.key.toLowerCase();
   if(App.session.mode==="edit"){
-    if((e.metaKey||e.ctrlKey) && k==="z"){edUndoPop();e.preventDefault();return;}
-    if((k==="delete"||k==="backspace") && edSel){
-      const i=App.document.rooms.findIndex(r=>r.id===edSel);
-      if(i>=0){edSnapshot();App.document.rooms.splice(i,1);delete App.session.verso.revealed[edSel];edSel=null;pruneDoors();levelTouched();renderPanel();}
-    }
-    if(e.key==="Escape"){edSel=null;renderPanel();}
+    if((e.metaKey||e.ctrlKey) && k==="z"){e.shiftKey?edRedoPop():edUndoPop();e.preventDefault();return;}
+    if((e.metaKey||e.ctrlKey) && k==="y"){edRedoPop();e.preventDefault();return;}
+    if((e.metaKey||e.ctrlKey) && k==="c"){copySelection();e.preventDefault();return;}
+    if((e.metaKey||e.ctrlKey) && k==="v"){pasteSelection();e.preventDefault();return;}
+    if((e.metaKey||e.ctrlKey) && k==="d"){duplicateSelection();e.preventDefault();return;}
+    if(k==="delete"||k==="backspace"){deleteSelection();e.preventDefault();return;}
+    if(e.key==="Escape"){setEdSelection([]);renderPanel();}
+    if(e.key.startsWith("Arrow")){const step=e.shiftKey?5:1;nudgeSelection(e.key==="ArrowLeft"?-step:e.key==="ArrowRight"?step:0,e.key==="ArrowUp"?-step:e.key==="ArrowDown"?step:0);e.preventDefault();return;}
     if(k==="f") edFit();
     if(k==="d") edSetTool("draw");
     if(k==="v") edSetTool("select");

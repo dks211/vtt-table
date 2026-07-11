@@ -560,7 +560,7 @@ function placeToken(name,letter,color,size,pc,sheet){
 
 function renderEditorPanel(){
   const p=$("panel");
-  const sel=App.document.rooms.find(r=>r.id===edSel);
+  const selected=selectedRooms(),sel=selected.length===1?selected[0]:null,presets=roomPresets();
   const toolBtn=(t,label)=>`<button class="rbtn ${edTool===t?"":"quiet"}" data-edtool="${t}" style="flex:1">${label}</button>`;
   let html=`<div class="sect"><h3>Level</h3>
     <div class="row"><label>name</label><input type="text" id="lv-name" value="${esc(App.document.level.name)}"></div>
@@ -576,14 +576,20 @@ function renderEditorPanel(){
   html+=`<div class="sect"><h3>Tools</h3>
     <div class="row">${toolBtn("draw","DRAW (D)")}${toolBtn("select","SELECT (V)")}</div>
     <div class="row">${toolBtn("door","DOORS (O)")}${toolBtn("prop","PROPS (P)")}</div>
-    <div class="row"><button class="rbtn quiet" id="ed-undo" ${edUndoStack.length?"":"disabled style='opacity:.4'"}>↩ UNDO (CTRL+Z)</button></div>
+    <div class="row"><button class="rbtn quiet" id="ed-undo" ${edUndoStack.length?"":"disabled style='opacity:.4'"}>↩ UNDO</button><button class="rbtn quiet" id="ed-redo" ${edRedoStack.length?"":"disabled style='opacity:.4'"}>↪ REDO</button></div>
+    <div class="row"><button class="rbtn quiet" id="ed-copy" ${selected.length?"":"disabled"}>COPY</button><button class="rbtn quiet" id="ed-paste" ${edClipboard.length?"":"disabled"}>PASTE</button><button class="rbtn quiet" id="ed-duplicate" ${selected.length?"":"disabled"}>DUPLICATE</button></div>
     <div class="row"><label>template</label><select id="ed-template">${
       TEMPLATES.map((t,i)=>`<option value="${i}" ${i===edTemplate?"selected":""}>${t.name}</option>`).join("")
     }</select></div>
     ${edTool==="prop"?`<div class="row"><label>furniture</label><select id="ed-prop">${
       Object.entries(PROP_LIB).map(([k,v])=>`<option value="${k}" ${k===edPropType?"selected":""}>${v.n}</option>`).join("")
     }</select></div>`:""}
-    <div class="hint">New rooms use the template palette. L-shapes: select a room, then Shift+drag beside it. Doors: click the shared edge (right-click removes). Props: pick furniture, click tiles.</div></div>`;
+    <div class="hint">Shift-click selects multiple rooms. Drag or use arrow keys to move the selection.</div></div>`;
+  html+=`<div class="sect"><h3>Room Presets</h3>
+    <div class="row"><select id="ed-preset" style="flex:1">${presets.map(item=>`<option value="${item.id}">${esc(item.name)}</option>`).join("")}</select><button class="rbtn quiet" id="ed-preset-place" style="flex:none">PLACE</button></div>
+    <div class="row"><input type="text" id="ed-preset-name" placeholder="preset name" value="${sel?esc(sel.name):""}" style="flex:1"><button class="rbtn quiet" id="ed-preset-save" ${selected.length===1?"":"disabled"}>SAVE</button></div>
+    <button class="rbtn quiet" id="ed-preset-delete" disabled style="width:100%">DELETE USER PRESET</button></div>`;
+  if(selected.length>1)html+=`<div class="sect"><h3>Selection · ${selected.length} Rooms</h3><div class="row"><button class="rbtn quiet" id="ed-selection-delete" style="color:var(--oxblood)">DELETE SELECTION</button></div><div class="hint">Shift-click adds or removes rooms. Drag any selected room to move the group.</div></div>`;
   if(sel){
     html+=`<div class="sect"><h3>Room · ${esc(sel.id)}</h3>
       <div class="row"><label>name</label><input type="text" id="ed-name" value="${esc(sel.name)}"></div>
@@ -628,6 +634,15 @@ function renderEditorPanel(){
   let snapped=false;
   const snap1=()=>{if(!snapped){edSnapshot();snapped=true;}};   // one undo step per slider/picker interaction
   $("ed-undo").onclick=()=>edUndoPop();
+  $("ed-redo").onclick=()=>edRedoPop();
+  $("ed-copy").onclick=()=>{copySelection();renderPanel();};
+  $("ed-paste").onclick=()=>pasteSelection();
+  $("ed-duplicate").onclick=()=>duplicateSelection();
+  $("ed-preset-place").onclick=()=>placeRoomPreset($("ed-preset").value);
+  $("ed-preset-save").onclick=()=>saveRoomPreset($("ed-preset-name").value);
+  $("ed-preset-delete").onclick=()=>deleteRoomPreset($("ed-preset").value);
+  $("ed-preset").onchange=e=>{$("ed-preset-delete").disabled=!e.target.value.startsWith("user-");};
+  const selectionDelete=$("ed-selection-delete");if(selectionDelete)selectionDelete.onclick=deleteSelection;
   p.querySelectorAll("[data-rpc]").forEach(el=>{el.onclick=()=>{
     edSnapshot();
     const q=App.document.level.roster[+el.dataset.rpc];
@@ -673,14 +688,14 @@ function renderEditorPanel(){
     if(!confirm("Start a new blank level? The current level is replaced (export first if you want to keep it)."))return;
     edSnapshot();
     loadLevel({name:"Untitled Level",bg:"#0A0F0C",rooms:[],doors:[],roster:[]});
-    edSel=null; edSetTool("draw"); edFit(); levelTouched();
+    setEdSelection([]);edSetTool("draw");edFit();levelTouched();
   };
   $("lv-verso").onclick=()=>{
     if(!confirm("Replace the current level with The Verso — Back of House?"))return;
     edSnapshot();
     loadLevel(VERSO_LEVEL);
     if(App.document.rooms.some(r=>r.id==="white") && !Object.keys(App.session.verso.revealed).length) App.session.verso.revealed.white=true;
-    edSel=null; edFit(); levelTouched();
+    setEdSelection([]);edFit();levelTouched();
   };
   if(sel){
     $("ed-name").onchange=e=>{edSnapshot();sel.name=e.target.value.trim()||"Room";levelTouched();};
@@ -703,7 +718,7 @@ function renderEditorPanel(){
     $("ed-clues").onchange=e=>{edSnapshot();sel.clues=e.target.value.split("\n").map(s=>s.trim()).filter(Boolean);levelTouched();};
     $("ed-del").onclick=()=>{
       const i=App.document.rooms.findIndex(r=>r.id===sel.id);
-      if(i>=0){edSnapshot();App.document.rooms.splice(i,1);delete App.session.verso.revealed[sel.id];edSel=null;pruneDoors();levelTouched();renderPanel();}
+      if(i>=0){setEdSelection([sel.id],sel.id);deleteSelection();}
     };
   }
 }
@@ -715,9 +730,10 @@ $("file-level").onchange=e=>{
     try{
       const d=JSON.parse(rd.result);
       if(!d || !Array.isArray(d.rooms)) throw new Error("not a level file");
-      edSnapshot();
+      const fromStart=$("startscreen").classList.contains("show");
+      if(fromStart){edUndoStack.length=0;edRedoStack.length=0;}else edSnapshot();
       loadLevel(d);
-      edSel=null; if(App.session.mode==="edit") edFit(); levelTouched();
+      setEdSelection([]);if(fromStart)setMode("edit");if(App.session.mode==="edit")edFit();levelTouched();hideStartScreen();
     }catch(err){alert("Couldn't read that level file: "+err.message);}
   };
   rd.readAsText(f);
