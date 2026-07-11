@@ -5,8 +5,10 @@ const ET=34;                                  // editor px per tile at zoom 1
 const edCam={x:-120,y:-120,s:1};
 let edTool="draw", edSel=null, edDraft=null, edDrag=null, edHover=null, edTemplate=0, edFitDone=false, edRoomN=0, edPropType="table", edRosterSel=null;
 const isoPreview=$("iso-preview"), isoPreviewCanvas=$("iso-preview-cv"), isoPreviewCtx=isoPreviewCanvas.getContext("2d");
+const isoPreviewHead=$("iso-preview-head");
 const isoPreviewCam={x:0,y:0,s:1};
 let isoPreviewFitDirty=true,isoPreviewDirty=true,isoPreviewGeometry="",isoPreviewSelection=null,isoPreviewLastDraw=0;
+let isoPreviewDrag=null;
 const edTile=(sx,sy)=>{const [wx,wy]=toWorld(sx,sy);return [wx/ET,wy/ET];};
 function levelTouched(){markDirty();netMarkLevel();isoPreviewFitDirty=true;isoPreviewDirty=true;}
 function newRoomId(){let id; do{id="room"+(++edRoomN);}while(App.document.rooms.some(r=>r.id===id)); return id;}
@@ -104,13 +106,60 @@ function renderEditorPreview(){
     ctx=oldCtx;W=oldW;H=oldH;RVIEW=oldView;CAMOVR=oldCam;App.session.selRoom=oldSel;App.session.verso.tokens=oldTokens;
   }
 }
-$("iso-preview-fit").onclick=()=>{isoPreviewFitDirty=true;isoPreviewDirty=true;};
+function clampIsoPreview(){
+  if(!isoPreview.classList.contains("floating")) return;
+  const rect=isoPreview.getBoundingClientRect(),pad=8;
+  isoPreview.style.left=Math.max(pad,Math.min(innerWidth-rect.width-pad,rect.left))+"px";
+  isoPreview.style.top=Math.max(pad,Math.min(innerHeight-rect.height-pad,rect.top))+"px";
+}
+$("iso-preview-pop").onclick=()=>{
+  const button=$("iso-preview-pop"),floating=!isoPreview.classList.contains("floating");
+  if(floating){
+    const rect=isoPreview.getBoundingClientRect();
+    isoPreview.classList.add("floating");
+    isoPreview.style.left=rect.left+"px";isoPreview.style.top=rect.top+"px";
+    isoPreview.style.right="auto";isoPreview.style.bottom="auto";
+  }else{
+    isoPreview.classList.remove("floating");
+    isoPreview.style.left="";isoPreview.style.top="";isoPreview.style.right="";isoPreview.style.bottom="";
+  }
+  button.textContent=floating?"↙":"↗";button.title=floating?"Dock preview":"Pop out preview";
+  button.setAttribute("aria-label",button.title);button.setAttribute("aria-pressed",String(floating));
+  isoPreviewFitDirty=true;isoPreviewDirty=true;requestAnimationFrame(clampIsoPreview);
+};
+$("iso-preview-expand").onclick=()=>{
+  const button=$("iso-preview-expand"),expanded=isoPreview.classList.toggle("expanded");
+  if(isoPreview.classList.contains("collapsed")) $("iso-preview-collapse").click();
+  button.title=expanded?"Restore preview size":"Expand preview size";
+  button.setAttribute("aria-label",button.title);button.setAttribute("aria-pressed",String(expanded));
+  isoPreviewFitDirty=true;isoPreviewDirty=true;requestAnimationFrame(clampIsoPreview);
+};
 $("iso-preview-collapse").onclick=()=>{
   const collapsed=isoPreview.classList.toggle("collapsed"),button=$("iso-preview-collapse");
-  button.textContent=collapsed?"▴":"▾";button.title=collapsed?"Expand preview":"Collapse preview";
+  button.textContent=collapsed?"▴":"▾";button.title=collapsed?"Show preview canvas":"Collapse preview canvas";
   button.setAttribute("aria-label",button.title);button.setAttribute("aria-pressed",String(collapsed));
   if(!collapsed){isoPreviewFitDirty=true;isoPreviewDirty=true;}
 };
+isoPreviewHead.addEventListener("pointerdown",e=>{
+  if(!isoPreview.classList.contains("floating")||e.target.closest("button")) return;
+  const rect=isoPreview.getBoundingClientRect();
+  isoPreviewDrag={dx:e.clientX-rect.left,dy:e.clientY-rect.top};
+  isoPreviewHead.setPointerCapture(e.pointerId);e.preventDefault();
+});
+addEventListener("pointermove",e=>{
+  if(!isoPreviewDrag) return;
+  const rect=isoPreview.getBoundingClientRect(),pad=8;
+  isoPreview.style.left=Math.max(pad,Math.min(innerWidth-rect.width-pad,e.clientX-isoPreviewDrag.dx))+"px";
+  isoPreview.style.top=Math.max(pad,Math.min(innerHeight-rect.height-pad,e.clientY-isoPreviewDrag.dy))+"px";
+});
+const stopIsoPreviewDrag=e=>{
+  if(!isoPreviewDrag) return;
+  isoPreviewDrag=null;
+  if(isoPreviewHead.hasPointerCapture(e.pointerId)) isoPreviewHead.releasePointerCapture(e.pointerId);
+};
+addEventListener("pointerup",stopIsoPreviewDrag);
+addEventListener("pointercancel",stopIsoPreviewDrag);
+addEventListener("resize",()=>{clampIsoPreview();isoPreviewFitDirty=true;isoPreviewDirty=true;});
 function drawEditor(){
   const c=edCam;
   ctx.fillStyle="#0C1310"; ctx.fillRect(0,0,W,H);

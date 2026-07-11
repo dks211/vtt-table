@@ -20,6 +20,7 @@ The browser client is organized by responsibility:
 The level editor keeps the top-down plan as its primary workspace and displays a
 collapsible, auto-fitting isometric preview. The preview renders document geometry
 and props without live-session tokens, and is throttled to keep editing responsive.
+It can be enlarged or popped out into a draggable, viewport-clamped floating tool.
 
 Level and session JSON carry independent schema versions. Imports are normalized
 and validated by `app/core.js`; legacy rectangle-based levels and `v:1` session
