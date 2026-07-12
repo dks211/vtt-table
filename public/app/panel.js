@@ -578,7 +578,7 @@ function renderEditorPanel(){
     <div class="row">${toolBtn("door","DOORS (O)")}${toolBtn("prop","PROPS (P)")}</div>
     <div class="row"><button class="rbtn quiet" id="ed-undo" ${edUndoStack.length?"":"disabled style='opacity:.4'"}>↩ UNDO</button><button class="rbtn quiet" id="ed-redo" ${edRedoStack.length?"":"disabled style='opacity:.4'"}>↪ REDO</button></div>
     <div class="row"><button class="rbtn quiet" id="ed-copy" ${selected.length?"":"disabled"}>COPY</button><button class="rbtn quiet" id="ed-paste" ${edClipboard.length?"":"disabled"}>PASTE</button><button class="rbtn quiet" id="ed-duplicate" ${selected.length?"":"disabled"}>DUPLICATE</button></div>
-    <div class="row"><label>template</label><select id="ed-template">${
+    <div class="row"><label>material pack</label><select id="ed-template">${
       TEMPLATES.map((t,i)=>`<option value="${i}" ${i===edTemplate?"selected":""}>${t.name}</option>`).join("")
     }</select></div>
     ${edTool==="prop"?`<div class="row"><label>furniture</label><select id="ed-prop">${
@@ -600,8 +600,12 @@ function renderEditorPanel(){
         <input type="color" id="ed-wl" value="${sel.wall}" title="wall">
         <button class="rbtn quiet" id="ed-applytpl" style="flex:1;padding:5px" title="apply the selected template palette">TPL</button>
       </div>
+      <div class="row"><label>elevation</label><input type="number" id="ed-elevation" min="0" max="12" step="1" value="${sel.elevation||0}" title="height in tile steps"></div>
+      <div class="row"><label>wall height</label><select id="ed-wallheight">${[[0,"none"],[1,"standard"],[2,"tall"],[3,"towering"]].map(([v,n])=>`<option value="${v}" ${(sel.wallHeight??1)===v?"selected":""}>${n}</option>`).join("")}</select></div>
+      <div class="row"><label>structure</label><select id="ed-structure">${[["floor","floor"],["platform","platform"],["stairs-up","stairs up"],["stairs-down","stairs down"]].map(([v,n])=>`<option value="${v}" ${(sel.structure||"floor")===v?"selected":""}>${n}</option>`).join("")}</select></div>
+      <label class="check"><input type="checkbox" id="ed-cutaway" ${sel.cutaway==="front"?"checked":""}> open front walls (cutaway)</label>
       <label class="check"><input type="checkbox" id="ed-corr" ${sel.corridor?"checked":""}> corridor (thin label styling)</label>
-      <div class="row"><label>lighting</label><select id="ed-light">${["lit","dim","dark","flicker"].map(v=>`<option ${(sel.light||"lit")===v?"selected":""}>${v}</option>`).join("")}</select></div>
+      <div class="row"><label>lighting</label><select id="ed-light">${["lit","bright","dim","dark","torchlight","flicker","magical"].map(v=>`<option ${(sel.light||"lit")===v?"selected":""}>${v}</option>`).join("")}</select></div>
       <label class="check"><input type="checkbox" id="ed-tokens" ${sel.tokensAlways?"checked":""}> NPCs always visible here (default: hidden from players until a PC is also in the room)</label>
       <div class="row"><label>read-aloud</label></div>
       <textarea id="ed-read" rows="4" placeholder="What the players hear when they enter…">${esc(sel.read||"")}</textarea>
@@ -703,6 +707,10 @@ function renderEditorPanel(){
     $("ed-fa").oninput=e=>{snap1();sel.floorA=e.target.value;levelTouched();};
     $("ed-fb").oninput=e=>{snap1();sel.floorB=e.target.value;levelTouched();};
     $("ed-wl").oninput=e=>{snap1();sel.wall=e.target.value;levelTouched();};
+    $("ed-elevation").oninput=e=>{snap1();sel.elevation=Math.max(0,Math.min(12,Math.round(+e.target.value||0)));levelTouched();};
+    $("ed-wallheight").onchange=e=>{edSnapshot();sel.wallHeight=+e.target.value;levelTouched();};
+    $("ed-structure").onchange=e=>{edSnapshot();sel.structure=e.target.value;levelTouched();};
+    $("ed-cutaway").onchange=e=>{edSnapshot();sel.cutaway=e.target.checked?"front":"none";levelTouched();};
     $("ed-applytpl").onclick=()=>{
       edSnapshot();
       const t=TEMPLATES[edTemplate];

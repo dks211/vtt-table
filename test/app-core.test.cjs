@@ -92,6 +92,15 @@ test("legacy levels migrate rectangles and receive stable object IDs", () => {
   assert.equal(level.roster[0].id, "roster-1");
 });
 
+test("isometric room properties are normalized to portable bounds", () => {
+  const level = normalizeLevel({rooms:[{name:"Raised",rect:{x:0,y:0,w:2,h:2},elevation:99,wallHeight:-3,structure:"stairs-up",cutaway:"front"}]});
+  const room=level.rooms[0];
+  assert.equal(room.elevation,12);
+  assert.equal(room.wallHeight,0);
+  assert.equal(room.structure,"stairs-up");
+  assert.equal(room.cutaway,"front");
+});
+
 test("level validation rejects unsupported versions and malformed geometry", () => {
   assert.throws(() => normalizeLevel({ schemaVersion: 99, rooms: [] }), /Unsupported level schema/);
   assert.throws(() => normalizeLevel({ rooms: [{ name: "Bad", rect: { x: 0, y: 0, w: 0, h: 2 } }] }), /at least one tile/);

@@ -16,7 +16,7 @@ test("the Verso ships as a valid content pack", () => {
 
 test("content catalogs expose reusable room and prop choices", () => {
   const content = globalThis.VTTContent;
-  assert.ok(content.ROOM_TEMPLATES.length >= 8);
+  assert.ok(content.ROOM_TEMPLATES.length >= 12);
   assert.ok(Object.keys(content.PROP_LIBRARY).length >= 10);
   assert.ok(content.SWATCHES.length >= 8);
 });

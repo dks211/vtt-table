@@ -27,6 +27,11 @@ resume, and the bundled Verso example. Layout editing supports undo/redo,
 Shift-click multi-selection, group movement, copy/paste, duplication, and reusable
 room presets saved in the browser.
 
+Rooms also carry isometric-native presentation properties: stepped elevation,
+wall height, platforms or stair markings, front-wall cutaways, expanded lighting
+modes, and grouped material packs. These properties travel with level exports and
+session saves.
+
 Level and session JSON carry independent schema versions. Imports are normalized
 and validated by `app/core.js`; legacy rectangle-based levels and `v:1` session
 saves migrate when loaded.

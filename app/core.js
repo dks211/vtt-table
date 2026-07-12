@@ -52,6 +52,11 @@
       const normalized = { ...clone(room), id: uniqueId(room.id, "room", roomIds, index), name };
       normalized.rects = rawRects.map(rect => normalizeRect(rect, name));
       normalized.clues = Array.isArray(room.clues) ? room.clues.map(value => String(value).slice(0, 1000)) : [];
+      normalized.elevation = Math.max(0, Math.min(12, integer(room.elevation, 0)));
+      normalized.wallHeight = Math.max(0, Math.min(3, integer(room.wallHeight, 1)));
+      normalized.structure = ["floor", "platform", "stairs-up", "stairs-down"].includes(room.structure)
+        ? room.structure : "floor";
+      normalized.cutaway = room.cutaway === "front" ? "front" : "none";
       delete normalized.rect;
       return normalized;
     });

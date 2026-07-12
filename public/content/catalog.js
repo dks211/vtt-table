@@ -89,14 +89,18 @@ const PARTY = [
 ];
 const SWATCH = ["#8A6FB8","#4E8F86","#E0B341","#D96A9C","#B5443C","#C8A14E","#7FA8B8","#9AA08F","#5E7FB8","#8A2E25"];
 const TEMPLATES=[
- {name:"Stone Hall",      floorA:"#4A4A4E",floorB:"#3F3F44",wall:"#2C2C30"},
- {name:"Wood Parlor",     floorA:"#5C4630",floorB:"#4F3C29",wall:"#6B5A33"},
- {name:"Marble Gallery",  floorA:"#C9BD9C",floorB:"#BFB28F",wall:"#8F8468"},
- {name:"Oxblood Corridor",floorA:"#5A2723",floorB:"#4D211E",wall:"#3A2E22",corridor:true},
- {name:"Green Baize",     floorA:"#21392B",floorB:"#1B3024",wall:"#2E4A38"},
- {name:"White Void",      floorA:"#D8D2C2",floorB:"#CCC5B2",wall:"#9C947E"},
- {name:"Dark Cloak",      floorA:"#33272A",floorB:"#2B2125",wall:"#5A4A40"},
- {name:"Steel Platform",  floorA:"#3E424A",floorB:"#363A42",wall:"#5A5E66"}
+ {name:"Masonry · Dressed Stone", floorA:"#4A4A4E",floorB:"#3F3F44",wall:"#2C2C30"},
+ {name:"Interior · Dark Wood",    floorA:"#5C4630",floorB:"#4F3C29",wall:"#6B5A33"},
+ {name:"Civic · Pale Marble",     floorA:"#C9BD9C",floorB:"#BFB28F",wall:"#8F8468"},
+ {name:"Casino · Oxblood",        floorA:"#5A2723",floorB:"#4D211E",wall:"#3A2E22",corridor:true},
+ {name:"Club · Green Baize",      floorA:"#21392B",floorB:"#1B3024",wall:"#2E4A38"},
+ {name:"Uncanny · White Void",    floorA:"#D8D2C2",floorB:"#CCC5B2",wall:"#9C947E"},
+ {name:"Interior · Dark Fabric",  floorA:"#33272A",floorB:"#2B2125",wall:"#5A4A40"},
+ {name:"Industrial · Steel",      floorA:"#3E424A",floorB:"#363A42",wall:"#5A5E66"},
+ {name:"Dungeon · Mossy Flagstone",floorA:"#39443A",floorB:"#303A32",wall:"#596052"},
+ {name:"Temple · Sandstone",      floorA:"#9A805B",floorB:"#89704E",wall:"#6F5B42"},
+ {name:"Arcane · Cold Slate",     floorA:"#394655",floorB:"#303A48",wall:"#657488"},
+ {name:"Ruin · Charred Brick",    floorA:"#4C403B",floorB:"#403531",wall:"#6B5149"}
 ];
 const PROP_LIB={
  table: {n:"Table",  draw(i,j){box(i+.12,j+.25,i+.88,j+.75,13,"#5C4630");}},

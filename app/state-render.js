@@ -16,6 +16,7 @@ const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /* ---------------- iso constants ---------------- */
 const TW = 72, TH = 36;                 // iso tile screen size at zoom 1
+const ELEV_STEP = 12;
 const isoX = (i,j)=> (i-j)*TW/2;
 const isoY = (i,j)=> (i+j)*TH/2;
 const unIso = (x,y)=> [ (x/(TW/2)+y/(TH/2))/2, (y/(TH/2)-x/(TW/2))/2 ];
@@ -217,6 +218,22 @@ function tilePathAdd(i,j){ // append one tile to the current path (for multi-til
   ctx.lineTo(isoX(i+1,j+1),   isoY(i+1,j+1));
   ctx.lineTo(isoX(i,j+1),     isoY(i,j+1));
   ctx.closePath();
+}
+const roomElevation=r=>((r&&r.elevation)||0)*ELEV_STEP+(r&&r.structure==="platform"?ELEV_STEP/2:0);
+function isFrontRoomEdge(r,edge){
+  const [x1,y1,x2,y2]=edge;
+  if(y1===y2) return roomHasTile(r,Math.floor((x1+x2)/2),y1-1);
+  return roomHasTile(r,x1-1,Math.floor((y1+y2)/2));
+}
+function drawStructureMarks(r){
+  if(!String(r.structure||"").startsWith("stairs"))return;
+  const down=r.structure==="stairs-down";
+  ctx.save();ctx.strokeStyle="rgba(233,226,206,.42)";ctx.lineWidth=1;
+  for(const [i,j] of roomTiles(r))for(let k=1;k<4;k++){
+    const f=k/4,A=down?P(i,j+f):P(i+f,j),B=down?P(i+1,j+f):P(i+f,j+1);
+    ctx.beginPath();ctx.moveTo(...A);ctx.lineTo(...B);ctx.stroke();
+  }
+  ctx.restore();
 }
 const GLYPHS="ᚠᚢᚦᚨᚱᚲᚷᚹᚺᚾᛁᛃᛇᛈᛉᛋᛏᛒᛖᛗᛚᛜᛞᛟ";
 
@@ -643,6 +660,7 @@ function drawVerso(){
     if(!rev && !showHidden) continue;
     ctx.save();
     if(!rev){ ctx.globalAlpha=.22; }
+    ctx.translate(0,-roomElevation(r));
     const bleedSet = new Set((r.bleed||[]).map(p=>p[0]+","+p[1]));
     {
       for(const [i,j] of roomTiles(r)){
@@ -671,6 +689,7 @@ function drawVerso(){
         }
       }
     }
+    drawStructureMarks(r);
     ctx.restore();
   }
   // walls (room perimeters)
@@ -679,13 +698,16 @@ function drawVerso(){
     if(!rev && !showHidden) continue;
     ctx.save();
     if(!rev) ctx.globalAlpha=.3;
-    ctx.beginPath();
-    for(const [x1,y1,x2,y2] of roomEdges(r)){
-      ctx.moveTo(isoX(x1,y1),isoY(x1,y1));
-      ctx.lineTo(isoX(x2,y2),isoY(x2,y2));
+    const elevation=roomElevation(r),wallPx=(r.wallHeight??1)*12;
+    for(const edge of roomEdges(r)){
+      const [x1,y1,x2,y2]=edge,A=[isoX(x1,y1),isoY(x1,y1)-elevation],B=[isoX(x2,y2),isoY(x2,y2)-elevation];
+      if(elevation>0&&isFrontRoomEdge(r,edge))quad(A,B,[B[0],B[1]+elevation],[A[0],A[1]+elevation],shade(r.wall,.58),"rgba(7,9,8,.5)");
+      if(r.cutaway==="front"&&isFrontRoomEdge(r,edge))continue;
+      if(!wallPx)continue;
+      quad([A[0],A[1]-wallPx],[B[0],B[1]-wallPx],B,A,shade(r.wall,isFrontRoomEdge(r,edge)?.82:.68),"rgba(7,9,8,.6)");
+      ctx.beginPath();ctx.moveTo(A[0],A[1]-wallPx);ctx.lineTo(B[0],B[1]-wallPx);
+      ctx.strokeStyle=shade(r.wall,1.12);ctx.lineWidth=2;ctx.lineCap="round";ctx.stroke();
     }
-    ctx.strokeStyle=r.wall; ctx.lineWidth=3; ctx.lineCap="round"; ctx.stroke();
-    ctx.strokeStyle="rgba(7,9,8,.6)"; ctx.lineWidth=1; ctx.stroke();
     ctx.restore();
   }
   // room dressing
@@ -694,6 +716,7 @@ function drawVerso(){
     if(!rev && !showHidden) continue;
     ctx.save();
     if(!rev) ctx.globalAlpha=.18;
+    ctx.translate(0,-roomElevation(r));
     drawProps(r);
     drawProps2(r);
     ctx.restore();
@@ -707,6 +730,7 @@ function drawVerso(){
     if(!rev && !showHidden) continue;
     ctx.save();
     if(!rev) ctx.globalAlpha=.22;
+    ctx.translate(0,-roomElevation(room));
     lib.draw(pr.x,pr.y);
     ctx.restore();
   }
@@ -716,16 +740,18 @@ function drawVerso(){
     const rev=v.revealed[r.id];
     if(!rev && !showHidden) continue;
     let a = r.light==="dim"?.34 : r.light==="dark"?.74 : 0;
-    if(r.light==="flicker"){
+    if(r.light==="flicker"||r.light==="torchlight"){
       a = REDUCED ? .4 : .22+.26*(.5+.5*Math.sin(tNow/93)+.3*Math.sin(tNow/31+2));
     }
-    if(a<=0) continue;
+    const glow=r.light==="bright"?"rgba(244,226,174,.14)":r.light==="magical"?"rgba(112,174,210,.16)":r.light==="torchlight"?"rgba(220,142,72,.10)":null;
+    if(a<=0&&!glow) continue;
     if(RVIEW==="dm") a*=.5;                    // DM keeps night vision
     ctx.save();
-    ctx.fillStyle="rgba(4,7,9,"+Math.min(a,.85)+")";
+    ctx.translate(0,-roomElevation(r));
     ctx.beginPath();
     for(const [i,j] of roomTiles(r)) tilePathAdd(i,j);
-    ctx.fill();
+    if(a>0){ctx.fillStyle="rgba(4,7,9,"+Math.min(a,.85)+")";ctx.fill();}
+    if(glow){ctx.fillStyle=glow;ctx.fill();}
     ctx.restore();
   }
   // doors / openings
@@ -737,6 +763,8 @@ function drawVerso(){
     if(!visible && RVIEW!=="dm") continue;
     ctx.save();
     if(!visible) ctx.globalAlpha=.3;
+    const adjoining=[roomAtTile(d.x+.25,d.y-.25),roomAtTile(d.x+.25,d.y+.25),roomAtTile(d.x-.25,d.y+.25),roomAtTile(d.x+.25,d.y+.25)].filter(Boolean);
+    ctx.translate(0,-Math.max(0,...adjoining.map(roomElevation)));
     ctx.beginPath();
     ctx.moveTo(isoX(d.x,d.y),isoY(d.x,d.y));
     ctx.lineTo(isoX(x2,y2),isoY(x2,y2));
@@ -757,6 +785,7 @@ function drawVerso(){
     const cx=isoX((bb.x0+bb.x1)/2,(bb.y0+bb.y1)/2);
     const cy=isoY((bb.x0+bb.x1)/2,(bb.y0+bb.y1)/2);
     ctx.save();
+    ctx.translate(0,-roomElevation(r));
     ctx.globalAlpha = rev?1:.45;
     ctx.font="13px Marcellus, serif";
     ctx.fillStyle = (RVIEW==="dm"&&App.session.selRoom===r.id) ? "#E9E2CE" : "#C8A14E";
@@ -826,7 +855,7 @@ function roomBBox(r){
   return {x0,y0,x1,y1};
 }
 function drawTokenIso(t,s){
-  const cx=isoX(t.x,t.y), cy=isoY(t.x,t.y);
+  const room=roomAtTile(t.x,t.y),cx=isoX(t.x,t.y),cy=isoY(t.x,t.y)-roomElevation(room||{});
   const r=15*t.size;
   ctx.save();
   // base ellipse
