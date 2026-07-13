@@ -24,7 +24,7 @@ const unIso = (x,y)=> [ (x/(TW/2)+y/(TH/2))/2, (y/(TH/2)-x/(TW/2))/2 ];
 /* ---------------- level system ----------------
    App.document.rooms/App.document.doors are the live, editable level; the Verso ships as the built-in
    default. Levels round-trip as JSON via the editor's export/import. */
-function levelData(){return {schemaVersion:LEVEL_SCHEMA_VERSION,name:App.document.level.name,bg:App.document.level.bg,rooms:App.document.rooms,doors:App.document.doors,roster:App.document.level.roster,props:App.document.level.props};}
+function levelData(){return {schemaVersion:LEVEL_SCHEMA_VERSION,name:App.document.level.name,bg:App.document.level.bg,rooms:App.document.rooms,doors:App.document.doors,stairs:App.document.stairs,roster:App.document.level.roster,props:App.document.level.props};}
 function clientLevelData(){
   // the Token Library can hold NPC sheets (stat blocks) — never ship those to players,
   // even though placed tokens are already sanitized separately in lightSnapshot()
@@ -39,6 +39,7 @@ function loadLevel(lv){
   App.document.level.props=data.props;
   App.document.rooms=data.rooms;
   App.document.doors=data.doors;
+  App.document.stairs=data.stairs;
   const ids=new Set(App.document.rooms.map(r=>r.id));
   for(const k of Object.keys(App.session.verso.revealed)) if(!ids.has(k)) delete App.session.verso.revealed[k];
   if(App.session.selRoom && !ids.has(App.session.selRoom)) App.session.selRoom=null;
@@ -225,15 +226,17 @@ function isFrontRoomEdge(r,edge){
   if(y1===y2) return roomHasTile(r,Math.floor((x1+x2)/2),y1-1);
   return roomHasTile(r,x1-1,Math.floor((y1+y2)/2));
 }
-function drawStructureMarks(r){
-  if(!String(r.structure||"").startsWith("stairs"))return;
-  const down=r.structure==="stairs-down";
-  ctx.save();ctx.strokeStyle="rgba(233,226,206,.42)";ctx.lineWidth=1;
-  for(const [i,j] of roomTiles(r))for(let k=1;k<4;k++){
-    const f=k/4,A=down?P(i,j+f):P(i+f,j),B=down?P(i+1,j+f):P(i+f,j+1);
-    ctx.beginPath();ctx.moveTo(...A);ctx.lineTo(...B);ctx.stroke();
+function drawStair(stair){
+  const alongX=stair.dir==="e"||stair.dir==="w",steps=Math.max(3,(alongX?stair.w:stair.h)*3);
+  const riser=Math.max(2,Math.abs(stair.to-stair.from)*ELEV_STEP/steps);
+  for(let k=0;k<steps;k++){
+    const forward=stair.dir==="e"||stair.dir==="s"?k:steps-1-k;
+    const z=(stair.from+(stair.to-stair.from)*(forward+.5)/steps)*ELEV_STEP;
+    const a=k/steps,b=(k+1)/steps;
+    const i0=stair.x+(alongX?a:0),i1=stair.x+(alongX?b:stair.w);
+    const j0=stair.y+(alongX?0:a),j1=stair.y+(alongX?stair.h:b);
+    ctx.save();ctx.translate(0,-z);box(i0,j0,i1,j1,riser,k%2?"#625D56":"#777168");ctx.restore();
   }
-  ctx.restore();
 }
 const GLYPHS="ᚠᚢᚦᚨᚱᚲᚷᚹᚺᚾᛁᛃᛇᛈᛉᛋᛏᛒᛖᛗᛚᛜᛞᛟ";
 
@@ -689,9 +692,9 @@ function drawVerso(){
         }
       }
     }
-    drawStructureMarks(r);
     ctx.restore();
   }
+  for(const stair of (App.document.stairs||[]))drawStair(stair);
   // walls (room perimeters)
   for(const r of App.document.rooms){
     const rev = !!v.revealed[r.id];

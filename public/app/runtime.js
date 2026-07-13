@@ -23,6 +23,7 @@
       },
       rooms: [],
       doors: [],
+      stairs: [],
     },
     session: null,
     services,

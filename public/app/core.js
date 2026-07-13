@@ -54,7 +54,7 @@
       normalized.clues = Array.isArray(room.clues) ? room.clues.map(value => String(value).slice(0, 1000)) : [];
       normalized.elevation = Math.max(0, Math.min(12, integer(room.elevation, 0)));
       normalized.wallHeight = Math.max(0, Math.min(3, integer(room.wallHeight, 1)));
-      normalized.structure = ["floor", "platform", "stairs-up", "stairs-down"].includes(room.structure)
+      normalized.structure = ["floor", "platform"].includes(room.structure)
         ? room.structure : "floor";
       normalized.cutaway = room.cutaway === "front" ? "front" : "none";
       delete normalized.rect;
@@ -90,6 +90,20 @@
       };
     });
 
+    const stairIds = new Set();
+    const stairs = (Array.isArray(level.stairs) ? level.stairs : []).map((source, index) => {
+      const stair = objectOrNull(source);
+      if (!stair) throw new Error(`Stair ${index + 1} must be an object.`);
+      return {
+        id: uniqueId(stair.id, "stair", stairIds, index),
+        x: integer(stair.x), y: integer(stair.y),
+        w: Math.max(1, integer(stair.w, 1)), h: Math.max(1, integer(stair.h, 1)),
+        dir: ["n", "e", "s", "w"].includes(stair.dir) ? stair.dir : "n",
+        from: Math.max(0, Math.min(12, integer(stair.from, 0))),
+        to: Math.max(0, Math.min(12, integer(stair.to, 1))),
+      };
+    });
+
     const rosterSource = Array.isArray(level.roster) ? level.roster : (options.fallbackRoster || []);
     const rosterIds = new Set();
     const roster = rosterSource.map((source, index) => {
@@ -111,6 +125,7 @@
       rooms,
       doors,
       props,
+      stairs,
       roster,
     };
   }

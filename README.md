@@ -28,9 +28,12 @@ Shift-click multi-selection, group movement, copy/paste, duplication, and reusab
 room presets saved in the browser.
 
 Rooms also carry isometric-native presentation properties: stepped elevation,
-wall height, platforms or stair markings, front-wall cutaways, expanded lighting
+wall height, raised platform edges, front-wall cutaways, expanded lighting
 modes, and grouped material packs. These properties travel with level exports and
 session saves.
+
+Stairs are directional level objects with a dragged footprint and explicit bottom
+and top elevations, rather than a room-wide surface treatment.
 
 Level and session JSON carry independent schema versions. Imports are normalized
 and validated by `app/core.js`; legacy rectangle-based levels and `v:1` session

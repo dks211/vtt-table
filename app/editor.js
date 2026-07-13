@@ -3,7 +3,7 @@
    Rooms are drawn on a flat tile grid; play mode renders the same data iso. */
 const ET=34;                                  // editor px per tile at zoom 1
 const edCam={x:-120,y:-120,s:1};
-let edTool="draw", edSel=null, edDraft=null, edDrag=null, edHover=null, edTemplate=0, edFitDone=false, edRoomN=0, edPropType="table", edRosterSel=null;
+let edTool="draw", edSel=null, edDraft=null, edDrag=null, edHover=null, edTemplate=0, edFitDone=false, edRoomN=0, edPropType="table", edStairDir="n", edStairFrom=0, edStairTo=1, edRosterSel=null;
 const edSelection=new Set();
 let edClipboard=[];
 const ROOM_PRESET_KEY="palimpsest-room-presets-v1";
@@ -149,9 +149,10 @@ function edFit(){
   updZoom();
 }
 function fitIsoPreview(width,height){
-  if(!App.document.rooms.length){isoPreviewCam.x=-width/2;isoPreviewCam.y=-height/2;isoPreviewCam.s=1;return;}
+  if(!App.document.rooms.length&&!App.document.stairs.length){isoPreviewCam.x=-width/2;isoPreviewCam.y=-height/2;isoPreviewCam.s=1;return;}
   let minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9;
-  for(const room of App.document.rooms) for(const rect of room.rects){
+  const rects=[...App.document.rooms.flatMap(room=>room.rects),...App.document.stairs];
+  for(const rect of rects){
     for(const [i,j] of [[rect.x,rect.y],[rect.x+rect.w,rect.y],[rect.x+rect.w,rect.y+rect.h],[rect.x,rect.y+rect.h]]){
       minX=Math.min(minX,isoX(i,j));maxX=Math.max(maxX,isoX(i,j));
       minY=Math.min(minY,isoY(i,j));maxY=Math.max(maxY,isoY(i,j));
@@ -166,7 +167,7 @@ function renderEditorPreview(){
   if(App.session.mode!=="edit"||isoPreview.classList.contains("collapsed")) return;
   const rect=isoPreviewCanvas.getBoundingClientRect(),width=rect.width,height=rect.height;
   if(!(width>0&&height>0)) return;
-  const geometry=App.document.rooms.map(room=>room.rects.map(r=>[r.x,r.y,r.w,r.h])).flat(2).join(",");
+  const geometry=App.document.rooms.map(room=>room.rects.map(r=>[r.x,r.y,r.w,r.h])).flat(2).join(",")+"|"+App.document.stairs.map(s=>[s.x,s.y,s.w,s.h,s.dir,s.from,s.to]).flat().join(",");
   if(geometry!==isoPreviewGeometry){isoPreviewGeometry=geometry;isoPreviewFitDirty=true;isoPreviewDirty=true;}
   const selectionKey=[...edSelection].sort().join(",");
   if(selectionKey!==isoPreviewSelection){isoPreviewSelection=selectionKey;isoPreviewDirty=true;}
@@ -177,7 +178,7 @@ function renderEditorPreview(){
   if(!isoPreviewDirty&&tNow-isoPreviewLastDraw<100) return;
   if(isoPreviewFitDirty){fitIsoPreview(width,height);isoPreviewFitDirty=false;}
   isoPreviewDirty=false;isoPreviewLastDraw=tNow;
-  isoPreview.classList.toggle("empty",!App.document.rooms.length);
+  isoPreview.classList.toggle("empty",!App.document.rooms.length&&!App.document.stairs.length);
   const oldCtx=ctx,oldW=W,oldH=H,oldView=RVIEW,oldCam=CAMOVR,oldSel=App.session.selRoom,oldTokens=App.session.verso.tokens;
   ctx=isoPreviewCtx;W=width;H=height;RVIEW="dm";CAMOVR=isoPreviewCam;App.session.selRoom=edSel;App.session.verso.tokens=[];
   try{
@@ -301,6 +302,12 @@ function drawEditor(){
     ctx.fillStyle="#070908";
     ctx.fillText(PROP_LIB[pr.t]?PROP_LIB[pr.t].n[0]:"?",(pr.x+.5)*ET,(pr.y+.55)*ET);
   }
+  for(const stair of (App.document.stairs||[])){
+    ctx.fillStyle="rgba(127,168,184,.28)";ctx.fillRect(stair.x*ET,stair.y*ET,stair.w*ET,stair.h*ET);
+    ctx.strokeStyle="#7FA8B8";ctx.lineWidth=2/c.s;ctx.strokeRect(stair.x*ET,stair.y*ET,stair.w*ET,stair.h*ET);
+    const arrows={n:"↑",e:"→",s:"↓",w:"←"};ctx.fillStyle="#E9E2CE";ctx.font=`600 ${Math.max(12,18/c.s)}px 'IBM Plex Mono', monospace`;
+    ctx.fillText(arrows[stair.dir],(stair.x+stair.w/2)*ET,(stair.y+stair.h/2)*ET);
+  }
   // draft rect
   if(edDraft){
     const rc=draftRect();
@@ -331,12 +338,16 @@ function edDown(e){
   const [fi,fj]=edTile(e.offsetX,e.offsetY);
   if(edTool==="door" && e.button===2){edRemoveDoor(fi,fj);return;}
   if(edTool==="prop" && e.button===2){edProp(fi,fj,true);return;}
+  if(edTool==="stair" && e.button===2){edRemoveStair(fi,fj);return;}
   if(e.button===1 || e.button===2 || spaceDown){
     panRef={x:e.offsetX,y:e.offsetY,cx:cam().x,cy:cam().y};
     return;
   }
   if(edTool==="door"){edToggleDoor(fi,fj);return;}
   if(edTool==="prop"){edProp(fi,fj,false);return;}
+  if(edTool==="stair"){
+    edDraft={ai:fi,aj:fj,bi:fi,bj:fj,sx:e.offsetX,sy:e.offsetY,moved:false,stair:true};return;
+  }
   // resize handles of current selection: one per rect (both draw & select tools)
   const sr=App.document.rooms.find(r=>r.id===edSel);
   if(sr){
@@ -415,7 +426,11 @@ function edUp(){
       return;
     }
     const rc=draftRect(), addTo=edDraft.addTo;
+    const isStair=edDraft.stair;
     edDraft=null;
+    if(isStair){
+      edSnapshot();App.document.stairs.push({id:newEntityId("stair",App.document.stairs),...rc,dir:edStairDir,from:edStairFrom,to:edStairTo});levelTouched();renderPanel();return;
+    }
     if(addTo){
       const room=App.document.rooms.find(r=>r.id===addTo);
       if(room && !overlapsOtherRooms([rc],room.id) && rectTouchesRoom(rc,room)){
@@ -481,11 +496,16 @@ function edProp(fi,fj,removeOnly){
   App.document.level.props.push({id:newEntityId("prop",App.document.level.props),t:edPropType,x,y});
   levelTouched();
 }
+function edRemoveStair(fi,fj){
+  const i=App.document.stairs.findIndex(s=>fi>=s.x&&fi<s.x+s.w&&fj>=s.y&&fj<s.y+s.h);
+  if(i>=0){edSnapshot();App.document.stairs.splice(i,1);levelTouched();}
+}
 function edSetTool(t){
   edTool=t; edDraft=null; edDrag=null; edHover=null;
   const hints={draw:"Drag empty grid = new room · Shift+drag extends selection · Alt+click removes a section · scroll pans · pinch zooms",
     select:"Click selects · drag moves · corner squares resize each section · Delete removes room · Ctrl/Cmd+Z undoes",
     door:"Click an edge: once = door, twice = open passage, thrice = remove · right-click = remove",
+    stair:"Drag a stair footprint · choose its rise direction and elevations in the panel · right-click = remove",
     prop:"Click a tile to place the chosen furniture · click a furnished tile (or right-click) to remove"};
   $("st-hint").textContent=hints[t];
   renderPanel();
@@ -544,13 +564,9 @@ $("tab-edit").onclick=()=>setMode("edit");
 function setView(v){
   App.session.view=v;
   document.body.classList.toggle("playerview",v==="pl");
-  $("vw-dm").classList.toggle("on",v==="dm");
-  $("vw-pl").classList.toggle("on",v==="pl");
   $("st-view").textContent = v==="dm" ? "DM VIEW" : "PLAYER VIEW";
   renderPanel();
 }
-$("vw-dm").onclick=()=>setView("dm");
-$("vw-pl").onclick=()=>setView("pl");
 
 /* ---------------- map import ---------------- */
 function loadImageFile(file){
