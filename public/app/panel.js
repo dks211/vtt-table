@@ -575,7 +575,7 @@ function renderEditorPanel(){
     </div></div>`;
   html+=`<div class="sect"><h3>Tools</h3>
     <div class="row">${toolBtn("draw","DRAW (D)")}${toolBtn("select","SELECT (V)")}</div>
-    <div class="row">${toolBtn("door","DOORS (O)")}${toolBtn("prop","PROPS (P)")}${toolBtn("stair","STAIRS")}</div>
+    <div class="row">${toolBtn("door","DOORS (O)")}${toolBtn("prop","PROPS (P)")}${toolBtn("stair","STAIRS (S)")}</div>
     <div class="row"><button class="rbtn quiet" id="ed-undo" ${edUndoStack.length?"":"disabled style='opacity:.4'"}>↩ UNDO</button><button class="rbtn quiet" id="ed-redo" ${edRedoStack.length?"":"disabled style='opacity:.4'"}>↪ REDO</button></div>
     <div class="row"><button class="rbtn quiet" id="ed-copy" ${selected.length?"":"disabled"}>COPY</button><button class="rbtn quiet" id="ed-paste" ${edClipboard.length?"":"disabled"}>PASTE</button><button class="rbtn quiet" id="ed-duplicate" ${selected.length?"":"disabled"}>DUPLICATE</button></div>
     <div class="row"><label>material pack</label><select id="ed-template">${

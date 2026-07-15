@@ -135,6 +135,14 @@ function fitScene(){
       const cs=[[rc.x,rc.y],[rc.x+rc.w,rc.y],[rc.x+rc.w,rc.y+rc.h],[rc.x,rc.y+rc.h]];
       for(const [i,j] of cs){minX=Math.min(minX,isoX(i,j));maxX=Math.max(maxX,isoX(i,j));minY=Math.min(minY,isoY(i,j));maxY=Math.max(maxY,isoY(i,j));}
     }
+    const fitStairs=(App.document.stairs||[]).filter(stair=>NET.mode!=="client"||stairVisible(stair));
+    for(const stair of fitStairs){
+      const z=Math.max(stair.from,stair.to)*ELEV_STEP;
+      for(const [i,j] of [[stair.x,stair.y],[stair.x+stair.w,stair.y],[stair.x+stair.w,stair.y+stair.h],[stair.x,stair.y+stair.h]]){
+        minX=Math.min(minX,isoX(i,j));maxX=Math.max(maxX,isoX(i,j));minY=Math.min(minY,isoY(i,j)-z);maxY=Math.max(maxY,isoY(i,j));
+      }
+    }
+    if(minX===1e9){minX=-TW;maxX=TW;minY=-TH;maxY=TH;}
     const bw=maxX-minX, bh=maxY-minY+70;
     c.s=Math.min(W/bw,H/bh)*.9;
     c.x=minX-(W/c.s-bw)/2; c.y=minY-44-(H/c.s-bh)/2;
@@ -238,6 +246,12 @@ function drawStair(stair){
     const j0=stair.y+(alongX?0:a),j1=stair.y+(alongX?stair.h:b);
     ctx.save();ctx.translate(0,-z);box(i0,j0,i1,j1,riser,colors[k%2]);ctx.restore();
   }
+}
+function stairVisible(stair){
+  for(let i=stair.x;i<stair.x+stair.w;i++)for(let j=stair.y;j<stair.y+stair.h;j++){
+    const room=roomAtTile(i+.5,j+.5);if(room&&App.session.verso.revealed[room.id])return true;
+  }
+  return false;
 }
 const GLYPHS="ᚠᚢᚦᚨᚱᚲᚷᚹᚺᚾᛁᛃᛇᛈᛉᛋᛏᛒᛖᛗᛚᛜᛞᛟ";
 
@@ -695,7 +709,7 @@ function drawVerso(){
     }
     ctx.restore();
   }
-  for(const stair of (App.document.stairs||[]))drawStair(stair);
+  for(const stair of (App.document.stairs||[]))if(RVIEW==="dm"||stairVisible(stair))drawStair(stair);
   // walls (room perimeters)
   for(const r of App.document.rooms){
     const rev = !!v.revealed[r.id];

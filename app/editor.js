@@ -68,6 +68,12 @@ function deleteSelection(){
   for(const id of edSelection)delete App.session.verso.revealed[id];
   setEdSelection([]);pruneDoors();levelTouched();renderPanel();
 }
+function deleteSelectedStair(){
+  if(!edStairSel)return false;
+  const before=App.document.stairs.length;edSnapshot();App.document.stairs=App.document.stairs.filter(s=>s.id!==edStairSel);
+  if(App.document.stairs.length===before){edUndoStack.pop();return false;}
+  edStairSel=null;levelTouched();renderPanel();return true;
+}
 function copySelection(){edClipboard=selectedRooms().map(room=>JSON.parse(JSON.stringify(room)));}
 function placeRoomCopies(source,nameSuffix=" Copy"){
   if(!source.length)return;
@@ -307,6 +313,7 @@ function drawEditor(){
     ctx.strokeStyle=stair.id===edStairSel?"#E9E2CE":"#7FA8B8";ctx.lineWidth=(stair.id===edStairSel?4:2)/c.s;ctx.strokeRect(stair.x*ET,stair.y*ET,stair.w*ET,stair.h*ET);
     const arrows={n:"↑",e:"→",s:"↓",w:"←"};ctx.fillStyle="#E9E2CE";ctx.font=`600 ${Math.max(12,18/c.s)}px 'IBM Plex Mono', monospace`;
     ctx.fillText(arrows[stair.dir],(stair.x+stair.w/2)*ET,(stair.y+stair.h/2)*ET);
+    if(stair.id===edStairSel){const hs=12/c.s;ctx.fillStyle="#E9E2CE";ctx.fillRect((stair.x+stair.w)*ET-hs/2,(stair.y+stair.h)*ET-hs/2,hs,hs);}
   }
   // draft rect
   if(edDraft){
@@ -346,8 +353,14 @@ function edDown(e){
   if(edTool==="door"){edToggleDoor(fi,fj);return;}
   if(edTool==="prop"){edProp(fi,fj,false);return;}
   if(edTool==="stair"){
-    const stair=App.document.stairs.find(s=>fi>=s.x&&fi<s.x+s.w&&fj>=s.y&&fj<s.y+s.h);
-    if(stair){edStairSel=stair.id;edStairDir=stair.dir;edStairFrom=stair.from;edStairTo=stair.to;edStairStyle=stair.style||"stone";renderPanel();return;}
+    const selected=App.document.stairs.find(s=>s.id===edStairSel);
+    if(selected){
+      const [sx,sy]=toScreen((selected.x+selected.w)*ET,(selected.y+selected.h)*ET);
+      if(Math.hypot(e.offsetX-sx,e.offsetY-sy)<18){edSnapshot();edDrag={mode:"stairresize",stair:selected,fi,fj,orig:{...selected}};return;}
+    }
+    const tol=Math.max(.2,12/(ET*edCam.s));
+    const stair=App.document.stairs.find(s=>fi>=s.x-tol&&fi<=s.x+s.w+tol&&fj>=s.y-tol&&fj<=s.y+s.h+tol);
+    if(stair){edStairSel=stair.id;edStairDir=stair.dir;edStairFrom=stair.from;edStairTo=stair.to;edStairStyle=stair.style||"stone";edSnapshot();edDrag={mode:"stairmove",stair,fi,fj,orig:{...stair}};renderPanel();return;}
     edStairSel=null;
     edDraft={ai:fi,aj:fj,bi:fi,bj:fj,sx:e.offsetX,sy:e.offsetY,moved:false,stair:true};return;
   }
@@ -407,6 +420,10 @@ function edMove(e){
     if(edDrag.mode==="groupmove"){
       const di=Math.round(fi-edDrag.fi), dj=Math.round(fj-edDrag.fj);
       edDrag.rooms.forEach((room,i)=>room.rects=edDrag.orig[i].map(c=>({x:c.x+di,y:c.y+dj,w:c.w,h:c.h})));
+    }else if(edDrag.mode==="stairmove"){
+      edDrag.stair.x=edDrag.orig.x+Math.round(fi-edDrag.fi);edDrag.stair.y=edDrag.orig.y+Math.round(fj-edDrag.fj);
+    }else if(edDrag.mode==="stairresize"){
+      edDrag.stair.w=Math.max(1,Math.round(fi)-edDrag.stair.x);edDrag.stair.h=Math.max(1,Math.round(fj)-edDrag.stair.y);
     }else{
       const r=edDrag.room;
       const rc=r.rects[edDrag.ri];
@@ -456,6 +473,9 @@ function edUp(){
       if(groupOverlapsOthers(edDrag.rooms,edDrag.ids))edDrag.rooms.forEach((room,i)=>room.rects=edDrag.orig[i]);
       const changed=edDrag.rooms.some((room,i)=>JSON.stringify(room.rects)!==JSON.stringify(edDrag.orig[i]));
       if(!changed)edUndoStack.pop();else{pruneDoors();levelTouched();}
+    }else if(edDrag.mode==="stairmove"||edDrag.mode==="stairresize"){
+      const changed=JSON.stringify(edDrag.stair)!==JSON.stringify(edDrag.orig);
+      if(!changed)edUndoStack.pop();else levelTouched();
     }else{
       const r=edDrag.room;
       if(overlapsOtherRooms(r.rects,r.id))r.rects=edDrag.orig;
@@ -509,7 +529,7 @@ function edSetTool(t){
   const hints={draw:"Drag empty grid = new room · Shift+drag extends selection · Alt+click removes a section · scroll pans · pinch zooms",
     select:"Click selects · drag moves · corner squares resize each section · Delete removes room · Ctrl/Cmd+Z undoes",
     door:"Click an edge: once = door, twice = open passage, thrice = remove · right-click = remove",
-    stair:"Drag a stair footprint · choose its rise direction and elevations in the panel · right-click = remove",
+    stair:"Click stairs to edit · drag stairs to move · drag the corner handle to resize · right-click = remove",
     prop:"Click a tile to place the chosen furniture · click a furnished tile (or right-click) to remove"};
   $("st-hint").textContent=hints[t];
   renderPanel();

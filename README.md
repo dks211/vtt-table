@@ -35,7 +35,8 @@ session saves.
 Stairs are directional level objects with a dragged footprint and explicit bottom
 and top elevations, rather than a room-wide surface treatment. Placed stairs can
 be selected to change their direction, east-west width, north-south depth, rise,
-or stone, wood, and metal style.
+or stone, wood, and metal style. Press `S` for the stairs tool; drag a selected
+stair to move it or drag its corner handle to resize its footprint.
 
 Level and session JSON carry independent schema versions. Imports are normalized
 and validated by `app/core.js`; legacy rectangle-based levels and `v:1` session
