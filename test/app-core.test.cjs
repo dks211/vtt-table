@@ -99,7 +99,7 @@ test("isometric room properties and stairs are normalized to portable bounds", (
   assert.equal(room.wallHeight,0);
   assert.equal(room.structure,"platform");
   assert.equal(room.cutaway,"front");
-  assert.deepEqual({...level.stairs[0],id:undefined},{id:undefined,x:0,y:0,w:2,h:3,dir:"e",from:0,to:12});
+  assert.deepEqual({...level.stairs[0],id:undefined},{id:undefined,x:0,y:0,w:2,h:3,dir:"e",from:0,to:12,style:"stone"});
 });
 
 test("level validation rejects unsupported versions and malformed geometry", () => {

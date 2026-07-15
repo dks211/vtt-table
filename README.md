@@ -33,7 +33,9 @@ modes, and grouped material packs. These properties travel with level exports an
 session saves.
 
 Stairs are directional level objects with a dragged footprint and explicit bottom
-and top elevations, rather than a room-wide surface treatment.
+and top elevations, rather than a room-wide surface treatment. Placed stairs can
+be selected to change their direction, east-west width, north-south depth, rise,
+or stone, wood, and metal style.
 
 Level and session JSON carry independent schema versions. Imports are normalized
 and validated by `app/core.js`; legacy rectangle-based levels and `v:1` session

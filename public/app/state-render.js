@@ -229,13 +229,14 @@ function isFrontRoomEdge(r,edge){
 function drawStair(stair){
   const alongX=stair.dir==="e"||stair.dir==="w",steps=Math.max(3,(alongX?stair.w:stair.h)*3);
   const riser=Math.max(2,Math.abs(stair.to-stair.from)*ELEV_STEP/steps);
+  const styles={stone:["#777168","#625D56"],wood:["#765B3E","#61482F"],metal:["#69727A","#545D64"]},colors=styles[stair.style]||styles.stone;
   for(let k=0;k<steps;k++){
     const forward=stair.dir==="e"||stair.dir==="s"?k:steps-1-k;
     const z=(stair.from+(stair.to-stair.from)*(forward+.5)/steps)*ELEV_STEP;
     const a=k/steps,b=(k+1)/steps;
     const i0=stair.x+(alongX?a:0),i1=stair.x+(alongX?b:stair.w);
     const j0=stair.y+(alongX?0:a),j1=stair.y+(alongX?stair.h:b);
-    ctx.save();ctx.translate(0,-z);box(i0,j0,i1,j1,riser,k%2?"#625D56":"#777168");ctx.restore();
+    ctx.save();ctx.translate(0,-z);box(i0,j0,i1,j1,riser,colors[k%2]);ctx.restore();
   }
 }
 const GLYPHS="ᚠᚢᚦᚨᚱᚲᚷᚹᚺᚾᛁᛃᛇᛈᛉᛋᛏᛒᛖᛗᛚᛜᛞᛟ";

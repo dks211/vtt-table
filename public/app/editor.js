@@ -3,7 +3,7 @@
    Rooms are drawn on a flat tile grid; play mode renders the same data iso. */
 const ET=34;                                  // editor px per tile at zoom 1
 const edCam={x:-120,y:-120,s:1};
-let edTool="draw", edSel=null, edDraft=null, edDrag=null, edHover=null, edTemplate=0, edFitDone=false, edRoomN=0, edPropType="table", edStairDir="n", edStairFrom=0, edStairTo=1, edRosterSel=null;
+let edTool="draw", edSel=null, edDraft=null, edDrag=null, edHover=null, edTemplate=0, edFitDone=false, edRoomN=0, edPropType="table", edStairDir="n", edStairFrom=0, edStairTo=1, edStairStyle="stone", edStairSel=null, edRosterSel=null;
 const edSelection=new Set();
 let edClipboard=[];
 const ROOM_PRESET_KEY="palimpsest-room-presets-v1";
@@ -304,7 +304,7 @@ function drawEditor(){
   }
   for(const stair of (App.document.stairs||[])){
     ctx.fillStyle="rgba(127,168,184,.28)";ctx.fillRect(stair.x*ET,stair.y*ET,stair.w*ET,stair.h*ET);
-    ctx.strokeStyle="#7FA8B8";ctx.lineWidth=2/c.s;ctx.strokeRect(stair.x*ET,stair.y*ET,stair.w*ET,stair.h*ET);
+    ctx.strokeStyle=stair.id===edStairSel?"#E9E2CE":"#7FA8B8";ctx.lineWidth=(stair.id===edStairSel?4:2)/c.s;ctx.strokeRect(stair.x*ET,stair.y*ET,stair.w*ET,stair.h*ET);
     const arrows={n:"↑",e:"→",s:"↓",w:"←"};ctx.fillStyle="#E9E2CE";ctx.font=`600 ${Math.max(12,18/c.s)}px 'IBM Plex Mono', monospace`;
     ctx.fillText(arrows[stair.dir],(stair.x+stair.w/2)*ET,(stair.y+stair.h/2)*ET);
   }
@@ -346,6 +346,9 @@ function edDown(e){
   if(edTool==="door"){edToggleDoor(fi,fj);return;}
   if(edTool==="prop"){edProp(fi,fj,false);return;}
   if(edTool==="stair"){
+    const stair=App.document.stairs.find(s=>fi>=s.x&&fi<s.x+s.w&&fj>=s.y&&fj<s.y+s.h);
+    if(stair){edStairSel=stair.id;edStairDir=stair.dir;edStairFrom=stair.from;edStairTo=stair.to;edStairStyle=stair.style||"stone";renderPanel();return;}
+    edStairSel=null;
     edDraft={ai:fi,aj:fj,bi:fi,bj:fj,sx:e.offsetX,sy:e.offsetY,moved:false,stair:true};return;
   }
   // resize handles of current selection: one per rect (both draw & select tools)
@@ -429,7 +432,7 @@ function edUp(){
     const isStair=edDraft.stair;
     edDraft=null;
     if(isStair){
-      edSnapshot();App.document.stairs.push({id:newEntityId("stair",App.document.stairs),...rc,dir:edStairDir,from:edStairFrom,to:edStairTo});levelTouched();renderPanel();return;
+      edSnapshot();const stair={id:newEntityId("stair",App.document.stairs),...rc,dir:edStairDir,from:edStairFrom,to:edStairTo,style:edStairStyle};App.document.stairs.push(stair);edStairSel=stair.id;levelTouched();renderPanel();return;
     }
     if(addTo){
       const room=App.document.rooms.find(r=>r.id===addTo);
@@ -498,10 +501,11 @@ function edProp(fi,fj,removeOnly){
 }
 function edRemoveStair(fi,fj){
   const i=App.document.stairs.findIndex(s=>fi>=s.x&&fi<s.x+s.w&&fj>=s.y&&fj<s.y+s.h);
-  if(i>=0){edSnapshot();App.document.stairs.splice(i,1);levelTouched();}
+  if(i>=0){edSnapshot();if(App.document.stairs[i].id===edStairSel)edStairSel=null;App.document.stairs.splice(i,1);levelTouched();renderPanel();}
 }
 function edSetTool(t){
   edTool=t; edDraft=null; edDrag=null; edHover=null;
+  if(t!=="stair")edStairSel=null;
   const hints={draw:"Drag empty grid = new room · Shift+drag extends selection · Alt+click removes a section · scroll pans · pinch zooms",
     select:"Click selects · drag moves · corner squares resize each section · Delete removes room · Ctrl/Cmd+Z undoes",
     door:"Click an edge: once = door, twice = open passage, thrice = remove · right-click = remove",

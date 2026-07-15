@@ -101,6 +101,7 @@
         dir: ["n", "e", "s", "w"].includes(stair.dir) ? stair.dir : "n",
         from: Math.max(0, Math.min(12, integer(stair.from, 0))),
         to: Math.max(0, Math.min(12, integer(stair.to, 1))),
+        style: ["stone", "wood", "metal"].includes(stair.style) ? stair.style : "stone",
       };
     });
 

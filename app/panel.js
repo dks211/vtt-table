@@ -560,7 +560,7 @@ function placeToken(name,letter,color,size,pc,sheet){
 
 function renderEditorPanel(){
   const p=$("panel");
-  const selected=selectedRooms(),sel=selected.length===1?selected[0]:null,presets=roomPresets();
+  const selected=selectedRooms(),sel=selected.length===1?selected[0]:null,presets=roomPresets(),stair=App.document.stairs.find(s=>s.id===edStairSel)||null;
   const toolBtn=(t,label)=>`<button class="rbtn ${edTool===t?"":"quiet"}" data-edtool="${t}" style="flex:1">${label}</button>`;
   let html=`<div class="sect"><h3>Level</h3>
     <div class="row"><label>name</label><input type="text" id="lv-name" value="${esc(App.document.level.name)}"></div>
@@ -584,8 +584,15 @@ function renderEditorPanel(){
     ${edTool==="prop"?`<div class="row"><label>furniture</label><select id="ed-prop">${
       Object.entries(PROP_LIB).map(([k,v])=>`<option value="${k}" ${k===edPropType?"selected":""}>${v.n}</option>`).join("")
     }</select></div>`:""}
-    ${edTool==="stair"?`<div class="row"><label>rise toward</label><select id="ed-stair-dir">${[["n","north"],["e","east"],["s","south"],["w","west"]].map(([v,n])=>`<option value="${v}" ${edStairDir===v?"selected":""}>${n}</option>`).join("")}</select></div><div class="row"><label>bottom</label><input id="ed-stair-from" type="number" min="0" max="12" value="${edStairFrom}"><label>top</label><input id="ed-stair-to" type="number" min="0" max="12" value="${edStairTo}"></div>`:""}
+    ${edTool==="stair"&&!stair?`<div class="row"><label>rise toward</label><select id="ed-stair-dir">${[["n","north"],["e","east"],["s","south"],["w","west"]].map(([v,n])=>`<option value="${v}" ${edStairDir===v?"selected":""}>${n}</option>`).join("")}</select></div><div class="row"><label>style</label><select id="ed-stair-style">${["stone","wood","metal"].map(v=>`<option ${edStairStyle===v?"selected":""}>${v}</option>`).join("")}</select></div><div class="row"><label>bottom</label><input id="ed-stair-from" type="number" min="0" max="12" value="${edStairFrom}"><label>top</label><input id="ed-stair-to" type="number" min="0" max="12" value="${edStairTo}"></div>`:""}
     <div class="hint">Shift-click selects multiple rooms. Drag or use arrow keys to move the selection.</div></div>`;
+  if(stair)html+=`<div class="sect"><h3>Stairs · ${esc(stair.id)}</h3>
+    <div class="row"><label>rise toward</label><select id="ed-stair-dir">${[["n","north"],["e","east"],["s","south"],["w","west"]].map(([v,n])=>`<option value="${v}" ${stair.dir===v?"selected":""}>${n}</option>`).join("")}</select></div>
+    <div class="row"><label>style</label><select id="ed-stair-style">${["stone","wood","metal"].map(v=>`<option ${stair.style===v?"selected":""}>${v}</option>`).join("")}</select></div>
+    <div class="row"><label>width E–W</label><input id="ed-stair-w" type="number" min="1" max="40" value="${stair.w}"></div>
+    <div class="row"><label>depth N–S</label><input id="ed-stair-h" type="number" min="1" max="40" value="${stair.h}"></div>
+    <div class="row"><label>bottom</label><input id="ed-stair-from" type="number" min="0" max="12" value="${stair.from}"><label>top</label><input id="ed-stair-to" type="number" min="0" max="12" value="${stair.to}"></div>
+    <button class="rbtn quiet" id="ed-stair-delete" style="width:100%;color:var(--oxblood);border-color:var(--oxblood)">DELETE STAIRS</button></div>`;
   html+=`<div class="sect"><h3>Room Presets</h3>
     <div class="row"><select id="ed-preset" style="flex:1">${presets.map(item=>`<option value="${item.id}">${esc(item.name)}</option>`).join("")}</select><button class="rbtn quiet" id="ed-preset-place" style="flex:none">PLACE</button></div>
     <div class="row"><input type="text" id="ed-preset-name" placeholder="preset name" value="${sel?esc(sel.name):""}" style="flex:1"><button class="rbtn quiet" id="ed-preset-save" ${selected.length===1?"":"disabled"}>SAVE</button></div>
@@ -680,9 +687,14 @@ function renderEditorPanel(){
   p.querySelectorAll("[data-edtool]").forEach(b=>{b.onclick=()=>edSetTool(b.dataset.edtool);});
   $("ed-template").onchange=e=>{edTemplate=+e.target.value;};
   const edP=$("ed-prop"); if(edP) edP.onchange=e=>{edPropType=e.target.value;};
-  const stairDir=$("ed-stair-dir");if(stairDir)stairDir.onchange=e=>{edStairDir=e.target.value;};
-  const stairFrom=$("ed-stair-from");if(stairFrom)stairFrom.onchange=e=>{edStairFrom=Math.max(0,Math.min(12,+e.target.value||0));renderPanel();};
-  const stairTo=$("ed-stair-to");if(stairTo)stairTo.onchange=e=>{edStairTo=Math.max(0,Math.min(12,+e.target.value||0));renderPanel();};
+  const mutateStair=(fn)=>{if(stair){edSnapshot();fn(stair);levelTouched();renderPanel();}};
+  const stairDir=$("ed-stair-dir");if(stairDir)stairDir.onchange=e=>{const next=e.target.value;if(stair){mutateStair(s=>{const oldX=s.dir==="e"||s.dir==="w",newX=next==="e"||next==="w";if(oldX!==newX)[s.w,s.h]=[s.h,s.w];s.dir=next;});}else edStairDir=next;};
+  const stairStyle=$("ed-stair-style");if(stairStyle)stairStyle.onchange=e=>{if(stair)mutateStair(s=>s.style=e.target.value);else edStairStyle=e.target.value;};
+  const stairFrom=$("ed-stair-from");if(stairFrom)stairFrom.onchange=e=>{const v=Math.max(0,Math.min(12,+e.target.value||0));if(stair)mutateStair(s=>s.from=v);else{edStairFrom=v;renderPanel();}};
+  const stairTo=$("ed-stair-to");if(stairTo)stairTo.onchange=e=>{const v=Math.max(0,Math.min(12,+e.target.value||0));if(stair)mutateStair(s=>s.to=v);else{edStairTo=v;renderPanel();}};
+  const stairW=$("ed-stair-w");if(stairW)stairW.onchange=e=>mutateStair(s=>s.w=Math.max(1,Math.min(40,+e.target.value||1)));
+  const stairH=$("ed-stair-h");if(stairH)stairH.onchange=e=>mutateStair(s=>s.h=Math.max(1,Math.min(40,+e.target.value||1)));
+  const stairDelete=$("ed-stair-delete");if(stairDelete)stairDelete.onclick=()=>{edSnapshot();App.document.stairs=App.document.stairs.filter(s=>s.id!==stair.id);edStairSel=null;levelTouched();renderPanel();};
   $("lv-name").onchange=e=>{edSnapshot();App.document.level.name=e.target.value.trim()||"Untitled Level";$("tab-verso").textContent=App.document.level.name.toUpperCase();levelTouched();};
   $("lv-bg").oninput=e=>{snap1();App.document.level.bg=e.target.value;levelTouched();};
   $("lv-export").onclick=()=>{
