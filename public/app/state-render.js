@@ -235,13 +235,13 @@ function isFrontRoomEdge(r,edge){
   return roomHasTile(r,x1-1,Math.floor((y1+y2)/2));
 }
 function drawStair(stair){
-  const alongX=stair.dir==="e"||stair.dir==="w",steps=Math.max(3,(alongX?stair.w:stair.h)*3);
+  const alongX=stair.dir==="e"||stair.dir==="w",run=alongX?stair.w:stair.h,steps=Math.max(3,run*3);
   const riser=Math.max(2,Math.abs(stair.to-stair.from)*ELEV_STEP/steps);
   const styles={stone:["#777168","#625D56"],wood:["#765B3E","#61482F"],metal:["#69727A","#545D64"]},colors=styles[stair.style]||styles.stone;
   for(let k=0;k<steps;k++){
     const forward=stair.dir==="e"||stair.dir==="s"?k:steps-1-k;
     const z=(stair.from+(stair.to-stair.from)*(forward+.5)/steps)*ELEV_STEP;
-    const a=k/steps,b=(k+1)/steps;
+    const a=k/steps*run,b=(k+1)/steps*run;
     const inset=.08;
     const i0=stair.x+(alongX?a:inset),i1=stair.x+(alongX?b:stair.w-inset);
     const j0=stair.y+(alongX?inset:a),j1=stair.y+(alongX?stair.h-inset:b);
