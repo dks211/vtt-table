@@ -242,8 +242,9 @@ function drawStair(stair){
     const forward=stair.dir==="e"||stair.dir==="s"?k:steps-1-k;
     const z=(stair.from+(stair.to-stair.from)*(forward+.5)/steps)*ELEV_STEP;
     const a=k/steps,b=(k+1)/steps;
-    const i0=stair.x+(alongX?a:0),i1=stair.x+(alongX?b:stair.w);
-    const j0=stair.y+(alongX?0:a),j1=stair.y+(alongX?stair.h:b);
+    const inset=.08;
+    const i0=stair.x+(alongX?a:inset),i1=stair.x+(alongX?b:stair.w-inset);
+    const j0=stair.y+(alongX?inset:a),j1=stair.y+(alongX?stair.h-inset:b);
     ctx.save();ctx.translate(0,-z);box(i0,j0,i1,j1,riser,colors[k%2]);ctx.restore();
   }
 }
@@ -709,7 +710,6 @@ function drawVerso(){
     }
     ctx.restore();
   }
-  for(const stair of (App.document.stairs||[]))if(RVIEW==="dm"||stairVisible(stair))drawStair(stair);
   // walls (room perimeters)
   for(const r of App.document.rooms){
     const rev = !!v.revealed[r.id];
@@ -739,6 +739,9 @@ function drawVerso(){
     drawProps2(r);
     ctx.restore();
   }
+  // stairs sit on top of room-specific carpet and floor dressing. Drawing them
+  // before that pass buries most of each tread and makes the run appear shorter.
+  for(const stair of (App.document.stairs||[]))if(RVIEW==="dm"||stairVisible(stair))drawStair(stair);
   // placed furniture (editor props)
   for(const pr of (App.document.level.props||[])){
     const lib=PROP_LIB[pr.t];

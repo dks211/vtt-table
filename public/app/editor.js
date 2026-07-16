@@ -309,7 +309,15 @@ function drawEditor(){
     ctx.fillText(PROP_LIB[pr.t]?PROP_LIB[pr.t].n[0]:"?",(pr.x+.5)*ET,(pr.y+.55)*ET);
   }
   for(const stair of (App.document.stairs||[])){
-    ctx.fillStyle="rgba(127,168,184,.28)";ctx.fillRect(stair.x*ET,stair.y*ET,stair.w*ET,stair.h*ET);
+    const stairColors={stone:"rgba(119,113,104,.62)",wood:"rgba(118,91,62,.68)",metal:"rgba(105,114,122,.68)"};
+    ctx.fillStyle=stairColors[stair.style]||stairColors.stone;ctx.fillRect(stair.x*ET,stair.y*ET,stair.w*ET,stair.h*ET);
+    const alongX=stair.dir==="e"||stair.dir==="w",steps=(alongX?stair.w:stair.h)*3;
+    ctx.strokeStyle="rgba(7,9,8,.48)";ctx.lineWidth=1/c.s;ctx.beginPath();
+    for(let k=1;k<steps;k++){
+      if(alongX){const x=(stair.x+k/3)*ET;ctx.moveTo(x,stair.y*ET);ctx.lineTo(x,(stair.y+stair.h)*ET);}
+      else{const y=(stair.y+k/3)*ET;ctx.moveTo(stair.x*ET,y);ctx.lineTo((stair.x+stair.w)*ET,y);}
+    }
+    ctx.stroke();
     ctx.strokeStyle=stair.id===edStairSel?"#E9E2CE":"#7FA8B8";ctx.lineWidth=(stair.id===edStairSel?4:2)/c.s;ctx.strokeRect(stair.x*ET,stair.y*ET,stair.w*ET,stair.h*ET);
     const arrows={n:"↑",e:"→",s:"↓",w:"←"};ctx.fillStyle="#E9E2CE";ctx.font=`600 ${Math.max(12,18/c.s)}px 'IBM Plex Mono', monospace`;
     ctx.fillText(arrows[stair.dir],(stair.x+stair.w/2)*ET,(stair.y+stair.h/2)*ET);
