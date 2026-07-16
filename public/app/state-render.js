@@ -30,6 +30,9 @@ function clientLevelData(){
   // even though placed tokens are already sanitized separately in lightSnapshot()
   return sanitizeLevelForClient(levelData());
 }
+function enforceAlwaysRoomReveal(){
+  for(const room of App.document.rooms) if(room.revealMode==="always") App.session.verso.revealed[room.id]=true;
+}
 function loadLevel(lv){
   const data=normalizeLevel(lv,{fallbackRoster:PARTY});
   App.document.level.schemaVersion=data.schemaVersion;
@@ -42,6 +45,7 @@ function loadLevel(lv){
   App.document.stairs=data.stairs;
   const ids=new Set(App.document.rooms.map(r=>r.id));
   for(const k of Object.keys(App.session.verso.revealed)) if(!ids.has(k)) delete App.session.verso.revealed[k];
+  enforceAlwaysRoomReveal();
   if(App.session.selRoom && !ids.has(App.session.selRoom)) App.session.selRoom=null;
   const tab=$("tab-verso"); if(tab) tab.textContent=App.document.level.name.toUpperCase();
   netMarkLevel(); netMark();

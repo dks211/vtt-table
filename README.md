@@ -32,6 +32,10 @@ wall height, raised platform edges, front-wall cutaways, expanded lighting
 modes, and grouped material packs. These properties travel with level exports and
 session saves.
 
+Room reveal policies can be manual, armed, or always visible. Armed rooms stay
+hidden until a PC enters through revealed space, then reveal and return to manual
+as a one-shot cue; unrevealed manual rooms continue to block player movement.
+
 Stairs are directional level objects with a dragged footprint and explicit bottom
 and top elevations, rather than a room-wide surface treatment. Placed stairs can
 be selected to change their direction, east-west width, north-south depth, rise,

@@ -488,7 +488,7 @@ cv.addEventListener("pointerup",e=>{
       dragTok.x=Math.floor(dragTok.x)+.5;
       dragTok.y=Math.floor(dragTok.y)+.5;
     }
-    if(moveAllowed(dragTok.x,dragTok.y)){
+    if(moveAllowed(dragTok.x,dragTok.y,{...dragTok,x:cliOX,y:cliOY})){
       clientSend({type:"move",id:dragTok.id,x:dragTok.x,y:dragTok.y});
     }else{
       dragTok.x=cliOX; dragTok.y=cliOY;               // snap back: room not revealed / fogged
@@ -506,6 +506,7 @@ cv.addEventListener("pointerup",e=>{
       dragTok.x=Math.floor(dragTok.x)+.5;
       dragTok.y=Math.floor(dragTok.y)+.5;
     }
+    revealRoomOnPcEntry(dragTok,dragTok.x,dragTok.y);
     markDirty();
   }
   // click (no drag): select room in verso

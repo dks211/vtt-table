@@ -682,6 +682,7 @@ function deserialize(d){
     const session=normalizeSession(d,{fallbackRoster:PARTY});
     loadLevel(session.level);
     App.session.verso.revealed=session.verso.revealed;
+    enforceAlwaysRoomReveal();
     App.session.verso.tokens=session.verso.tokens;
     uid=Math.max(uid,...App.session.verso.tokens.map(t=>t.id+1),1);
     Object.assign(App.session.map.grid,session.map.grid);

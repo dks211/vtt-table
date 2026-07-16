@@ -27,10 +27,22 @@ const ICE_READY=Promise.race([
 ]);
 function peerOpts(){return ICE?{config:{iceServers:ICE,sdpSemantics:"unified-plan"}}:{};}
 
-function moveAllowed(x,y){
+function armedEntryAllowed(t,x,y,target){
+  if(!t||!t.pc) return false;
+  const dx=x-t.x,dy=y-t.y;
+  const steps=Math.max(1,Math.ceil(Math.max(Math.abs(dx),Math.abs(dy))*4));
+  for(let n=0;n<steps;n++){
+    const r=roomAtTile(t.x+dx*n/steps,t.y+dy*n/steps);
+    if(!r || (r.id!==target.id && !App.session.verso.revealed[r.id])) return false;
+  }
+  return true;
+}
+function moveAllowed(x,y,t){
   if(App.session.scene==="verso"){
     const r=roomAtTile(x,y);
-    return !!(r && App.session.verso.revealed[r.id]);
+    if(!r) return false;
+    if(App.session.verso.revealed[r.id] || r.revealMode==="always") return true;
+    return r.revealMode==="armed" && armedEntryAllowed(t,x,y,r);
   }
   const m=App.session.map;
   if(!m.img) return false;
@@ -40,6 +52,21 @@ function moveAllowed(x,y){
     const px=m.fog.getContext("2d").getImageData(Math.floor(x),Math.floor(y),1,1).data;
     return px[3]<128; // blocked where fog is opaque
   }catch(e){return true;}
+}
+function revealRoomOnPcEntry(t,x,y){
+  if(App.session.scene!=="verso"||!t||!t.pc) return false;
+  const room=roomAtTile(x,y);
+  if(!room) return false;
+  if(room.revealMode==="always"){
+    if(App.session.verso.revealed[room.id]) return false;
+    App.session.verso.revealed[room.id]=true;
+  }else if(room.revealMode==="armed"){
+    App.session.verso.revealed[room.id]=true;
+    room.revealMode="manual"; // armed reveal is intentionally one-shot
+    netMarkLevel();
+  }else return false;
+  markDirty(); renderPanel();
+  return true;
 }
 
 function clientToken(t){
@@ -128,8 +155,8 @@ function hostHandle(c,m){
   if(m.type==="move"){
     const t=S().tokens.find(t=>t.id===m.id);
     if(!t || t.owner!==c.peer) return;
-    if(!moveAllowed(m.x,m.y)) return;                       // authority: reject illegal moves
-    t.x=m.x; t.y=m.y; netMark();
+    if(!moveAllowed(m.x,m.y,t)){netMark();return;}          // authority: reject and snap client back
+    t.x=m.x; t.y=m.y; revealRoomOnPcEntry(t,m.x,m.y); netMark();
   }
   if(m.type==="roll"){
     const label=m.label?String(m.label).slice(0,48):null;

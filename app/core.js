@@ -57,6 +57,8 @@
       normalized.structure = ["floor", "platform"].includes(room.structure)
         ? room.structure : "floor";
       normalized.cutaway = room.cutaway === "front" ? "front" : "none";
+      normalized.revealMode = ["manual", "armed", "always"].includes(room.revealMode)
+        ? room.revealMode : "manual";
       delete normalized.rect;
       return normalized;
     });

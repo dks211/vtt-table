@@ -2,6 +2,30 @@
 /* ---------------- right panel ---------------- */
 let addColor=SWATCH[0];
 
+const REVEAL_MODES=[["manual","MANUAL"],["armed","ARMED"],["always","ALWAYS"]];
+function roomRevealMode(room){return REVEAL_MODES.some(([v])=>v===room.revealMode)?room.revealMode:"manual";}
+function revealModeOptions(room){
+  const current=roomRevealMode(room);
+  return REVEAL_MODES.map(([v,n])=>`<option value="${v}" ${v===current?"selected":""}>${n}</option>`).join("");
+}
+function setRoomRevealMode(room,mode){
+  if(!room||!REVEAL_MODES.some(([v])=>v===mode)) return;
+  room.revealMode=mode;
+  if(mode==="armed") App.session.verso.revealed[room.id]=false;
+  if(mode==="always") App.session.verso.revealed[room.id]=true;
+  levelTouched(); renderPanel();
+}
+function toggleRoomReveal(room){
+  if(!room) return;
+  const next=!App.session.verso.revealed[room.id];
+  App.session.verso.revealed[room.id]=next;
+  if(roomRevealMode(room)!=="manual"){
+    room.revealMode="manual";
+    netMarkLevel();
+  }
+  markDirty(); renderPanel();
+}
+
 
 /* one-click rolls from a token's sheet — same UI for players (their claim)
    and the DM (any selected token, e.g. rolling for NPCs) */
@@ -237,6 +261,7 @@ function renderPanel(){
             <button class="rbtn quiet" id="rc-light" title="cycle lit / dim / dark / flicker">☀ ${(r.light||"lit").toUpperCase()}</button>
             <button class="rbtn quiet" id="rc-tokens" title="off: NPCs here are hidden from players until a PC is also in the room. on: NPCs always show once the room is revealed.">${r.tokensAlways?"👁 NPCS VISIBLE":"🕶 PARTY ONLY"}</button>
           </div>
+          <div class="row" style="margin:8px 0 0"><label>entry reveal</label><select id="rc-reveal-mode" title="Manual, one-shot reveal when a PC enters, or always visible">${revealModeOptions(r)}</select></div>
         </div></div>`;
     }else{
       html+=`<div class="hint">Click a room on the map to read it. Reveal rooms as the party reaches them — in Player view, hidden rooms don't exist yet.</div>`;
@@ -246,6 +271,7 @@ function renderPanel(){
       App.document.rooms.map(r=>`<div class="tok" data-room="${r.id}">
         <span class="dot" style="background:${App.session.verso.revealed[r.id]?"#C8A14E":"#3a3a35"}"></span>
         <span class="nm">${esc(r.name)}</span>
+        <span class="del" data-rmode="${r.id}" title="click to cycle reveal policy" style="width:auto;color:${roomRevealMode(r)==="armed"?"var(--brass)":"var(--vellum-dim)"}">${roomRevealMode(r).toUpperCase()}</span>
         <span class="del" data-rev="${r.id}" title="${App.session.verso.revealed[r.id]?"hide from players":"reveal to players"}" style="color:${App.session.verso.revealed[r.id]?"#C8A14E":"#666"}">${App.session.verso.revealed[r.id]?"●":"○"}</span>
       </div>`).join("")+`</div></div>`;
   }else{
@@ -347,10 +373,10 @@ function renderPanel(){
   if(App.session.scene==="verso"){
     const tg=$("rc-toggle");
     if(tg) tg.onclick=()=>{
-      const id=App.session.selRoom;
-      App.session.verso.revealed[id]=!App.session.verso.revealed[id];
-      markDirty(); renderPanel();
+      toggleRoomReveal(App.document.rooms.find(r=>r.id===App.session.selRoom));
     };
+    const rcm=$("rc-reveal-mode");
+    if(rcm) rcm.onchange=e=>{const room=App.document.rooms.find(r=>r.id===App.session.selRoom);e.target.blur();setRoomRevealMode(room,e.target.value);};
     const rcl=$("rc-light");
     if(rcl) rcl.onclick=()=>{
       const room=App.document.rooms.find(x=>x.id===App.session.selRoom);
@@ -369,10 +395,13 @@ function renderPanel(){
     };
     p.querySelectorAll("[data-room]").forEach(el=>{
       el.onclick=e=>{
+        if(e.target.dataset.rmode){
+          const room=App.document.rooms.find(r=>r.id===e.target.dataset.rmode);
+          const mode=roomRevealMode(room),i=REVEAL_MODES.findIndex(([v])=>v===mode);
+          setRoomRevealMode(room,REVEAL_MODES[(i+1)%REVEAL_MODES.length][0]); return;
+        }
         if(e.target.dataset.rev){
-          const id=e.target.dataset.rev;
-          App.session.verso.revealed[id]=!App.session.verso.revealed[id];
-          markDirty(); renderPanel(); return;
+          toggleRoomReveal(App.document.rooms.find(r=>r.id===e.target.dataset.rev)); return;
         }
         App.session.selRoom=el.dataset.room; renderPanel();
       };
@@ -614,6 +643,7 @@ function renderEditorPanel(){
       <label class="check"><input type="checkbox" id="ed-cutaway" ${sel.cutaway==="front"?"checked":""}> open front walls (cutaway)</label>
       <label class="check"><input type="checkbox" id="ed-corr" ${sel.corridor?"checked":""}> corridor (thin label styling)</label>
       <div class="row"><label>lighting</label><select id="ed-light">${["lit","bright","dim","dark","torchlight","flicker","magical"].map(v=>`<option ${(sel.light||"lit")===v?"selected":""}>${v}</option>`).join("")}</select></div>
+      <div class="row"><label>entry reveal</label><select id="ed-reveal-mode" title="Manual, one-shot reveal when a PC enters, or always visible">${revealModeOptions(sel)}</select></div>
       <label class="check"><input type="checkbox" id="ed-tokens" ${sel.tokensAlways?"checked":""}> NPCs always visible here (default: hidden from players until a PC is also in the room)</label>
       <div class="row"><label>read-aloud</label></div>
       <textarea id="ed-read" rows="4" placeholder="What the players hear when they enter…">${esc(sel.read||"")}</textarea>
@@ -736,6 +766,7 @@ function renderEditorPanel(){
     };
     $("ed-corr").onchange=e=>{edSnapshot();if(e.target.checked)sel.corridor=true;else delete sel.corridor;levelTouched();};
     $("ed-light").onchange=e=>{edSnapshot();const v=e.target.value;if(v==="lit")delete sel.light;else sel.light=v;levelTouched();};
+    $("ed-reveal-mode").onchange=e=>{edSnapshot();setRoomRevealMode(sel,e.target.value);};
     $("ed-tokens").onchange=e=>{edSnapshot();if(e.target.checked)sel.tokensAlways=true;else delete sel.tokensAlways;levelTouched();};
     $("ed-read").onchange=e=>{edSnapshot();sel.read=e.target.value;levelTouched();};
     $("ed-dm").onchange=e=>{edSnapshot();sel.dm=e.target.value;levelTouched();};

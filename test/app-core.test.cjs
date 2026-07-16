@@ -93,13 +93,23 @@ test("legacy levels migrate rectangles and receive stable object IDs", () => {
 });
 
 test("isometric room properties and stairs are normalized to portable bounds", () => {
-  const level = normalizeLevel({rooms:[{name:"Raised",rect:{x:0,y:0,w:2,h:2},elevation:99,wallHeight:-3,structure:"platform",cutaway:"front"}],stairs:[{x:0,y:0,w:2,h:3,dir:"e",from:-2,to:99}]});
+  const level = normalizeLevel({rooms:[{name:"Raised",rect:{x:0,y:0,w:2,h:2},elevation:99,wallHeight:-3,structure:"platform",cutaway:"front",revealMode:"armed"}],stairs:[{x:0,y:0,w:2,h:3,dir:"e",from:-2,to:99}]});
   const room=level.rooms[0];
   assert.equal(room.elevation,12);
   assert.equal(room.wallHeight,0);
   assert.equal(room.structure,"platform");
   assert.equal(room.cutaway,"front");
+  assert.equal(room.revealMode,"armed");
   assert.deepEqual({...level.stairs[0],id:undefined},{id:undefined,x:0,y:0,w:2,h:3,dir:"e",from:0,to:12,style:"stone"});
+});
+
+test("room reveal policies default safely and reject unknown values", () => {
+  const level=normalizeLevel({rooms:[
+    {name:"Legacy",rect:{x:0,y:0,w:1,h:1}},
+    {name:"Invalid",rect:{x:1,y:0,w:1,h:1},revealMode:"nearby"},
+    {name:"Visible",rect:{x:2,y:0,w:1,h:1},revealMode:"always"},
+  ]});
+  assert.deepEqual(level.rooms.map(r=>r.revealMode),["manual","manual","always"]);
 });
 
 test("level validation rejects unsupported versions and malformed geometry", () => {
