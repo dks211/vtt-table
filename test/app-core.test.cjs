@@ -81,7 +81,7 @@ test("legacy levels migrate rectangles and receive stable object IDs", () => {
     name: "Legacy",
     rooms: [{ id: "hall", name: "Hall", rect: { x: 1, y: 2, w: 3, h: 4 } }],
     doors: [{ x: 2, y: 2, dir: "h" }],
-    props: [{ t: "table", x: 2.5, y: 3.5 }],
+    props: [{ t: "table", x: 2.5, y: 3.5, scale: 99, label: "  Landmark  ", inspect: "Look closer", focus: 1 }],
     roster: [{ name: "Hero", pc: true }],
   });
   assert.equal(level.schemaVersion, LEVEL_SCHEMA_VERSION);
@@ -89,6 +89,10 @@ test("legacy levels migrate rectangles and receive stable object IDs", () => {
   assert.equal(level.rooms[0].rect, undefined);
   assert.equal(level.doors[0].id, "door-1");
   assert.equal(level.props[0].id, "prop-1");
+  assert.equal(level.props[0].scale, 2);
+  assert.equal(level.props[0].label, "Landmark");
+  assert.equal(level.props[0].inspect, "Look closer");
+  assert.equal(level.props[0].focus, true);
   assert.equal(level.roster[0].id, "roster-1");
 });
 

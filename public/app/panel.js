@@ -589,7 +589,7 @@ function placeToken(name,letter,color,size,pc,sheet){
 
 function renderEditorPanel(){
   const p=$("panel");
-  const selected=selectedRooms(),sel=selected.length===1?selected[0]:null,presets=roomPresets(),stair=App.document.stairs.find(s=>s.id===edStairSel)||null;
+  const selected=selectedRooms(),sel=selected.length===1?selected[0]:null,presets=roomPresets(),stair=App.document.stairs.find(s=>s.id===edStairSel)||null,prop=App.document.level.props.find(p=>p.id===edPropSel)||null;
   const toolBtn=(t,label)=>`<button class="rbtn ${edTool===t?"":"quiet"}" data-edtool="${t}" style="flex:1">${label}</button>`;
   let html=`<div class="sect"><h3>Level</h3>
     <div class="row"><label>name</label><input type="text" id="lv-name" value="${esc(App.document.level.name)}"></div>
@@ -615,6 +615,15 @@ function renderEditorPanel(){
     }</select></div>`:""}
     ${edTool==="stair"&&!stair?`<div class="row"><label>rise toward</label><select id="ed-stair-dir">${[["n","north"],["e","east"],["s","south"],["w","west"]].map(([v,n])=>`<option value="${v}" ${edStairDir===v?"selected":""}>${n}</option>`).join("")}</select></div><div class="row"><label>style</label><select id="ed-stair-style">${["stone","wood","metal"].map(v=>`<option ${edStairStyle===v?"selected":""}>${v}</option>`).join("")}</select></div><div class="row"><label>bottom</label><input id="ed-stair-from" type="number" min="0" max="12" value="${edStairFrom}"><label>top</label><input id="ed-stair-to" type="number" min="0" max="12" value="${edStairTo}"></div>`:""}
     <div class="hint">Shift-click selects multiple rooms. Drag or use arrow keys to move the selection.</div></div>`;
+  if(prop)html+=`<div class="sect"><h3>Prop · ${esc(prop.label||PROP_LIB[prop.t]?.n||prop.t)}</h3>
+    <div class="row"><label>type</label><select id="ed-prop-type">${Object.entries(PROP_LIB).map(([k,v])=>`<option value="${k}" ${k===prop.t?"selected":""}>${v.n}</option>`).join("")}</select></div>
+    <div class="row"><label>x</label><input id="ed-prop-x" type="number" step=".1" value="${prop.x}"><label>y</label><input id="ed-prop-y" type="number" step=".1" value="${prop.y}"></div>
+    <div class="row"><label>scale</label><input id="ed-prop-scale" type="range" min=".5" max="2" step=".05" value="${prop.scale||1}"><span>${(prop.scale||1).toFixed(2)}×</span></div>
+    <div class="row"><label>label</label><input id="ed-prop-label" type="text" maxlength="120" value="${esc(prop.label||"")}" placeholder="shown on inspect"></div>
+    <textarea id="ed-prop-inspect" rows="2" maxlength="300" placeholder="brief player-safe description">${esc(prop.inspect||"")}</textarea>
+    <label class="check"><input type="checkbox" id="ed-prop-focus" ${prop.focus?"checked":""}> landmark lighting</label>
+    <button class="rbtn quiet" id="ed-prop-delete" style="width:100%;color:var(--oxblood);border-color:var(--oxblood)">DELETE PROP</button>
+    <div class="hint">Landmarks receive a restrained light pool. Props with a label or description can be inspected at the table.</div></div>`;
   if(stair)html+=`<div class="sect"><h3>Stairs · ${esc(stair.id)}</h3>
     <div class="row"><label>rise toward</label><select id="ed-stair-dir">${[["n","north"],["e","east"],["s","south"],["w","west"]].map(([v,n])=>`<option value="${v}" ${stair.dir===v?"selected":""}>${n}</option>`).join("")}</select></div>
     <div class="row"><label>style</label><select id="ed-stair-style">${["stone","wood","metal"].map(v=>`<option ${stair.style===v?"selected":""}>${v}</option>`).join("")}</select></div>
@@ -717,6 +726,15 @@ function renderEditorPanel(){
   p.querySelectorAll("[data-edtool]").forEach(b=>{b.onclick=()=>edSetTool(b.dataset.edtool);});
   $("ed-template").onchange=e=>{edTemplate=+e.target.value;};
   const edP=$("ed-prop"); if(edP) edP.onchange=e=>{edPropType=e.target.value;};
+  const mutateProp=(fn,rerender=true)=>{if(prop){edSnapshot();fn(prop);levelTouched();if(rerender)renderPanel();}};
+  const propType=$("ed-prop-type");if(propType)propType.onchange=e=>mutateProp(p=>{p.t=e.target.value;edPropType=p.t;});
+  const propX=$("ed-prop-x");if(propX)propX.onchange=e=>mutateProp(p=>p.x=+e.target.value||0);
+  const propY=$("ed-prop-y");if(propY)propY.onchange=e=>mutateProp(p=>p.y=+e.target.value||0);
+  const propScale=$("ed-prop-scale");if(propScale)propScale.onchange=e=>mutateProp(p=>p.scale=Math.max(.5,Math.min(2,+e.target.value||1)));
+  const propLabel=$("ed-prop-label");if(propLabel)propLabel.onchange=e=>mutateProp(p=>{const v=e.target.value.trim();if(v)p.label=v;else delete p.label;});
+  const propInspect=$("ed-prop-inspect");if(propInspect)propInspect.onchange=e=>mutateProp(p=>{const v=e.target.value.trim();if(v)p.inspect=v;else delete p.inspect;});
+  const propFocus=$("ed-prop-focus");if(propFocus)propFocus.onchange=e=>mutateProp(p=>{if(e.target.checked)p.focus=true;else delete p.focus;});
+  const propDelete=$("ed-prop-delete");if(propDelete)propDelete.onclick=()=>{edSnapshot();App.document.level.props=App.document.level.props.filter(p=>p.id!==prop.id);edPropSel=null;levelTouched();renderPanel();};
   const mutateStair=(fn)=>{if(stair){edSnapshot();fn(stair);levelTouched();renderPanel();}};
   const stairDir=$("ed-stair-dir");if(stairDir)stairDir.onchange=e=>{const next=e.target.value;if(stair){mutateStair(s=>{const oldX=s.dir==="e"||s.dir==="w",newX=next==="e"||next==="w";if(oldX!==newX)[s.w,s.h]=[s.h,s.w];s.dir=next;});}else edStairDir=next;};
   const stairStyle=$("ed-stair-style");if(stairStyle)stairStyle.onchange=e=>{if(stair)mutateStair(s=>s.style=e.target.value);else edStairStyle=e.target.value;};

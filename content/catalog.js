@@ -122,10 +122,26 @@ const PROP_LIB={
    const [x,y]=P(i+.5,j+.5);
    ctx.fillStyle="rgba(240,200,120,.95)";ctx.beginPath();ctx.arc(x,y-31,2.2,0,7);ctx.fill();}},
  altar: {n:"Altar",  draw(i,j){box(i+.2,j+.3,i+.8,j+.7,15,"#C9BD9C");lightPool(i+.5,j+.5,30,"rgba(127,168,184,.12)");}},
- stack: {n:"Chips",  draw(i,j){chipStack(i+.4,j+.5,"#8A2E25",5);chipStack(i+.62,j+.45,"#2E4A38",4);}}
+ stack: {n:"Chips",  draw(i,j){chipStack(i+.4,j+.5,"#8A2E25",5);chipStack(i+.62,j+.45,"#2E4A38",4);}},
+ lectern:{n:"Lectern",draw(i,j){box(i+.12,j+.28,i+.88,j+.72,20,"#5A4836");
+   const [x,y]=P(i+.5,j+.5);quad([x-10,y-23],[x+10,y-27],[x+12,y-19],[x-8,y-15],"#E9E2CE","rgba(7,9,8,.4)");}},
+ cabinet:{n:"Filing cabinet",draw(i,j){box(i+.18,j+.12,i+.82,j+.88,28,"#4A4036");
+   const [x,y]=P(i+.5,j+.5);ctx.strokeStyle="rgba(7,9,8,.55)";ctx.lineWidth=.8;
+   for(let k=0;k<4;k++){ctx.strokeRect(x-7,y-25+k*6,14,5);ctx.fillStyle="#C8A14E";ctx.fillRect(x-1,y-23+k*6,2,1);}}},
+ clock:{n:"Grandfather clock",draw(i,j){box(i+.28,j+.3,i+.72,j+.7,42,"#3A2A1E");const [x,y]=P(i+.5,j+.5);
+   ctx.beginPath();ctx.arc(x,y-34,5.5,0,7);ctx.fillStyle="#D8CFB6";ctx.fill();ctx.strokeStyle="rgba(7,9,8,.6)";ctx.stroke();
+   ctx.beginPath();ctx.moveTo(x,y-34);ctx.lineTo(x+3,y-36);ctx.moveTo(x,y-34);ctx.lineTo(x+1,y-30);ctx.stroke();}},
+ cart:{n:"Service cart",draw(i,j){box(i+.08,j+.2,i+.92,j+.78,16,"#6E6E72");const [x,y]=P(i+.5,j+.5);
+   ctx.strokeStyle="#3A3E45";ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(x-14,y-14);ctx.lineTo(x-14,y-31);ctx.lineTo(x-7,y-31);ctx.stroke();
+   ctx.fillStyle="#CFE3EA";ctx.beginPath();ctx.arc(x-4,y-19,2.4,0,7);ctx.arc(x+5,y-21,2.4,0,7);ctx.fill();}}
 };
 root.VTTContent=Object.freeze({
-  VERSO_LEVEL:{schemaVersion:1,name:"The Verso · Back of House",bg:"#0A0F0C",rooms:VERSO_ROOMS,doors:VERSO_DOORS,roster:PARTY,props:[]},
+  VERSO_LEVEL:{schemaVersion:1,name:"The Verso · Back of House",bg:"#0A0F0C",rooms:VERSO_ROOMS,doors:VERSO_DOORS,roster:PARTY,props:[
+    {id:"accounts-lectern",t:"lectern",x:19.5,y:5.05,label:"ACQUISITIONS lectern",inspect:"A master lectern bearing an open account book.",focus:true,scale:1.15},
+    {id:"accounts-cabinet",t:"cabinet",x:22.15,y:7.05,label:"Closed filing cabinet",inspect:"A locked cabinet marked CLOSED.",focus:true,scale:1.1},
+    {id:"lost-clock",t:"clock",x:12.1,y:6.05,label:"Grandfather clock",inspect:"Its hands are stopped at 3:17.",focus:true,scale:1.1},
+    {id:"corridor-cart",t:"cart",x:14.45,y:9.15,label:"Abandoned service cart",inspect:"Cold drinks and an order slip remain on the cart.",focus:true,scale:1.05}
+  ]},
   VERSO_START:{revealed:{white:true},tokens:[
     {name:"Randy Meisner",letter:"R",color:"#8A6FB8",x:3.5,y:3.5,size:1,pc:true},
     {name:"Trajan",letter:"T",color:"#4E8F86",x:4.5,y:4.5,size:1,pc:true},

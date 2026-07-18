@@ -3,7 +3,7 @@
    Rooms are drawn on a flat tile grid; play mode renders the same data iso. */
 const ET=34;                                  // editor px per tile at zoom 1
 const edCam={x:-120,y:-120,s:1};
-let edTool="draw", edSel=null, edDraft=null, edDrag=null, edHover=null, edTemplate=0, edFitDone=false, edRoomN=0, edPropType="table", edStairDir="n", edStairFrom=0, edStairTo=1, edStairStyle="stone", edStairSel=null, edRosterSel=null;
+let edTool="draw", edSel=null, edDraft=null, edDrag=null, edHover=null, edTemplate=0, edFitDone=false, edRoomN=0, edPropType="table", edPropSel=null, edStairDir="n", edStairFrom=0, edStairTo=1, edStairStyle="stone", edStairSel=null, edRosterSel=null;
 const edSelection=new Set();
 let edClipboard=[];
 const ROOM_PRESET_KEY="palimpsest-room-presets-v1";
@@ -303,8 +303,9 @@ function drawEditor(){
   ctx.font="600 9px 'IBM Plex Mono', monospace";
   ctx.textAlign="center"; ctx.textBaseline="middle";
   for(const pr of (App.document.level.props||[])){
-    ctx.fillStyle="rgba(200,161,78,.75)";
+    ctx.fillStyle=pr.id===edPropSel?"#E9E2CE":"rgba(200,161,78,.75)";
     ctx.fillRect((pr.x+.2)*ET,(pr.y+.2)*ET,ET*.6,ET*.6);
+    if(pr.focus){ctx.strokeStyle="#C8A14E";ctx.lineWidth=2/c.s;ctx.strokeRect((pr.x+.12)*ET,(pr.y+.12)*ET,ET*.76,ET*.76);}
     ctx.fillStyle="#070908";
     ctx.fillText(PROP_LIB[pr.t]?PROP_LIB[pr.t].n[0]:"?",(pr.x+.5)*ET,(pr.y+.55)*ET);
   }
@@ -520,12 +521,17 @@ function edRemoveDoor(fi,fj){
 }
 function edProp(fi,fj,removeOnly){
   const x=Math.floor(fi), y=Math.floor(fj);
-  const i=App.document.level.props.findIndex(p=>p.x===x&&p.y===y);
-  if(i>=0){edSnapshot(); App.document.level.props.splice(i,1); levelTouched(); return;}
+  const i=App.document.level.props.findIndex(p=>Math.floor(p.x)===x&&Math.floor(p.y)===y);
+  if(i>=0){
+    if(removeOnly){edSnapshot();if(App.document.level.props[i].id===edPropSel)edPropSel=null;App.document.level.props.splice(i,1);levelTouched();renderPanel();}
+    else{edPropSel=App.document.level.props[i].id;edPropType=App.document.level.props[i].t;renderPanel();}
+    return;
+  }
   if(removeOnly) return;
   edSnapshot();
-  App.document.level.props.push({id:newEntityId("prop",App.document.level.props),t:edPropType,x,y});
-  levelTouched();
+  const prop={id:newEntityId("prop",App.document.level.props),t:edPropType,x,y,scale:1};
+  App.document.level.props.push(prop);edPropSel=prop.id;
+  levelTouched();renderPanel();
 }
 function edRemoveStair(fi,fj){
   const i=App.document.stairs.findIndex(s=>fi>=s.x&&fi<s.x+s.w&&fj>=s.y&&fj<s.y+s.h);
@@ -534,11 +540,12 @@ function edRemoveStair(fi,fj){
 function edSetTool(t){
   edTool=t; edDraft=null; edDrag=null; edHover=null;
   if(t!=="stair")edStairSel=null;
+  if(t!=="prop")edPropSel=null;
   const hints={draw:"Drag empty grid = new room · Shift+drag extends selection · Alt+click removes a section · scroll pans · pinch zooms",
     select:"Click selects · drag moves · corner squares resize each section · Delete removes room · Ctrl/Cmd+Z undoes",
     door:"Click an edge: once = door, twice = open passage, thrice = remove · right-click = remove",
     stair:"Click stairs to edit · drag stairs to move · drag the corner handle to resize · right-click = remove",
-    prop:"Click a tile to place the chosen furniture · click a furnished tile (or right-click) to remove"};
+    prop:"Click furniture to edit it · click an empty tile to place · right-click to remove"};
   $("st-hint").textContent=hints[t];
   renderPanel();
 }

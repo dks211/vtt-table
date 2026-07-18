@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "vtt-static",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["/private/tmp/claude-501/-Users-kstarnes-Documents-GitHub-vtt-vtt/cfb894ee-0aae-401d-9f76-93a3210bbaed/scratchpad/serve.py"],
+      "port": 8734
+    }
+  ]
+}

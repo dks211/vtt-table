@@ -219,7 +219,7 @@ function drawTokenFlat(t,g,s){
 }
 
 /* ---------------- drawing: verso iso scene ---------------- */
-let tNow=0;
+let tNow=0, hoverPropId=null;
 function hash2(i,j){let h=(i*374761393+j*668265263)|0;h=(h^(h>>13))*1274126177;return ((h^(h>>16))>>>0)/4294967295;}
 function tilePath(i,j){
   ctx.beginPath();
@@ -457,14 +457,6 @@ function drawProps2(r){
     ctx.beginPath();ctx.moveTo(vx+2,vy-22);ctx.lineTo(vx+8,vy-26);ctx.stroke();
     ctx.strokeStyle="rgba(233,226,206,.8)";ctx.lineWidth=.5;
     ctx.beginPath();ctx.moveTo(vx-5,vy-19);ctx.lineTo(vx+8,vy-26);ctx.stroke();
-    // grandfather clock against the east wall — stopped at 3:17
-    box(12.35,6.2,12.85,6.6,44,"#3A2A1E");
-    const [cx2,cy2]=P(12.6,6.4);
-    ctx.beginPath();ctx.arc(cx2,cy2-36,5,0,7);ctx.fillStyle="#D8CFB6";ctx.fill();
-    ctx.strokeStyle="rgba(7,9,8,.5)";ctx.lineWidth=.7;ctx.stroke();
-    ctx.strokeStyle="#1A1714";ctx.lineWidth=1;
-    ctx.beginPath();ctx.moveTo(cx2,cy2-36);ctx.lineTo(cx2+2.6,cy2-37.5);ctx.stroke();
-    ctx.beginPath();ctx.moveTo(cx2,cy2-36);ctx.lineTo(cx2+1.4,cy2-32);ctx.stroke();
   }
   if(id==="acct"){
     [[18,9.4],[20.6,9.4]].forEach(([di,dj])=>{                   // third desk row
@@ -473,19 +465,11 @@ function drawProps2(r){
       quad([px-7,py-15],[px+7,py-18],[px+8,py-13],[px-6,py-10],"#E9E2CE","rgba(7,9,8,.3)");
       lightPool(di+.5,dj+.3,30,"rgba(240,200,120,.14)");
     });
-    box(22.45,6.2,22.9,9.6,30,"#4A4036");                        // filing wall, east side
-    ctx.strokeStyle="rgba(7,9,8,.5)";ctx.lineWidth=.6;
-    for(let k=1;k<7;k++){
-      const a=P(22.45,6.2+k*.48),b=P(22.9,6.2+k*.48);
-      ctx.beginPath();ctx.moveTo(a[0],a[1]-30+k*1.2);ctx.lineTo(b[0],b[1]-30+k*1.2);ctx.stroke();
-    }
     [[17.4,6.1],[17.4,7.9]].forEach(([si,sj])=>{                 // ledger stacks on the floor
       box(si,sj,si+.5,sj+.4,7,"#7A5E3A");
       box(si+.04,sj+.04,si+.46,sj+.36,12,"#8A6E46");
       box(si+.08,sj+.06,si+.42,sj+.32,16,"#6B5436");
     });
-    cyl(19.6,5.85,1.4,11,"#C8A14E");                             // candlestick at the lectern
-    lightPool(19.6,6.1,26,"rgba(240,200,120,.16)");
   }
   if(id==="cage"){
     ropePosts(9.0,11.6,10.6,11.6); ropePosts(10.6,11.6,12.2,11.6); // the queue, mostly empty
@@ -580,13 +564,6 @@ function drawProps(r){
   }
   if(id==="corrV"){
     flat(14.3,5.2,15.7,13.2,"#5A2723","rgba(200,161,78,.25)"); // runner thins out
-    box(14.55,9.3,15.4,9.85,15,"#6E6E72");                     // abandoned service cart
-    const [gx,gy]=P(14.9,9.5),[hx,hy]=P(15.15,9.65);
-    ctx.fillStyle="#CFE3EA";
-    ctx.beginPath();ctx.arc(gx,gy-18,2.2,0,7);ctx.fill();
-    ctx.beginPath();ctx.arc(hx,hy-18,2.2,0,7);ctx.fill();
-    const [sx,sy]=P(15.3,9.4);                                  // order slip: R. MEISNER — THE USUAL
-    quad([sx-4,sy-16],[sx+4,sy-18],[sx+5,sy-13],[sx-3,sy-11],"#E9E2CE");
     const [fx,fy]=P(16,12.6);                                   // wallpaper flap, stone behind
     ctx.beginPath();ctx.moveTo(fx,fy-26);ctx.lineTo(fx-9,fy-6);ctx.lineTo(fx+2,fy-9);ctx.closePath();
     ctx.fillStyle="#5A2723";ctx.fill();ctx.strokeStyle="rgba(7,9,8,.5)";ctx.stroke();
@@ -621,9 +598,6 @@ function drawProps(r){
       for(let m=0;m<lines;m++){ctx.beginPath();ctx.moveTo(px-4,py-15+m*2);ctx.lineTo(px+3+hash2(k,m)*3,py-15.8+m*2);ctx.stroke();}
       lightPool(di+.5,dj+.3,30,"rgba(240,200,120,.14)");        // candle glow
     });
-    box(19.4,5.15,20.6,5.55,30,"#5A4836");                      // master lectern, north wall
-    const [lx,ly]=P(20,5.35);
-    quad([lx-9,ly-32],[lx+9,ly-36],[lx+11,ly-28],[lx-7,ly-24],"#E9E2CE","rgba(7,9,8,.35)");
   }
   if(id==="cage"){
     box(8.45,12.7,13.55,13.05,11,"#7A5E2E");                    // brass counter
@@ -746,7 +720,8 @@ function drawVerso(){
   // stairs sit on top of room-specific carpet and floor dressing. Drawing them
   // before that pass buries most of each tread and makes the run appear shorter.
   for(const stair of (App.document.stairs||[]))if(RVIEW==="dm"||stairVisible(stair))drawStair(stair);
-  // placed furniture (editor props)
+  // Data-driven furniture and landmarks. Important props use light rather than
+  // unrealistic scale to remain legible at the fitted player-view zoom.
   for(const pr of (App.document.level.props||[])){
     const lib=PROP_LIB[pr.t];
     if(!lib) continue;
@@ -756,6 +731,17 @@ function drawVerso(){
     ctx.save();
     if(!rev) ctx.globalAlpha=.22;
     ctx.translate(0,-roomElevation(room));
+    const isHover=hoverPropId===pr.id;
+    if(pr.focus||isHover){
+      const pulse=REDUCED?.8:.72+.12*Math.sin(tNow/650+(pr.x+pr.y));
+      lightPool(pr.x+.5,pr.y+.56,isHover?46:38,`rgba(232,196,120,${(isHover?.2:.11)*pulse})`);
+      const [hx,hy]=P(pr.x+.5,pr.y+.55);
+      ctx.save();ctx.translate(hx,hy);ctx.scale(1,.5);
+      ctx.strokeStyle=`rgba(232,196,120,${isHover?.9:.38})`;ctx.lineWidth=isHover?2:1;
+      ctx.beginPath();ctx.arc(0,0,isHover?15:12,0,7);ctx.stroke();ctx.restore();
+    }
+    const scale=pr.scale||1,[pcx,pcy]=P(pr.x+.5,pr.y+.5);
+    ctx.translate(pcx,pcy);ctx.scale(scale,scale);ctx.translate(-pcx,-pcy);
     lib.draw(pr.x,pr.y);
     ctx.restore();
   }
@@ -841,6 +827,34 @@ function drawVerso(){
   }
   drawPatrolPath();
   drawPings();
+  ctx.restore();
+  drawPropTooltip();
+}
+function setPropHover(i,j){
+  if(App.session.scene!=="verso"||App.session.mode==="edit"){hoverPropId=null;return;}
+  let best=null,bestD=1e9;
+  for(const pr of (App.document.level.props||[])){
+    if(!pr.label&&!pr.inspect)continue;
+    const room=roomAtTile(pr.x+.5,pr.y+.5);
+    if(room&&RVIEW!=="dm"&&!App.session.verso.revealed[room.id])continue;
+    const d=Math.hypot(i-(pr.x+.5),j-(pr.y+.5)),radius=Math.max(.55,(pr.scale||1)*.52);
+    if(d<=radius&&d<bestD){best=pr;bestD=d;}
+  }
+  hoverPropId=best?best.id:null;
+}
+function drawPropTooltip(){
+  const pr=(App.document.level.props||[]).find(p=>p.id===hoverPropId);
+  if(!pr||(!pr.label&&!pr.inspect))return;
+  const room=roomAtTile(pr.x+.5,pr.y+.5),elev=roomElevation(room||{});
+  const [sx,sy]=toScreen(isoX(pr.x+.5,pr.y+.5),isoY(pr.x+.5,pr.y+.5)-elev-38*(pr.scale||1));
+  const label=pr.label||(PROP_LIB[pr.t]?.n||"Object"),detail=pr.inspect||"";
+  ctx.save();ctx.font="600 12px 'IBM Plex Mono', monospace";
+  const width=Math.min(350,Math.max(ctx.measureText(label).width,detail?ctx.measureText(detail).width:0)+20);
+  const height=detail?43:25,x=Math.max(8,Math.min(W-width-8,sx-width/2)),y=Math.max(8,sy-height-10);
+  ctx.fillStyle="rgba(7,9,8,.94)";ctx.fillRect(x,y,width,height);
+  ctx.strokeStyle="rgba(200,161,78,.72)";ctx.strokeRect(x+.5,y+.5,width-1,height-1);
+  ctx.fillStyle="#C8A14E";ctx.textAlign="left";ctx.fillText(label,x+10,y+17);
+  if(detail){ctx.font="11px 'IBM Plex Mono', monospace";ctx.fillStyle="#E9E2CE";ctx.fillText(detail.slice(0,55),x+10,y+34);}
   ctx.restore();
 }
 function doorVisible(d){

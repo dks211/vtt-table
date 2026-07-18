@@ -83,13 +83,21 @@
     const props = (Array.isArray(level.props) ? level.props : []).map((source, index) => {
       const prop = objectOrNull(source);
       if (!prop) throw new Error(`Prop ${index + 1} must be an object.`);
-      return {
+      const normalized = {
         ...clone(prop),
         id: uniqueId(prop.id, "prop", propIds, index),
         t: String(prop.t || "table").slice(0, 64),
         x: finite(prop.x),
         y: finite(prop.y),
+        scale: Math.max(.5, Math.min(2, finite(prop.scale, 1))),
+        label: String(prop.label || "").trim().slice(0, 120),
+        inspect: String(prop.inspect || "").trim().slice(0, 300),
+        focus: !!prop.focus,
       };
+      if (!normalized.label) delete normalized.label;
+      if (!normalized.inspect) delete normalized.inspect;
+      if (!normalized.focus) delete normalized.focus;
+      return normalized;
     });
 
     const stairIds = new Set();

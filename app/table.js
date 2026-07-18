@@ -446,6 +446,7 @@ cv.addEventListener("pointermove",e=>{
   }else if(App.session.scene==="verso"){
     const [i,j]=unIso(wx,wy);
     $("st-pos").textContent=`tile ${i.toFixed(1)}, ${j.toFixed(1)}`;
+    setPropHover(i,j);
   }else{
     $("st-pos").textContent=`${wx.toFixed(0)}, ${wy.toFixed(0)} px`;
   }
@@ -530,6 +531,7 @@ cv.addEventListener("pointercancel",e=>{
   clientDragging=false; dragTok=null; panRef=null; fogPainting=false; downAt=null;
   edDraft=null; edDrag=null;
 });
+cv.addEventListener("pointerleave",()=>setPropHover(NaN,NaN));
 cv.addEventListener("wheel",e=>{
   e.preventDefault();
   const dm=e.deltaMode===1?33:e.deltaMode===2?H:1;   // lines/pages -> px
