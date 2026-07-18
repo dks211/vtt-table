@@ -157,7 +157,10 @@
         revealed: objectOrNull(verso.revealed) ? clone(verso.revealed) : {},
         tokens: Array.isArray(verso.tokens) ? clone(verso.tokens) : [],
       },
-      level: normalizeLevel(session.level || { rooms: [] }, options),
+      // saves from before the level system carried no level at all — every one of
+      // those was a Verso session, so callers pass the bundled pack as the fallback
+      // rather than silently loading the party into an empty floor plan
+      level: normalizeLevel(session.level || options.fallbackLevel || { rooms: [] }, options),
     };
   }
 

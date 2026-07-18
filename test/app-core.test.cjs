@@ -118,6 +118,21 @@ test("level validation rejects unsupported versions and malformed geometry", () 
   assert.throws(() => normalizeLevel({ rooms: "not an array" }), /rooms array/);
 });
 
+test("sessions saved before the level system fall back to the provided level", () => {
+  const legacy = {
+    v: 1,
+    scene: "verso",
+    map: { grid: {}, tokens: [] },
+    verso: { revealed: { white: true }, tokens: [{ id: 1, name: "Randy Meisner" }] },
+  };
+  const fallbackLevel = { name: "Bundled", rooms: [{ id: "white", name: "White", rect: { x: 0, y: 0, w: 2, h: 2 } }] };
+  const session = normalizeSession(legacy, { fallbackLevel });
+  assert.equal(session.level.name, "Bundled");
+  assert.equal(session.level.rooms.length, 1);
+  // without a fallback the level is empty rather than an error
+  assert.equal(normalizeSession(legacy).level.rooms.length, 0);
+});
+
 test("v1 sessions migrate to the current session and level schemas", () => {
   const session = normalizeSession({
     v: 1,

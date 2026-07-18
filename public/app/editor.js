@@ -679,7 +679,7 @@ function serialize(){
   };
 }
 function deserialize(d){
-    const session=normalizeSession(d,{fallbackRoster:PARTY});
+    const session=normalizeSession(d,{fallbackRoster:PARTY,fallbackLevel:App.content.VERSO_LEVEL});
     loadLevel(session.level);
     App.session.verso.revealed=session.verso.revealed;
     enforceAlwaysRoomReveal();
