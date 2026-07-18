@@ -359,6 +359,19 @@ function edDown(e){
     panRef={x:e.offsetX,y:e.offsetY,cx:cam().x,cy:cam().y};
     return;
   }
+  // Existing props are directly selectable regardless of the active room tool.
+  // Use their visible editor glyph rather than the whole tile as the hit target.
+  const hitProp=App.document.level.props.find(pr=>{
+    const [sx,sy]=toScreen((pr.x+.5)*ET,(pr.y+.5)*ET);
+    return Math.hypot(e.offsetX-sx,e.offsetY-sy)<=Math.max(12,ET*edCam.s*.38);
+  });
+  if(hitProp){
+    edTool="prop";edPropSel=hitProp.id;edPropType=hitProp.t;edStairSel=null;setEdSelection([]);
+    $("st-hint").textContent="Edit the selected prop in the panel · click an empty tile to place another · right-click to remove";
+    renderPanel();
+    requestAnimationFrame(()=>$("ed-prop-editor")?.scrollIntoView({block:"nearest",behavior:"smooth"}));
+    return;
+  }
   if(edTool==="door"){edToggleDoor(fi,fj);return;}
   if(edTool==="prop"){edProp(fi,fj,false);return;}
   if(edTool==="stair"){

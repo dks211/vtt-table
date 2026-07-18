@@ -615,7 +615,7 @@ function renderEditorPanel(){
     }</select></div>`:""}
     ${edTool==="stair"&&!stair?`<div class="row"><label>rise toward</label><select id="ed-stair-dir">${[["n","north"],["e","east"],["s","south"],["w","west"]].map(([v,n])=>`<option value="${v}" ${edStairDir===v?"selected":""}>${n}</option>`).join("")}</select></div><div class="row"><label>style</label><select id="ed-stair-style">${["stone","wood","metal"].map(v=>`<option ${edStairStyle===v?"selected":""}>${v}</option>`).join("")}</select></div><div class="row"><label>bottom</label><input id="ed-stair-from" type="number" min="0" max="12" value="${edStairFrom}"><label>top</label><input id="ed-stair-to" type="number" min="0" max="12" value="${edStairTo}"></div>`:""}
     <div class="hint">Shift-click selects multiple rooms. Drag or use arrow keys to move the selection.</div></div>`;
-  if(prop)html+=`<div class="sect"><h3>Prop · ${esc(prop.label||PROP_LIB[prop.t]?.n||prop.t)}</h3>
+  if(prop)html+=`<div class="sect" id="ed-prop-editor"><h3>Prop · ${esc(prop.label||PROP_LIB[prop.t]?.n||prop.t)}</h3>
     <div class="row"><label>type</label><select id="ed-prop-type">${Object.entries(PROP_LIB).map(([k,v])=>`<option value="${k}" ${k===prop.t?"selected":""}>${v.n}</option>`).join("")}</select></div>
     <div class="row"><label>x</label><input id="ed-prop-x" type="number" step=".1" value="${prop.x}"><label>y</label><input id="ed-prop-y" type="number" step=".1" value="${prop.y}"></div>
     <div class="row"><label>scale</label><input id="ed-prop-scale" type="range" min=".5" max="2" step=".05" value="${prop.scale||1}"><span>${(prop.scale||1).toFixed(2)}×</span></div>
