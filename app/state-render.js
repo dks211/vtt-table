@@ -1,5 +1,5 @@
 "use strict";
-const {LEVEL_SCHEMA_VERSION, SESSION_SCHEMA_VERSION, escapeHTML:esc, parseDice, sanitizeSheet, spellAtkBonus, spellSaveDC, roomEntryReveal, cameraFocusFromViewport, cameraFromFocus, sanitizeLevelForClient, setBannerContent, normalizeLevel, normalizeSession}=App.core;
+const {LEVEL_SCHEMA_VERSION, SESSION_SCHEMA_VERSION, escapeHTML:esc, parseDice, sanitizeSheet, spellAtkBonus, spellSaveDC, roomEntryReveal, cameraFocusFromViewport, cameraFromFocus, findRoomAt, doorIsOpen, doorAdjoiningRooms, tacticalMoveAllowed, tacticalMoveCost, shouldSnapLevelToken, tokenVisibleToPlayers, orderedLevelTokens, sanitizeLevelForClient, setBannerContent, normalizeLevel, normalizeSession}=App.core;
 /* =====================================================================
    PALIMPSEST VTT — state and isometric rendering
    Scenes: "map" (uploaded image, square grid, fog of war)
@@ -46,6 +46,9 @@ function loadLevel(lv){
   App.document.stairs=data.stairs;
   const ids=new Set(App.document.rooms.map(r=>r.id));
   for(const k of Object.keys(App.session.verso.revealed)) if(!ids.has(k)) delete App.session.verso.revealed[k];
+  const doorIds=new Set(App.document.doors.map(d=>d.id));
+  for(const k of Object.keys(App.session.verso.doorStates||{}))if(!doorIds.has(k))delete App.session.verso.doorStates[k];
+  if(App.session.verso.tacticalFocus&&!ids.has(App.session.verso.tacticalFocus))App.session.verso.tacticalFocus=null;
   enforceAlwaysRoomReveal();
   if(App.session.selRoom && !ids.has(App.session.selRoom)) App.session.selRoom=null;
   const tab=$("tab-verso"); if(tab) tab.textContent=App.document.level.name.toUpperCase();
@@ -80,6 +83,9 @@ App.session = {
     view:"isometric",                  // same level and tokens; alternate renderer only
     revealed:{...VERSO_START.revealed},
     tokens:VERSO_START.tokens.map(t=>mkTok(t.name,t.letter,t.color,t.x,t.y,t.size,t.pc)),
+    doorStates:{},
+    effects:[],
+    tacticalFocus:null,
     cam:{x:0,y:0,s:1},
     tacticalCam:{x:0,y:0,s:1}
   }
@@ -135,9 +141,11 @@ function fitScene(){
     c.x=-(W/c.s-iw)/2; c.y=-(H/c.s-ih)/2;
   }else if(tacticalView()){
     let fitRooms=App.document.rooms;
+    const focus=App.document.rooms.find(room=>room.id===App.session.verso.tacticalFocus);
+    if(focus)fitRooms=[focus];
     if(NET.mode==="client"){
       const rev=App.document.rooms.filter(r=>App.session.verso.revealed[r.id]);
-      if(rev.length)fitRooms=rev;
+      if(!focus&&rev.length)fitRooms=rev;
     }
     let minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9;
     for(const r of fitRooms)for(const rc of r.rects){
@@ -229,13 +237,20 @@ function emptyMapMessage(){
 }
 function drawTokenFlat(t,g,s){
   const r=g*.42*t.size;
+  const active=App.session.tracker.order[App.session.tracker.active]?.tok===t.id;
   ctx.save();
   ctx.shadowColor="rgba(0,0,0,.55)"; ctx.shadowBlur=10/s; ctx.shadowOffsetY=3/s;
   ctx.beginPath(); ctx.arc(t.x,t.y,r,0,7); ctx.fillStyle=t.color; ctx.fill();
   ctx.shadowColor="transparent";
-  ctx.lineWidth=Math.max(2,g*.05);
-  ctx.strokeStyle = (RVIEW==="dm"&&App.session.selToken===t.id) ? "#E9E2CE" : "rgba(7,9,8,.6)";
+  ctx.lineWidth=active?Math.max(4,g*.075):Math.max(2,g*.05);
+  ctx.strokeStyle = active ? "#C8A14E" : (RVIEW==="dm"&&App.session.selToken===t.id) ? "#E9E2CE" : "rgba(7,9,8,.6)";
   ctx.stroke();
+  if(t.sheet&&t.sheet.hpMax>0&&(RVIEW==="dm"||t.pc)){
+    const hp=Math.max(0,Math.min(t.sheet.hpMax,t.sheet.hp==null?t.sheet.hpMax:t.sheet.hp));
+    ctx.beginPath();ctx.arc(t.x,t.y,r+g*.08,-Math.PI/2,-Math.PI/2+Math.PI*2*(hp/t.sheet.hpMax));
+    ctx.strokeStyle=hp/t.sheet.hpMax<=.25?"#B5443C":hp/t.sheet.hpMax<=.5?"#E0B341":"#4E8F86";
+    ctx.lineWidth=Math.max(3,g*.045);ctx.stroke();
+  }
   ctx.fillStyle="#070908"; ctx.textAlign="center"; ctx.textBaseline="middle";
   ctx.font=`600 ${r*.8}px 'IBM Plex Mono', monospace`;
   ctx.fillText(t.letter,t.x,t.y+r*.04);
@@ -244,6 +259,11 @@ function drawTokenFlat(t,g,s){
   ctx.strokeStyle="rgba(7,9,8,.8)"; ctx.lineWidth=3; ctx.lineJoin="round";
   ctx.strokeText(t.name,t.x,t.y+r+g*.18);
   ctx.fillText(t.name,t.x,t.y+r+g*.18);
+  if(t.z){ctx.font=`600 ${Math.max(9,g*.15)}px 'IBM Plex Mono', monospace`;ctx.fillStyle="#7FA8B8";ctx.fillText(`↑${t.z*5} FT`,t.x,t.y-r-g*.12);}
+  if(Array.isArray(t.statuses)&&t.statuses.length){
+    ctx.font=`600 ${Math.max(9,g*.14)}px 'IBM Plex Mono', monospace`;ctx.fillStyle="#E9E2CE";
+    ctx.fillText(t.statuses.map(x=>x.slice(0,3).toUpperCase()).join(" · "),t.x,t.y+r+g*.38);
+  }
   ctx.restore();
 }
 
@@ -272,6 +292,12 @@ function drawTacticalTerrain(pr,c){
   ctx.fillText((pr.label||style.label).toUpperCase(),x+w/2,y+h/2);
   ctx.restore();
 }
+function clipRevealedTactical(){
+  ctx.beginPath();
+  for(const room of App.document.rooms)if(App.session.verso.revealed[room.id])
+    for(const [i,j]of roomTiles(room))ctx.rect(i*BT,j*BT,BT,BT);
+  ctx.clip();
+}
 function drawTactical(){
   const v=App.session.verso,c=cam(),showHidden=RVIEW==="dm";
   ctx.fillStyle=App.document.level.bg||"#0A0F0C";ctx.fillRect(0,0,W,H);
@@ -279,10 +305,16 @@ function drawTactical(){
   for(const r of App.document.rooms){
     const rev=!!v.revealed[r.id];if(!rev&&!showHidden)continue;
     ctx.save();if(!rev)ctx.globalAlpha=.22;
+    if(v.tacticalFocus&&v.tacticalFocus!==r.id)ctx.globalAlpha*=.38;
     for(const [i,j] of roomTiles(r)){
       ctx.fillStyle=hash2(i,j)>.5?r.floorA:r.floorB;ctx.fillRect(i*BT,j*BT,BT,BT);
       if(r.battleGrid==="square"){
         ctx.strokeStyle="rgba(233,226,206,.22)";ctx.lineWidth=1/c.s;ctx.strokeRect(i*BT,j*BT,BT,BT);
+      }
+      const light=r.light||"lit";
+      if(light!=="lit"){
+        const flicker=light==="flicker" ? .18+.10*(.5+.5*Math.sin(tNow/95+i*2+j)) : (light==="dark" ? .58 : .28);
+        ctx.fillStyle=`rgba(3,7,5,${flicker})`;ctx.fillRect(i*BT,j*BT,BT,BT);
       }
     }
     ctx.beginPath();for(const [x1,y1,x2,y2]of roomEdges(r)){ctx.moveTo(x1*BT,y1*BT);ctx.lineTo(x2*BT,y2*BT);}
@@ -291,12 +323,15 @@ function drawTactical(){
   // Area footprints sit beneath furniture and tokens and turn authored props into usable mechanics.
   for(const pr of(App.document.level.props||[])){
     const room=roomAtTile(pr.x+.01,pr.y+.01),rev=room&&v.revealed[room.id];
-    if(!rev&&!showHidden)continue;
-    ctx.save();if(!rev)ctx.globalAlpha=.2;drawTacticalTerrain(pr,c);ctx.restore();
+    ctx.save();if(!showHidden)clipRevealedTactical();else if(!rev)ctx.globalAlpha=.2;drawTacticalTerrain(pr,c);ctx.restore();
+  }
+  for(const effect of(v.effects||[])){
+    const pr={id:effect.id,t:"effect",x:effect.x,y:effect.y,terrain:effect.terrain,
+      footprint:{w:effect.w,h:effect.h,shape:effect.shape},label:effect.label};
+    ctx.save();if(!showHidden)clipRevealedTactical();drawTacticalTerrain(pr,c);ctx.restore();
   }
   for(const stair of(App.document.stairs||[])){
-    if(!showHidden&&!stairVisible(stair))continue;
-    ctx.save();ctx.fillStyle="rgba(119,113,104,.68)";ctx.fillRect(stair.x*BT,stair.y*BT,stair.w*BT,stair.h*BT);
+    ctx.save();if(!showHidden)clipRevealedTactical();ctx.fillStyle="rgba(119,113,104,.68)";ctx.fillRect(stair.x*BT,stair.y*BT,stair.w*BT,stair.h*BT);
     const alongX=stair.dir==="e"||stair.dir==="w",steps=(alongX?stair.w:stair.h)*3;
     ctx.strokeStyle="rgba(7,9,8,.55)";ctx.lineWidth=1/c.s;ctx.beginPath();
     for(let k=1;k<steps;k++)if(alongX){const x=(stair.x+k/3)*BT;ctx.moveTo(x,stair.y*BT);ctx.lineTo(x,(stair.y+stair.h)*BT);}else{const y=(stair.y+k/3)*BT;ctx.moveTo(stair.x*BT,y);ctx.lineTo((stair.x+stair.w)*BT,y);}
@@ -305,9 +340,9 @@ function drawTactical(){
     ctx.fillText(({n:"↑",e:"→",s:"↓",w:"←"})[stair.dir],(stair.x+stair.w/2)*BT,(stair.y+stair.h/2)*BT);ctx.restore();
   }
   for(const pr of(App.document.level.props||[])){
-    const room=roomAtTile(pr.x+.5,pr.y+.5),rev=room&&v.revealed[room.id];if(!rev&&!showHidden)continue;
+    const room=roomAtTile(pr.x+.5,pr.y+.5),rev=room&&v.revealed[room.id];
     if(pr.footprint)continue; // footprint already carries the tactical meaning
-    ctx.save();if(!rev)ctx.globalAlpha=.22;
+    ctx.save();if(!showHidden)clipRevealedTactical();else if(!rev)ctx.globalAlpha=.22;
     const x=(pr.x+.5)*BT,y=(pr.y+.5)*BT;
     ctx.fillStyle=pr.focus?"#E9E2CE":"#C8A14E";ctx.strokeStyle="rgba(7,9,8,.8)";ctx.lineWidth=2/c.s;
     ctx.beginPath();ctx.arc(x,y,BT*.24*(pr.scale||1),0,7);ctx.fill();ctx.stroke();
@@ -316,10 +351,11 @@ function drawTactical(){
   }
   for(const d of App.document.doors){
     const visible=doorVisible(d);if(!visible&&!showHidden)continue;
+    const open=doorIsOpen(d,v.doorStates);
     const len=d.len||1,x2=d.dir==="h"?d.x+len:d.x,y2=d.dir==="h"?d.y:d.y+len;
     ctx.save();if(!visible)ctx.globalAlpha=.3;ctx.beginPath();ctx.moveTo(d.x*BT,d.y*BT);ctx.lineTo(x2*BT,y2*BT);
-    ctx.strokeStyle=d.type==="open"?"#2B2125":"#C8A14E";ctx.lineWidth=(d.type==="open"?8:5)/c.s;
-    if(d.type!=="open")ctx.setLineDash([8/c.s,5/c.s]);ctx.stroke();ctx.restore();
+    ctx.strokeStyle=open?"#2B2125":"#C8A14E";ctx.lineWidth=(open?8:5)/c.s;
+    if(!open)ctx.setLineDash([8/c.s,5/c.s]);ctx.stroke();ctx.restore();
   }
   for(const r of App.document.rooms){
     const rev=!!v.revealed[r.id];if(!rev&&!showHidden)continue;const bb=roomBBox(r);
@@ -327,15 +363,10 @@ function drawTactical(){
     ctx.fillStyle=(showHidden&&App.session.selRoom===r.id)?"#E9E2CE":"#C8A14E";
     ctx.fillText(r.name.toUpperCase()+(r.battleGrid==="square"?" · 5 FT GRID":"")+(rev?"":" · HIDDEN"),bb.x0*BT+8/c.s,bb.y0*BT+8/c.s);ctx.restore();
   }
-  const toks=[...v.tokens];let partyRoomIds=null;
+  const partyRoomIds=new Set();for(const p of v.tokens)if(p.pc){const room=roomAtTile(p.x,p.y);if(room)partyRoomIds.add(room.id);}
+  const toks=orderedLevelTokens(v.tokens,true);
   for(const t of toks){
-    if(!showHidden){
-      const room=roomAtTile(t.x,t.y);if(room&&!v.revealed[room.id])continue;
-      if(room&&!t.pc&&!room.tokensAlways){
-        if(!partyRoomIds){partyRoomIds=new Set();for(const p of v.tokens)if(p.pc){const pr=roomAtTile(p.x,p.y);if(pr)partyRoomIds.add(pr.id);}}
-        if(!partyRoomIds.has(room.id))continue;
-      }
-    }
+    if(!showHidden&&!tokenVisibleToPlayers(t,App.document.rooms,v.revealed,partyRoomIds))continue;
     drawTokenFlat({...t,x:t.x*BT,y:t.y*BT},BT,c.s);
   }
   drawPatrolPath();drawPings();ctx.restore();drawPropTooltip();
@@ -376,10 +407,19 @@ function drawStair(stair){
   }
 }
 function stairVisible(stair){
+  let found=false;
   for(let i=stair.x;i<stair.x+stair.w;i++)for(let j=stair.y;j<stair.y+stair.h;j++){
-    const room=roomAtTile(i+.5,j+.5);if(room&&App.session.verso.revealed[room.id])return true;
+    const room=roomAtTile(i+.5,j+.5);if(!room||!App.session.verso.revealed[room.id])return false;found=true;
   }
-  return false;
+  return found;
+}
+function propVisible(pr){
+  const fp=pr.footprint;
+  if(!fp){const room=roomAtTile(pr.x+.5,pr.y+.5);return !!(room&&App.session.verso.revealed[room.id]);}
+  for(let x=pr.x+.125;x<pr.x+fp.w;x+=.25)for(let y=pr.y+.125;y<pr.y+fp.h;y+=.25){
+    const room=roomAtTile(x,y);if(!room||!App.session.verso.revealed[room.id])return false;
+  }
+  return true;
 }
 const GLYPHS="ᚠᚢᚦᚨᚱᚲᚷᚹᚺᚾᛁᛃᛇᛈᛉᛋᛏᛒᛖᛗᛚᛜᛞᛟ";
 
@@ -850,7 +890,7 @@ function drawVerso(){
     if(!lib) continue;
     const room=roomAtTile(pr.x+.5,pr.y+.5);
     const rev=room && v.revealed[room.id];
-    if(!rev && !showHidden) continue;
+    if(!showHidden&&!propVisible(pr)) continue;
     ctx.save();
     if(!rev) ctx.globalAlpha=.22;
     ctx.translate(0,-roomElevation(room));
@@ -902,7 +942,7 @@ function drawVerso(){
     ctx.beginPath();
     ctx.moveTo(isoX(d.x,d.y),isoY(d.x,d.y));
     ctx.lineTo(isoX(x2,y2),isoY(x2,y2));
-    if(d.type==="open"){
+    if(doorIsOpen(d,v.doorStates)){
       ctx.strokeStyle="#2B2125"; ctx.lineWidth=5; ctx.stroke();
     }else{
       ctx.strokeStyle="#0A0F0C"; ctx.lineWidth=6; ctx.stroke();
@@ -929,23 +969,14 @@ function drawVerso(){
     ctx.restore();
   }
   // tokens, depth-sorted
-  const toks=[...v.tokens].sort((a,b)=>(a.x+a.y)-(b.x+b.y));
+  const toks=orderedLevelTokens(v.tokens,false);
   // players only see NPCs sharing a room with a PC right now (or a room the DM
   // has flagged "always show tokens") — a revealed room stays readable, but a
   // patrol that's since wandered off elsewhere doesn't broadcast its position
-  let partyRoomIds=null;
+  const partyRoomIds=new Set();
+  for(const p of v.tokens)if(p.pc){const room=roomAtTile(p.x,p.y);if(room)partyRoomIds.add(room.id);}
   for(const t of toks){
-    if(RVIEW!=="dm"){
-      const room=roomAtTile(t.x,t.y);
-      if(room && !v.revealed[room.id]) continue;
-      if(room && !t.pc && !room.tokensAlways){
-        if(!partyRoomIds){
-          partyRoomIds=new Set();
-          for(const p of v.tokens) if(p.pc){const pr=roomAtTile(p.x,p.y); if(pr) partyRoomIds.add(pr.id);}
-        }
-        if(!partyRoomIds.has(room.id)) continue;
-      }
-    }
+    if(RVIEW!=="dm"&&!tokenVisibleToPlayers(t,App.document.rooms,v.revealed,partyRoomIds))continue;
     drawTokenIso(t,c.s);
   }
   drawPatrolPath();
@@ -958,8 +989,8 @@ function setPropHover(i,j){
   let best=null,bestD=1e9;
   for(const pr of (App.document.level.props||[])){
     if(!pr.label&&!pr.inspect)continue;
-    const [px,py]=propCenter(pr),room=roomAtTile(px,py);
-    if(room&&RVIEW!=="dm"&&!App.session.verso.revealed[room.id])continue;
+    const [px,py]=propCenter(pr);
+    if(RVIEW!=="dm"&&!propVisible(pr))continue;
     const d=Math.hypot(i-px,j-py),radius=pr.footprint?Math.max(.7,Math.hypot(pr.footprint.w,pr.footprint.h)/2):Math.max(.55,(pr.scale||1)*.52);
     if(d<=radius&&d<bestD){best=pr;bestD=d;}
   }
@@ -969,6 +1000,7 @@ function propCenter(pr){const fp=pr.footprint;return fp?[pr.x+fp.w/2,pr.y+fp.h/2
 function drawPropTooltip(){
   const pr=(App.document.level.props||[]).find(p=>p.id===hoverPropId);
   if(!pr||(!pr.label&&!pr.inspect))return;
+  if(RVIEW!=="dm"&&!propVisible(pr))return;
   const [px,py]=propCenter(pr),room=roomAtTile(px,py),elev=tacticalView()?0:roomElevation(room||{});
   const [lx,ly]=levelWorldFromTile(px,py);
   const [sx,sy]=toScreen(lx,ly-elev-(tacticalView()?BT*.35:38)*(pr.scale||1));
@@ -991,8 +1023,18 @@ function doorVisible(d){
 }
 function roomHasTile(r,i,j){return r.rects.some(rc=>i>=rc.x&&i<rc.x+rc.w&&j>=rc.y&&j<rc.y+rc.h);}
 function roomAtTile(i,j){
-  for(const r of App.document.rooms){ if(roomHasTile(r,i,j)) return r; }
-  return null;
+  return findRoomAt(App.document.rooms,i,j);
+}
+function doorAtTile(i,j,tolerance=.22){
+  let best=null,bestDistance=Infinity;
+  for(const door of App.document.doors){
+    const len=door.len||1;
+    const distance=door.dir==="h"
+      ? Math.hypot(Math.max(door.x-i,0,i-(door.x+len)),j-door.y)
+      : Math.hypot(i-door.x,Math.max(door.y-j,0,j-(door.y+len)));
+    if(distance<=tolerance&&distance<bestDistance){best=door;bestDistance=distance;}
+  }
+  return best;
 }
 function roomTiles(r){ // union of the room's rects, deduped
   const seen=new Set(), out=[];
@@ -1042,6 +1084,7 @@ function drawTokenIso(t,s){
 
 /* ---------------- ruler ---------------- */
 let ruler=null; // {x1,y1,x2,y2} world coords
+let moveGuide=null; // {token:{x,y,pc?},x,y} in level tile coordinates
 function drawRuler(){
   if(!ruler) return;
   const c=cam();
@@ -1069,6 +1112,20 @@ function drawRuler(){
   ctx.fillStyle="#7FA8B8"; ctx.textAlign="center";
   ctx.fillText(label,mx,my-9);
   ctx.restore();
+}
+function drawMoveGuide(){
+  if(!moveGuide||!tacticalView())return;
+  const c=cam(),from=levelWorldFromTile(moveGuide.token.x,moveGuide.token.y),to=levelWorldFromTile(moveGuide.x,moveGuide.y);
+  const [sx1,sy1]=toScreen(...from),[sx2,sy2]=toScreen(...to);
+  const cost=tacticalMoveCost(moveGuide.token,moveGuide.x,moveGuide.y,App.document.level.props,App.session.verso.effects);
+  const result=NET.mode==="client"?tacticalMoveAllowed({rooms:App.document.rooms,doors:App.document.doors,
+    revealed:App.session.verso.revealed,doorStates:App.session.verso.doorStates,
+    props:App.document.level.props,effects:App.session.verso.effects},moveGuide.token,moveGuide.x,moveGuide.y):{allowed:true};
+  const color=result.allowed?"#7FA8B8":"#B5443C";
+  ctx.save();ctx.strokeStyle=color;ctx.lineWidth=3;ctx.setLineDash([9,5]);ctx.beginPath();ctx.moveTo(sx1,sy1);ctx.lineTo(sx2,sy2);ctx.stroke();ctx.setLineDash([]);
+  const label=Math.round(cost.feet)+" ft"+(cost.difficult?" · "+cost.difficult+" difficult":"")+(result.allowed?"":" · BLOCKED");
+  ctx.font="600 12px 'IBM Plex Mono', monospace";const tw=ctx.measureText(label).width,mx=(sx1+sx2)/2,my=(sy1+sy2)/2;
+  ctx.fillStyle="rgba(7,9,8,.9)";ctx.fillRect(mx-tw/2-7,my-22,tw+14,18);ctx.fillStyle=color;ctx.textAlign="center";ctx.fillText(label,mx,my-9);ctx.restore();
 }
 
 Object.assign(App.services.model,{levelData,clientLevelData,loadLevel});

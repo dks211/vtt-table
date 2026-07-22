@@ -35,6 +35,10 @@ function drawPings(){ // called inside each scene's world transform
     const p=PINGS[i], age=(now-p.t0)/1400;
     if(age>1){PINGS.splice(i,1);continue;}
     if(p.scene!==App.session.scene) continue;
+    if(RVIEW!=="dm"&&p.scene==="verso"){
+      const [tileI,tileJ]=levelTileFromWorld(p.x,p.y),room=roomAtTile(tileI,tileJ);
+      if(!room||!App.session.verso.revealed[room.id])continue;
+    }
     ctx.save();
     ctx.strokeStyle=p.color; ctx.lineWidth=3/c.s; ctx.globalAlpha=(1-age)*.9;
     ctx.beginPath(); ctx.arc(p.x,p.y,(10+age*70)/c.s,0,7); ctx.stroke();
@@ -289,6 +293,7 @@ function renderPlayerWindow(){
   ctx.clearRect(0,0,pW,pH);
   if(App.session.scene==="map") drawMap(); else if(tacticalView())drawTactical();else drawVerso();
   drawRuler();
+  drawMoveGuide();
   ctx=oc; W=oW; H=oH; RVIEW=ov; CAMOVR=null;
 }
 
@@ -313,6 +318,7 @@ function frame(t){
   }else{
     if(App.session.scene==="map") drawMap(); else if(tacticalView())drawTactical();else drawVerso();
     drawRuler();
+    drawMoveGuide();
   }
   renderPlayerWindow();
   requestAnimationFrame(frame);
@@ -320,6 +326,7 @@ function frame(t){
 
 /* ---------------- input ---------------- */
 let pointers=new Map(), panRef=null, dragTok=null, pinchRef=null, spaceDown=false, downAt=null, fogPainting=false, lastTap=null, patrolRec=null;
+let dragOrigin=null, tacticalEffectType=null, tacticalEffectSize=1;
 
 function tokenAt(sx,sy){
   const [wx,wy]=toWorld(sx,sy);
@@ -339,11 +346,11 @@ function tokenAt(sx,sy){
     }
     // otherwise prefer whichever token is drawn on top, so an exact tile-stack
     // (e.g. an NPC standing where a PC snapped to) resolves to what's visible
-    const byTop=[...App.session.verso.tokens].sort((a,b)=>(b.x+b.y)-(a.x+a.y));
-    let best=null,bd=1e9;
+    const byTop=orderedLevelTokens(App.session.verso.tokens,tacticalView()).reverse();
+    let best=null;
     for(const t of byTop){
       const d=Math.hypot(i-t.x,j-t.y);
-      if(d<.75*t.size && d<bd){best=t;bd=d;}
+      if(d<.75*t.size){best=t;break;}
     }
     return best;
   }
@@ -370,6 +377,13 @@ cv.addEventListener("pointerdown",e=>{
     dragTok=null; panRef=null; edDraft=null; edDrag=null; return;
   }
   if(App.session.mode==="edit"){edDown(e);return;}
+  if(tacticalView()&&tacticalEffectType&&NET.mode!=="client"&&e.button===0){
+    const [wx,wy]=toWorld(e.offsetX,e.offsetY),[i,j]=levelTileFromWorld(wx,wy);
+    App.session.verso.effects.push({id:"effect-"+Date.now().toString(36),terrain:tacticalEffectType,
+      x:Math.floor(i),y:Math.floor(j),w:tacticalEffectSize,h:tacticalEffectSize,shape:"rect",
+      label:"Temporary "+tacticalEffectType});
+    tacticalEffectType=null;markDirty();renderPanel();return;
+  }
   // patrol recording: DM clicks drop waypoints for the selected token
   if(patrolRec!=null && NET.mode!=="client" && e.button===0 && !spaceDown){
     const t=S().tokens.find(t=>t.id===patrolRec);
@@ -378,7 +392,7 @@ cv.addEventListener("pointerdown",e=>{
       let pt;
       if(App.session.scene==="verso"){
         const [i,j]=levelTileFromWorld(pwx,pwy);
-        pt=[Math.floor(i)+.5,Math.floor(j)+.5];
+        pt=shouldSnapLevelToken(App.document.rooms,i,j,tacticalView())?[Math.floor(i)+.5,Math.floor(j)+.5]:[i,j];
       }else{
         pt=[pwx,pwy];
         const g=App.session.map.grid;
@@ -411,6 +425,7 @@ cv.addEventListener("pointerdown",e=>{
       if(t && t.id===NET.myToken){
         dragTok=t; clientDragging=true;
         cliOX=t.x; cliOY=t.y;
+        dragOrigin={x:t.x,y:t.y,pc:!!t.pc};moveGuide={token:dragOrigin,x:t.x,y:t.y};
         App.session.selToken=t.id; return;
       }
     }
@@ -441,7 +456,7 @@ cv.addEventListener("pointerdown",e=>{
   }
   if(!wantPan){
     const t=tokenAt(e.offsetX,e.offsetY);
-    if(t){dragTok=t; App.session.selToken=t.id; renderPanel(); return;}
+    if(t){dragTok=t;dragOrigin={x:t.x,y:t.y,pc:!!t.pc};moveGuide={token:dragOrigin,x:t.x,y:t.y};App.session.selToken=t.id;renderPanel();return;}
   }
   panRef={x:e.offsetX,y:e.offsetY,cx:cam().x,cy:cam().y};
 });
@@ -476,6 +491,7 @@ cv.addEventListener("pointermove",e=>{
   if(dragTok && e.buttons){
     if(App.session.scene==="map"){dragTok.x=wx;dragTok.y=wy;}
     else{const [i,j]=levelTileFromWorld(wx,wy);dragTok.x=i;dragTok.y=j;}
+    if(moveGuide){moveGuide.x=dragTok.x;moveGuide.y=dragTok.y;}
     markDirty(); return;
   }
   if(panRef && e.buttons){
@@ -494,7 +510,7 @@ cv.addEventListener("pointerup",e=>{
       const g=App.session.map.grid.size;
       dragTok.x=Math.floor((dragTok.x-App.session.map.grid.ox)/g)*g+App.session.map.grid.ox+g/2;
       dragTok.y=Math.floor((dragTok.y-App.session.map.grid.oy)/g)*g+App.session.map.grid.oy+g/2;
-    }else if(App.session.scene==="verso"){
+    }else if(App.session.scene==="verso"&&shouldSnapLevelToken(App.document.rooms,dragTok.x,dragTok.y,tacticalView())){
       dragTok.x=Math.floor(dragTok.x)+.5;
       dragTok.y=Math.floor(dragTok.y)+.5;
     }
@@ -502,8 +518,9 @@ cv.addEventListener("pointerup",e=>{
       clientSend({type:"move",id:dragTok.id,x:dragTok.x,y:dragTok.y});
     }else{
       dragTok.x=cliOX; dragTok.y=cliOY;               // snap back: room not revealed / fogged
+      $("st-hint").textContent="Movement blocked by a wall, closed door, hidden room, or full-cover object";
     }
-    clientDragging=false; dragTok=null; panRef=null; fogPainting=false; downAt=null;
+    clientDragging=false;dragTok=null;dragOrigin=null;moveGuide=null;panRef=null;fogPainting=false;downAt=null;
     return;
   }
   if(dragTok){
@@ -512,7 +529,7 @@ cv.addEventListener("pointerup",e=>{
       const g=App.session.map.grid.size;
       dragTok.x=Math.floor((dragTok.x-App.session.map.grid.ox)/g)*g+App.session.map.grid.ox+g/2;
       dragTok.y=Math.floor((dragTok.y-App.session.map.grid.oy)/g)*g+App.session.map.grid.oy+g/2;
-    }else if(App.session.scene==="verso"){
+    }else if(App.session.scene==="verso"&&shouldSnapLevelToken(App.document.rooms,dragTok.x,dragTok.y,tacticalView())){
       dragTok.x=Math.floor(dragTok.x)+.5;
       dragTok.y=Math.floor(dragTok.y)+.5;
     }
@@ -523,6 +540,11 @@ cv.addEventListener("pointerup",e=>{
   if(downAt && !downAt.moved && !dragTok && App.session.scene==="verso" && App.session.tool==="select"){
     const [wx,wy]=toWorld(e.offsetX,e.offsetY);
     const [i,j]=levelTileFromWorld(wx,wy);
+    const door=doorAtTile(i,j);
+    if(door){
+      App.session.verso.doorStates[door.id]=!doorIsOpen(door,App.session.verso.doorStates);
+      markDirty();renderPanel();dragTok=null;dragOrigin=null;moveGuide=null;panRef=null;downAt=null;return;
+    }
     const r=roomAtTile(i,j);
     App.session.selRoom = r ? r.id : null;
     renderPanel();
@@ -530,14 +552,14 @@ cv.addEventListener("pointerup",e=>{
   if(downAt && !downAt.moved && !dragTok && App.session.scene==="map" && App.session.tool==="select"){
     App.session.selToken=null; renderPanel();
   }
-  dragTok=null; panRef=null; fogPainting=false; downAt=null;
+  dragTok=null;dragOrigin=null;moveGuide=null;panRef=null;fogPainting=false;downAt=null;
 });
 cv.addEventListener("pointercancel",e=>{
   // iOS fires this when Safari takes over a gesture; without cleanup a stale
   // pointer stays in the map and every later touch reads as a two-finger pinch
   pointers.delete(e.pointerId);
   if(pointers.size<2) pinchRef=null;
-  clientDragging=false; dragTok=null; panRef=null; fogPainting=false; downAt=null;
+  clientDragging=false;dragTok=null;dragOrigin=null;moveGuide=null;panRef=null;fogPainting=false;downAt=null;
   edDraft=null; edDrag=null;
 });
 cv.addEventListener("pointerleave",()=>setPropHover(NaN,NaN));
@@ -581,6 +603,7 @@ addEventListener("keydown",e=>{
   if(e.target.tagName==="INPUT"||e.target.tagName==="SELECT"||e.target.tagName==="TEXTAREA") return;
   if(e.code==="Space"){spaceDown=true;cv.style.cursor="grabbing";e.preventDefault();}
   const k=e.key.toLowerCase();
+  if(e.key==="Escape"&&tacticalEffectType){tacticalEffectType=null;$("st-hint").textContent="Temporary effect placement cancelled";return;}
   if(App.session.mode==="edit"){
     if((e.metaKey||e.ctrlKey) && k==="z"){e.shiftKey?edRedoPop():edUndoPop();e.preventDefault();return;}
     if((e.metaKey||e.ctrlKey) && k==="y"){edRedoPop();e.preventDefault();return;}

@@ -27,22 +27,11 @@ const ICE_READY=Promise.race([
 ]);
 function peerOpts(){return ICE?{config:{iceServers:ICE,sdpSemantics:"unified-plan"}}:{};}
 
-function armedEntryAllowed(t,x,y,target){
-  if(!t||!t.pc) return false;
-  const dx=x-t.x,dy=y-t.y;
-  const steps=Math.max(1,Math.ceil(Math.max(Math.abs(dx),Math.abs(dy))*4));
-  for(let n=0;n<steps;n++){
-    const r=roomAtTile(t.x+dx*n/steps,t.y+dy*n/steps);
-    if(!r || (r.id!==target.id && !App.session.verso.revealed[r.id])) return false;
-  }
-  return true;
-}
 function moveAllowed(x,y,t){
   if(App.session.scene==="verso"){
-    const r=roomAtTile(x,y);
-    if(!r) return false;
-    if(App.session.verso.revealed[r.id] || r.revealMode==="always") return true;
-    return r.revealMode==="armed" && armedEntryAllowed(t,x,y,r);
+    return tacticalMoveAllowed({rooms:App.document.rooms,doors:App.document.doors,
+      revealed:App.session.verso.revealed,doorStates:App.session.verso.doorStates,
+      props:App.document.level.props,effects:App.session.verso.effects},t,x,y).allowed;
   }
   const m=App.session.map;
   if(!m.img) return false;
@@ -76,6 +65,7 @@ function clientToken(t){
 }
 function lightSnapshot(){
   return {type:"sync",scene:App.session.scene,levelView:App.session.verso.view,revealed:App.session.verso.revealed,
+    doorStates:App.session.verso.doorStates,effects:App.session.verso.effects,tacticalFocus:App.session.verso.tacticalFocus,
     grid:App.session.map.grid,fogOn:App.session.map.fogOn,
     tokens:{map:App.session.map.tokens.map(clientToken),verso:App.session.verso.tokens.map(clientToken)},
     // hidden initiative entries: players get the position, never the number
@@ -316,10 +306,13 @@ function clientHandle(m){
     document.body.classList.toggle("tacticalscene",App.session.verso.view==="tactical");
     $("view-iso").classList.toggle("on",App.session.verso.view==="isometric");
     $("view-tactical").classList.toggle("on",App.session.verso.view==="tactical");
-    if(refit){fitScene();updZoom();}
     App.session.verso.revealed=m.revealed||{};
+    App.session.verso.doorStates=m.doorStates||{};
+    App.session.verso.effects=m.effects||[];
+    App.session.verso.tacticalFocus=m.tacticalFocus||null;
     Object.assign(App.session.map.grid,m.grid||{});
     App.session.map.fogOn=m.fogOn!==false;
+    if(refit){fitScene();updZoom();}
     if(m.tracker) App.session.tracker=m.tracker;
     // apply tokens, but never overwrite the token I'm actively dragging
     const apply=(dst,src)=>{

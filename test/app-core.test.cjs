@@ -9,6 +9,13 @@ const {
   roomEntryReveal,
   cameraFocusFromViewport,
   cameraFromFocus,
+  findRoomAt,
+  doorIsOpen,
+  tacticalMoveAllowed,
+  tacticalMoveCost,
+  shouldSnapLevelToken,
+  tokenVisibleToPlayers,
+  orderedLevelTokens,
   sanitizeLevelForClient,
   setBannerContent,
   LEVEL_SCHEMA_VERSION,
@@ -44,6 +51,55 @@ test("camera focus preserves the GM center across player viewport sizes", () => 
   });
   assert.deepEqual(cameraFromFocus(focus, 600, 800), { x: 100, y: -150, s: 1 });
   assert.equal(cameraFromFocus({ worldWidth: 0, worldHeight: 20 }, 600, 800), null);
+});
+
+test("tactical movement stays in geometry and crosses rooms only through open doors", () => {
+  const rooms = [
+    { id: "a", rects: [{ x: 0, y: 0, w: 3, h: 3 }], revealMode: "always", battleGrid: "none" },
+    { id: "b", rects: [{ x: 3, y: 0, w: 3, h: 3 }], revealMode: "armed", battleGrid: "square" },
+  ];
+  const doors = [{ id: "door-1", x: 3, y: 1, len: 1, dir: "v", type: "door" }];
+  const base = { rooms, doors, revealed: { a: true }, doorStates: {}, props: [], effects: [] };
+  const pc = { x: 1.5, y: 1.5, pc: true };
+  assert.equal(tacticalMoveAllowed(base, pc, 4.5, 1.5).allowed, false);
+  assert.equal(tacticalMoveAllowed({ ...base, doorStates: { "door-1": true } }, pc, 4.5, 1.5).allowed, true);
+  assert.equal(tacticalMoveAllowed({ ...base, doorStates: { "door-1": true } }, pc, 4.5, 2.8).allowed, false);
+  assert.equal(tacticalMoveAllowed({ ...base, doorStates: { "door-1": true }, props: [
+    { x: 3.5, y: 1, terrain: "cover", footprint: { w: 1, h: 1, shape: "rect" } },
+  ] }, pc, 4.5, 1.5).allowed, false);
+});
+
+test("tactical snapping, movement cost, visibility, and stacking follow play rules", () => {
+  const rooms = [
+    { id: "free", rects: [{ x: 0, y: 0, w: 2, h: 2 }], battleGrid: "none" },
+    { id: "grid", rects: [{ x: 2, y: 0, w: 3, h: 3 }], battleGrid: "square" },
+  ];
+  assert.equal(shouldSnapLevelToken(rooms, 1, 1, true), false);
+  assert.equal(shouldSnapLevelToken(rooms, 3, 1, false), false);
+  assert.equal(shouldSnapLevelToken(rooms, 3, 1, true), true);
+  const cost = tacticalMoveCost({ x: 2.5, y: .5 }, 4.5, .5, [
+    { x: 3, y: 0, terrain: "difficult", footprint: { w: 1, h: 1, shape: "rect" } },
+  ], []);
+  assert.deepEqual(cost, { squares: 2, difficult: 1, feet: 15 });
+  assert.equal(tokenVisibleToPlayers({ pc: false, x: 8, y: 8 }, rooms, {}, new Set()), false);
+  assert.equal(tokenVisibleToPlayers({ pc: true, x: 8, y: 8 }, rooms, {}, new Set()), true);
+  const tokens = [{ id: 1, x: 2, y: 2 }, { id: 2, x: 0, y: 0 }];
+  assert.deepEqual(orderedLevelTokens(tokens, true).map(token => token.id), [1, 2]);
+  assert.deepEqual(orderedLevelTokens(tokens, false).map(token => token.id), [2, 1]);
+  assert.equal(findRoomAt(rooms, 3, 1).id, "grid");
+  assert.equal(doorIsOpen({ id: "d", type: "door" }, { d: true }), true);
+});
+
+test("session tactical state normalizes temporary effects and door overrides", () => {
+  const session = normalizeSession({ schemaVersion: SESSION_SCHEMA_VERSION, verso: {
+    doorStates: { front: true, back: 0 }, tacticalFocus: "arena",
+    effects: [{ id: "fire", terrain: "hazard", x: 2, y: 3, w: 2, h: 1 }],
+  }, level: { rooms: [] } });
+  assert.deepEqual(session.verso.doorStates, { front: true, back: false });
+  assert.equal(session.verso.tacticalFocus, "arena");
+  assert.deepEqual(session.verso.effects[0], {
+    id: "fire", terrain: "hazard", x: 2, y: 3, w: 2, h: 1, shape: "rect", label: "Temporary effect",
+  });
 });
 
 test("parseDice accepts supported notation and applies limits", () => {

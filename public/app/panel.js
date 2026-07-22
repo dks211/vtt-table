@@ -275,6 +275,20 @@ function renderPanel(){
         <span class="del" data-rmode="${r.id}" title="click to cycle reveal policy" style="width:auto;color:${roomRevealMode(r)==="armed"?"var(--brass)":"var(--vellum-dim)"}">${roomRevealMode(r).toUpperCase()}</span>
         <span class="del" data-rev="${r.id}" title="${App.session.verso.revealed[r.id]?"hide from players":"reveal to players"}" style="color:${App.session.verso.revealed[r.id]?"#C8A14E":"#666"}">${App.session.verso.revealed[r.id]?"●":"○"}</span>
       </div>`).join("")+`</div></div>`;
+    if(tacticalView()){
+      const focus=App.document.rooms.find(room=>room.id===App.session.verso.tacticalFocus);
+      const room=App.document.rooms.find(room=>room.id===App.session.selRoom);
+      const doors=room?App.document.doors.filter(door=>doorAdjoiningRooms(door,App.document.rooms).includes(room)):[];
+      html+=`<div class="sect dm-only"><h3>Tactical Control</h3>
+        <div class="hint" style="margin-bottom:7px">${focus?`Encounter focus: ${esc(focus.name)}`:"No encounter room emphasized."}</div>
+        <div class="row"><button class="rbtn quiet" id="tac-focus">${room&&focus?.id!==room.id?"FOCUS SELECTED ROOM":"CLEAR ROOM FOCUS"}</button></div>
+        ${doors.length?`<div class="hint" style="margin-top:9px">Doors adjoining ${esc(room.name)}:</div><div class="toklist">${doors.map(door=>`<div class="tok"><span class="nm">${esc(door.id)}</span><button class="rbtn quiet" data-door-toggle="${door.id}" style="flex:none">${doorIsOpen(door,App.session.verso.doorStates)?"OPEN":"CLOSED"}</button></div>`).join("")}</div>`:""}
+        <div class="hint" style="margin-top:9px">Temporary encounter terrain:</div>
+        <div class="row"><select id="tac-effect-type"><option value="hazard">hazard</option><option value="difficult">difficult terrain</option><option value="cover">full cover</option></select><select id="tac-effect-size"><option value="1">1×1</option><option value="2">2×2</option><option value="3">3×3</option></select></div>
+        <button class="rbtn" id="tac-effect-place" style="width:100%;margin-top:6px">PLACE ON MAP</button>
+        ${(App.session.verso.effects||[]).length?`<div class="toklist" style="margin-top:7px">${App.session.verso.effects.map(effect=>`<div class="tok"><span class="dot" style="background:${effect.terrain==="hazard"?"#B5443C":effect.terrain==="cover"?"#8A6E36":"#C8A14E"}"></span><span class="nm">${esc(effect.label)}</span><span class="del" data-effect-del="${effect.id}">✕</span></div>`).join("")}</div>`:""}
+        <div class="hint">Open doors here or click a door line. Placed effects belong to this session, not the reusable level.</div></div>`;
+    }
   }else{
     html+=`<div class="sect"><h3>Map</h3>`;
     if(App.session.map.img){
@@ -347,6 +361,8 @@ function renderPanel(){
       ${selT.patrol&&selT.patrol.length?`<button class="rbtn quiet" id="pt-clear">CLEAR PATH (${selT.patrol.length})</button>`:""}
     </div>`;
     if(patrolRec===selT.id) html+=`<div class="hint">Click the map to drop waypoints for ${esc(selT.name)}, then STOP. PULSE (Events) walks the route.</div>`;
+    if(tacticalView())html+=`<div class="row" style="margin-top:7px"><label>elevation</label><input id="tok-z" type="number" min="0" max="40" value="${selT.z||0}" style="width:56px"><span>× 5 ft</span></div>
+      <div class="row" style="margin-top:5px">${["prone","concentrating","marked"].map(status=>`<button class="rbtn quiet" data-status="${status}" style="${(selT.statuses||[]).includes(status)?"color:var(--brass);border-color:var(--brass-dim)":""}">${status.toUpperCase()}</button>`).join("")}</div>`;
   }
   html+=`</div>`;
   if(selT && selT.sheet){
@@ -409,6 +425,22 @@ function renderPanel(){
         App.session.selRoom=el.dataset.room; renderPanel();
       };
     });
+    const tacFocus=$("tac-focus");if(tacFocus)tacFocus.onclick=()=>{
+      const room=App.document.rooms.find(room=>room.id===App.session.selRoom);
+      App.session.verso.tacticalFocus=room&&App.session.verso.tacticalFocus!==room.id?room.id:null;
+      if(App.session.verso.tacticalFocus)focusRoom(room);markDirty();renderPanel();
+    };
+    p.querySelectorAll("[data-door-toggle]").forEach(el=>{el.onclick=()=>{
+      const door=App.document.doors.find(door=>door.id===el.dataset.doorToggle);if(!door)return;
+      App.session.verso.doorStates[door.id]=!doorIsOpen(door,App.session.verso.doorStates);markDirty();renderPanel();
+    };});
+    const effectPlace=$("tac-effect-place");if(effectPlace)effectPlace.onclick=()=>{
+      tacticalEffectType=$("tac-effect-type").value;tacticalEffectSize=+$("tac-effect-size").value||1;
+      $("st-hint").textContent="Click the tactical map to place the temporary "+tacticalEffectType+" area";
+    };
+    p.querySelectorAll("[data-effect-del]").forEach(el=>{el.onclick=()=>{
+      App.session.verso.effects=App.session.verso.effects.filter(effect=>effect.id!==el.dataset.effectDel);markDirty();renderPanel();
+    };});
   }else{
     const bi=$("btn-import"); if(bi) bi.onclick=()=>$("file-img").click();
     const gs=$("g-show"); if(gs) gs.onchange=e=>{App.session.map.grid.show=e.target.checked;markDirty();};
@@ -544,6 +576,11 @@ function renderPanel(){
     if(patrolRec===selT.id) patrolRec=null;
     markDirty(); renderPanel();
   };
+  const tokZ=$("tok-z");if(tokZ&&selT)tokZ.onchange=()=>{selT.z=Math.max(0,Math.min(40,+tokZ.value||0));markDirty();renderPanel();};
+  p.querySelectorAll("[data-status]").forEach(el=>{el.onclick=()=>{
+    if(!selT)return;const statuses=new Set(selT.statuses||[]);statuses.has(el.dataset.status)?statuses.delete(el.dataset.status):statuses.add(el.dataset.status);
+    selT.statuses=[...statuses];markDirty();renderPanel();
+  };});
   /* sheet wiring (DM edits any selected token; rolls as it too) */
   if(selT && !rollsFloatOpen) wireSheetRolls(p,selT);
   const srp=$("sr-pop"); if(srp) srp.onclick=()=>{rollsFloatOpen=true;renderPanel();};
@@ -580,7 +617,7 @@ function placeToken(name,letter,color,size,pc,sheet){
     [x,y]=toWorld(W/2,H/2);
   }else{
     const [wx,wy]=toWorld(W/2,H/2);
-    const [i,j]=unIso(wx,wy);
+    const [i,j]=levelTileFromWorld(wx,wy);
     x=Math.floor(i)+.5; y=Math.floor(j)+.5;
   }
   const t=mkTok(name,letter,color,x,y,size,pc);

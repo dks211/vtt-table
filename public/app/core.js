@@ -6,7 +6,7 @@
   "use strict";
 
   const LEVEL_SCHEMA_VERSION = 2;
-  const SESSION_SCHEMA_VERSION = 3;
+  const SESSION_SCHEMA_VERSION = 4;
 
   const clone = value => JSON.parse(JSON.stringify(value));
   const objectOrNull = value => value && typeof value === "object" && !Array.isArray(value) ? value : null;
@@ -162,6 +162,25 @@
       throw new Error(`Unsupported session schema version: ${session.schemaVersion ?? session.v}.`);
     const map = objectOrNull(session.map) || {};
     const verso = objectOrNull(session.verso) || {};
+    const doorStates = {};
+    if (objectOrNull(verso.doorStates)) {
+      for (const [id, open] of Object.entries(verso.doorStates).slice(0, 500))
+        doorStates[String(id).slice(0, 64)] = !!open;
+    }
+    const effectIds = new Set();
+    const effects = (Array.isArray(verso.effects) ? verso.effects : []).slice(0, 100).map((source, index) => {
+      const effect = objectOrNull(source) || {};
+      const id = uniqueId(effect.id, "effect", effectIds, index);
+      return {
+        id,
+        terrain: ["cover", "difficult", "hazard"].includes(effect.terrain) ? effect.terrain : "hazard",
+        x: finite(effect.x), y: finite(effect.y),
+        w: Math.max(.25, Math.min(20, finite(effect.w, 1))),
+        h: Math.max(.25, Math.min(20, finite(effect.h, 1))),
+        shape: effect.shape === "circle" ? "circle" : "rect",
+        label: String(effect.label || "Temporary effect").slice(0, 80),
+      };
+    });
     return {
       schemaVersion: SESSION_SCHEMA_VERSION,
       scene: session.scene === "map" ? "map" : "verso",
@@ -178,6 +197,9 @@
         view: verso.view === "tactical" ? "tactical" : "isometric",
         revealed: objectOrNull(verso.revealed) ? clone(verso.revealed) : {},
         tokens: Array.isArray(verso.tokens) ? clone(verso.tokens) : [],
+        doorStates,
+        effects,
+        tacticalFocus: verso.tacticalFocus == null ? null : String(verso.tacticalFocus).slice(0, 64),
       },
       // saves from before the level system carried no level at all — every one of
       // those was a Verso session, so callers pass the bundled pack as the fallback
@@ -286,6 +308,123 @@
     };
   }
 
+  function roomContainsPoint(room, x, y) {
+    return !!room && Array.isArray(room.rects) && room.rects.some(rect =>
+      x >= rect.x && x < rect.x + rect.w && y >= rect.y && y < rect.y + rect.h);
+  }
+
+  function findRoomAt(rooms, x, y) {
+    return (rooms || []).find(room => roomContainsPoint(room, x, y)) || null;
+  }
+
+  function pointInFootprint(x, y, item) {
+    const fp = item && (item.footprint || item);
+    if (!item || !fp) return false;
+    const w = finite(fp.w, 1), h = finite(fp.h, 1);
+    if (fp.shape === "circle") {
+      const rx = w / 2, ry = h / 2;
+      if (rx <= 0 || ry <= 0) return false;
+      return ((x - item.x - rx) / rx) ** 2 + ((y - item.y - ry) / ry) ** 2 <= 1;
+    }
+    return x >= item.x && x < item.x + w && y >= item.y && y < item.y + h;
+  }
+
+  function doorIsOpen(door, doorStates) {
+    return Object.prototype.hasOwnProperty.call(doorStates || {}, door.id)
+      ? !!doorStates[door.id]
+      : door.type === "open";
+  }
+
+  function doorAdjoiningRooms(door, rooms) {
+    const half = (door.len || 1) / 2;
+    const probes = door.dir === "h"
+      ? [[door.x + half, door.y - .1], [door.x + half, door.y + .1]]
+      : [[door.x - .1, door.y + half], [door.x + .1, door.y + half]];
+    return probes.map(([x, y]) => findRoomAt(rooms, x, y));
+  }
+
+  function segmentsIntersect(a, b, c, d) {
+    const cross = (p, q, r) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+    const abC = cross(a, b, c), abD = cross(a, b, d), cdA = cross(c, d, a), cdB = cross(c, d, b);
+    const eps = 1e-7;
+    const overlaps = Math.max(Math.min(a.x, b.x), Math.min(c.x, d.x)) <= Math.min(Math.max(a.x, b.x), Math.max(c.x, d.x)) + eps &&
+      Math.max(Math.min(a.y, b.y), Math.min(c.y, d.y)) <= Math.min(Math.max(a.y, b.y), Math.max(c.y, d.y)) + eps;
+    return overlaps && abC * abD <= eps && cdA * cdB <= eps;
+  }
+
+  function crossesOpenDoor(from, to, fromRoom, toRoom, doors, rooms, doorStates) {
+    return (doors || []).some(door => {
+      if (!doorIsOpen(door, doorStates)) return false;
+      const adjoining = doorAdjoiningRooms(door, rooms);
+      if (!(adjoining.includes(fromRoom) && adjoining.includes(toRoom))) return false;
+      const end = door.dir === "h"
+        ? { x: door.x + (door.len || 1), y: door.y }
+        : { x: door.x, y: door.y + (door.len || 1) };
+      return segmentsIntersect(from, to, { x: door.x, y: door.y }, end);
+    });
+  }
+
+  function tacticalMoveAllowed(config, token, x, y) {
+    const rooms = config.rooms || [], revealed = config.revealed || {};
+    const target = findRoomAt(rooms, x, y);
+    if (!target) return { allowed: false, reason: "outside the level" };
+    const canEnter = revealed[target.id] || target.revealMode === "always" ||
+      (target.revealMode === "armed" && token && token.pc);
+    if (!canEnter) return { allowed: false, reason: "room is hidden" };
+    const dx = x - token.x, dy = y - token.y;
+    const steps = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) * 10));
+    let previous = { x: token.x, y: token.y };
+    let previousRoom = findRoomAt(rooms, previous.x, previous.y);
+    if (!previousRoom) return { allowed: false, reason: "start is outside the level" };
+    const blockers = [...(config.props || []), ...(config.effects || []).map(effect => ({...effect,footprint:effect}))]
+      .filter(item => item.terrain === "cover" && !pointInFootprint(token.x, token.y, item));
+    for (let n = 1; n <= steps; n += 1) {
+      const point = { x: token.x + dx * n / steps, y: token.y + dy * n / steps };
+      const room = findRoomAt(rooms, point.x, point.y);
+      if (!room) return { allowed: false, reason: "wall blocks the path" };
+      if (!revealed[room.id] && room !== target && room.revealMode !== "always")
+        return { allowed: false, reason: "path crosses a hidden room" };
+      if (room !== previousRoom && !crossesOpenDoor(previous, point, previousRoom, room,
+        config.doors, rooms, config.doorStates))
+        return { allowed: false, reason: "closed wall or door" };
+      if (blockers.some(item => pointInFootprint(point.x, point.y, item)))
+        return { allowed: false, reason: "full cover blocks the path" };
+      previous = point;
+      previousRoom = room;
+    }
+    return { allowed: true, room: target };
+  }
+
+  function tacticalMoveCost(token, x, y, props, effects) {
+    const squares = Math.max(Math.abs(x - token.x), Math.abs(y - token.y));
+    const steps = Math.max(1, Math.ceil(squares));
+    let difficult = 0;
+    const zones = [...(props || []), ...(effects || []).map(effect => ({...effect,footprint:effect}))]
+      .filter(item => item.terrain === "difficult");
+    for (let n = 1; n <= steps; n += 1) {
+      const px = token.x + (x - token.x) * n / steps;
+      const py = token.y + (y - token.y) * n / steps;
+      if (zones.some(item => pointInFootprint(px, py, item))) difficult += 1;
+    }
+    return { squares, difficult, feet: (squares + difficult) * 5 };
+  }
+
+  function shouldSnapLevelToken(rooms, x, y, tactical) {
+    const room = findRoomAt(rooms, x, y);
+    return !!tactical && !!room && room.battleGrid === "square";
+  }
+
+  function tokenVisibleToPlayers(token, rooms, revealed, partyRoomIds) {
+    const room = findRoomAt(rooms, token.x, token.y);
+    if (!room) return !!token.pc;
+    if (!revealed[room.id]) return false;
+    return !!token.pc || !!room.tokensAlways || partyRoomIds.has(room.id);
+  }
+
+  function orderedLevelTokens(tokens, tactical) {
+    return tactical ? [...tokens] : [...tokens].sort((a, b) => (a.x + a.y) - (b.x + b.y));
+  }
+
   function sanitizeLevelForClient(level) {
     const roster = (level.roster || []).map(entry => {
       if (entry.pc || !entry.sheet) return entry;
@@ -320,6 +459,16 @@
     roomEntryReveal,
     cameraFocusFromViewport,
     cameraFromFocus,
+    roomContainsPoint,
+    findRoomAt,
+    pointInFootprint,
+    doorIsOpen,
+    doorAdjoiningRooms,
+    tacticalMoveAllowed,
+    tacticalMoveCost,
+    shouldSnapLevelToken,
+    tokenVisibleToPlayers,
+    orderedLevelTokens,
     sanitizeLevelForClient,
     setBannerContent,
     normalizeLevel,

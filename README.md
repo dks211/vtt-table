@@ -42,6 +42,13 @@ Props can also carry tactical footprints for full cover, difficult terrain,
 hazards, and overhead objects. Those footprints are editable in the prop panel and
 remain ordinary atmospheric props in the isometric renderer.
 
+In tactical play, player movement stays inside revealed room geometry and crosses
+room boundaries only through open doors. Grid snapping applies only inside rooms
+that opt into the five-foot square grid. Token drags show distance and difficult
+terrain cost; the DM can toggle doors, place session-only cover/difficult/hazard
+effects, mark token conditions and elevation, and emphasize the active encounter
+room without modifying the reusable level.
+
 The bundled Level 2 pack lays out the stairs below the Verso, Mirror Gallery,
 Counting Floor, Sarlossi's office/stage, and the Vault of the Bella Rosa. The vault
 ships as a 70-foot square tactical arena with pillars, coin dunes, and the hanging
