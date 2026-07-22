@@ -74,6 +74,13 @@ function deleteSelectedStair(){
   if(App.document.stairs.length===before){edUndoStack.pop();return false;}
   edStairSel=null;levelTouched();renderPanel();return true;
 }
+function deleteSelectedProp(){
+  if(!edPropSel)return false;
+  const before=App.document.level.props.length;edSnapshot();
+  App.document.level.props=App.document.level.props.filter(p=>p.id!==edPropSel);
+  if(App.document.level.props.length===before){edUndoStack.pop();return false;}
+  edPropSel=null;levelTouched();renderPanel();return true;
+}
 function copySelection(){edClipboard=selectedRooms().map(room=>JSON.parse(JSON.stringify(room)));}
 function placeRoomCopies(source,nameSuffix=" Copy"){
   if(!source.length)return;
@@ -362,22 +369,20 @@ function drawEditor(){
 }
 function edDown(e){
   const [fi,fj]=edTile(e.offsetX,e.offsetY);
+  const hitProp=edPropAt(fi,fj,e.offsetX,e.offsetY);
   if(edTool==="door" && e.button===2){edRemoveDoor(fi,fj);return;}
-  if(edTool==="prop" && e.button===2){edProp(fi,fj,true);return;}
+  if(edTool==="prop" && e.button===2){if(hitProp){edPropSel=hitProp.id;deleteSelectedProp();}else edProp(fi,fj,true);return;}
   if(edTool==="stair" && e.button===2){edRemoveStair(fi,fj);return;}
   if(e.button===1 || e.button===2 || spaceDown){
     panRef={x:e.offsetX,y:e.offsetY,cx:cam().x,cy:cam().y};
     return;
   }
-  // Existing props are directly selectable regardless of the active room tool.
-  // Use their visible editor glyph rather than the whole tile as the hit target.
-  const hitProp=App.document.level.props.find(pr=>{
-    const [sx,sy]=toScreen((pr.x+.5)*ET,(pr.y+.5)*ET);
-    return Math.hypot(e.offsetX-sx,e.offsetY-sy)<=Math.max(12,ET*edCam.s*.38);
-  });
+  // Props are selectable with either SELECT or PROPS. Multi-tile fixtures use
+  // their full authored footprint, not the small anchor glyph, as the target.
   if(hitProp){
-    edTool="prop";edPropSel=hitProp.id;edPropType=hitProp.t;edStairSel=null;setEdSelection([]);
-    $("st-hint").textContent="Edit the selected prop in the panel · click an empty tile to place another · right-click to remove";
+    edPropSel=hitProp.id;edPropType=hitProp.t;edStairSel=null;setEdSelection([]);edSnapshot();
+    edDrag={mode:"propmove",prop:hitProp,fi,fj,orig:{x:hitProp.x,y:hitProp.y}};
+    $("st-hint").textContent="Drag to move the selected prop · edit its exact position and footprint in the panel";
     renderPanel();
     requestAnimationFrame(()=>$("ed-prop-editor")?.scrollIntoView({block:"nearest",behavior:"smooth"}));
     return;
@@ -418,6 +423,7 @@ function edDown(e){
     return;
   }
   if(r){
+    edPropSel=null;
     if(e.shiftKey){
       if(edSelection.has(r.id))edSelection.delete(r.id);else edSelection.add(r.id);
       edSel=edSelection.has(r.id)?r.id:(edSelection.values().next().value||null);isoPreviewDirty=true;renderPanel();return;
@@ -456,6 +462,9 @@ function edMove(e){
       edDrag.stair.x=edDrag.orig.x+Math.round(fi-edDrag.fi);edDrag.stair.y=edDrag.orig.y+Math.round(fj-edDrag.fj);
     }else if(edDrag.mode==="stairresize"){
       edDrag.stair.w=Math.max(1,Math.round(fi)-edDrag.stair.x);edDrag.stair.h=Math.max(1,Math.round(fj)-edDrag.stair.y);
+    }else if(edDrag.mode==="propmove"){
+      const quarter=v=>Math.round(v*4)/4;
+      edDrag.prop.x=quarter(edDrag.orig.x+fi-edDrag.fi);edDrag.prop.y=quarter(edDrag.orig.y+fj-edDrag.fj);
     }else{
       const r=edDrag.room;
       const rc=r.rects[edDrag.ri];
@@ -508,6 +517,10 @@ function edUp(){
     }else if(edDrag.mode==="stairmove"||edDrag.mode==="stairresize"){
       const changed=JSON.stringify(edDrag.stair)!==JSON.stringify(edDrag.orig);
       if(!changed)edUndoStack.pop();else levelTouched();
+    }else if(edDrag.mode==="propmove"){
+      const changed=edDrag.prop.x!==edDrag.orig.x||edDrag.prop.y!==edDrag.orig.y;
+      if(!changed)edUndoStack.pop();else levelTouched();
+      renderPanel();
     }else{
       const r=edDrag.room;
       if(overlapsOtherRooms(r.rects,r.id))r.rects=edDrag.orig;
@@ -517,6 +530,22 @@ function edUp(){
     return;
   }
   panRef=null;
+}
+function edPropAt(fi,fj,sx,sy){
+  const props=App.document.level.props;
+  for(let k=props.length-1;k>=0;k--){
+    const pr=props[k],fp=pr.footprint;
+    if(fp){
+      if(fp.shape==="circle"){
+        const rx=fp.w/2,ry=fp.h/2,cx=pr.x+rx,cy=pr.y+ry;
+        if(rx>0&&ry>0&&((fi-cx)/rx)**2+((fj-cy)/ry)**2<=1)return pr;
+      }else if(fi>=pr.x&&fi<=pr.x+fp.w&&fj>=pr.y&&fj<=pr.y+fp.h)return pr;
+      continue;
+    }
+    const [px,py]=toScreen((pr.x+.5)*ET,(pr.y+.5)*ET);
+    if(Math.hypot(sx-px,sy-py)<=Math.max(12,ET*edCam.s*.38*(pr.scale||1)))return pr;
+  }
+  return null;
 }
 function edNearestEdge(fi,fj){
   // tolerance in tiles, but never less than ~12 screen px — zoomed out, a
@@ -568,7 +597,7 @@ function edSetTool(t){
     select:"Click selects · drag moves · corner squares resize each section · Delete removes room · Ctrl/Cmd+Z undoes",
     door:"Click an edge: once = door, twice = open passage, thrice = remove · right-click = remove",
     stair:"Click stairs to edit · drag stairs to move · drag the corner handle to resize · right-click = remove",
-    prop:"Click furniture to edit it · click an empty tile to place · right-click to remove"};
+    prop:"Drag furniture to move it · click empty tile to place · right-click to remove"};
   $("st-hint").textContent=hints[t];
   renderPanel();
 }

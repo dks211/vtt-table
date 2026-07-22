@@ -578,7 +578,7 @@ addEventListener("keydown",e=>{
     if((e.metaKey||e.ctrlKey) && k==="c"){copySelection();e.preventDefault();return;}
     if((e.metaKey||e.ctrlKey) && k==="v"){pasteSelection();e.preventDefault();return;}
     if((e.metaKey||e.ctrlKey) && k==="d"){duplicateSelection();e.preventDefault();return;}
-    if(k==="delete"||k==="backspace"){if(!deleteSelectedStair())deleteSelection();e.preventDefault();return;}
+    if(k==="delete"||k==="backspace"){if(!deleteSelectedProp()&&!deleteSelectedStair())deleteSelection();e.preventDefault();return;}
     if(e.key==="Escape"){edStairSel=null;setEdSelection([]);renderPanel();}
     if(e.key.startsWith("Arrow")){const step=e.shiftKey?5:1;nudgeSelection(e.key==="ArrowLeft"?-step:e.key==="ArrowRight"?step:0,e.key==="ArrowUp"?-step:e.key==="ArrowDown"?step:0);e.preventDefault();return;}
     if(k==="f") edFit();
