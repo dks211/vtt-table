@@ -42,6 +42,11 @@ Props can also carry tactical footprints for full cover, difficult terrain,
 hazards, and overhead objects. Those footprints are editable in the prop panel and
 remain ordinary atmospheric props in the isometric renderer.
 
+Props support quarter-turn orientation, explicit player-safe names and descriptions,
+and authored alternate states. Stateful scenery such as pillars and chandeliers can
+change appearance, position, footprint, and tactical behavior during play without
+modifying the reusable level.
+
 In tactical play, player movement stays inside revealed room geometry and crosses
 room boundaries only through open doors. Grid snapping applies only inside rooms
 that opt into the five-foot square grid. Token drags show distance and difficult
@@ -49,10 +54,19 @@ terrain cost; the DM can toggle doors, place session-only cover/difficult/hazard
 effects, mark token conditions and elevation, and emphasize the active encounter
 room without modifying the reusable level.
 
+The initiative tracker distinguishes creatures from custom markers such as lair
+actions and keeps a synchronized round count. Named encounter-effect presets can
+be placed as square or circular areas with persistent or round-based durations;
+timed effects count down when a new round begins. The ruler supports line, radius,
+and cone templates. Tokens may also carry authored phases that change their name,
+size, color, and stat block while preserving position and initiative.
+
 The bundled Level 2 pack lays out the stairs below the Verso, Mirror Gallery,
 Counting Floor, Sarlossi's office/stage, and the Vault of the Bella Rosa. The vault
 ships as a 70-foot square tactical arena with pillars, coin dunes, and the hanging
-chandelier already authored.
+chandelier already authored. Its office is a private performance salon tied to
+Clown Fart's failed audition, the Mirror Gallery uses opposing mirror banks, and
+the vault includes named arena effects plus toggleable pillar and chandelier states.
 
 Room reveal policies can be manual, armed, or always visible. Armed rooms stay
 hidden until a PC enters through revealed space, then reveal and return to manual

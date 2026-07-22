@@ -34,7 +34,14 @@ test("Level 2 ships with a room-scoped tactical vault arena",()=>{
   const stage=level.props.find(prop=>prop.id==="office-stage");
   assert.equal(stage.t,"stage");
   assert.ok(stage.footprint.w>=5);
-  assert.ok(level.props.filter(prop=>prop.t==="mirror").length>=5);
+  assert.ok(stage.y<9);
+  assert.ok(level.props.filter(prop=>prop.t==="mirror").length>=10);
+  assert.ok(level.props.filter(prop=>prop.t==="mirror").some(prop=>prop.rotation===2));
+  assert.ok(level.props.filter(prop=>prop.states?.length>1).length>=5);
+  assert.ok(level.encounterEffects.some(effect=>effect.name==="Molten Leaf"));
+  assert.equal(level.props.find(prop=>prop.id==="vault-chandelier").playerLabel,"Hanging chandelier");
   assert.ok(level.props.filter(prop=>prop.id.startsWith("count-table-")).length>=3);
   assert.equal(content.VAULT_START.tokens.filter(token=>token.pc).length,4);
+  assert.equal(content.VAULT_START.tokens.find(token=>token.name==="Don Sarlossi").phases.length,2);
+  assert.equal(content.VAULT_START.tracker.order[0].marker,true);
 });

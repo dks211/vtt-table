@@ -216,7 +216,7 @@ function trackerListHTML(canEdit){
   return `<div class="toklist">${tr.order.map((en,i)=>`
     <div class="tok" style="cursor:default;${i===tr.active?"border-color:var(--brass-dim);background:var(--felt-950)":""}">
       <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;width:24px;text-align:right;color:${i===tr.active?"var(--brass)":"var(--vellum-dim)"}">${(en.h&&!canEdit)?"—":en.total}</span>
-      <span class="nm" style="${i===tr.active?"color:var(--brass)":""}">${i===tr.active?"▶ ":""}${esc(en.name)}</span>
+      <span class="nm" style="${i===tr.active?"color:var(--brass)":""}">${i===tr.active?"▶ ":""}${en.marker?"◆ ":""}${esc(en.name)}</span>
       ${canEdit?`<span class="del" data-trh="${i}" title="${en.h?"hidden from players — click to reveal":"visible to players — click to hide"}">${en.h?"🕶":"👁"}</span><span class="del" data-trup="${i}" title="move up">▲</span><span class="del" data-trdel="${i}" title="remove">✕</span>`:""}
     </div>`).join("")}</div>`;
 }
@@ -227,8 +227,8 @@ function updateTrackerFloat(){
   if(!tr.order.length || App.session.mode==="edit"){el.style.display="none";return;}
   el.style.display="flex";
   const dm=NET.mode!=="client";
-  el.innerHTML='<div class="tfh">INITIATIVE</div>'+tr.order.map((en,i)=>
-    `<div class="tfr${i===tr.active?" on":""}"><span class="n">${(en.h&&!dm)?"—":en.total}</span><span>${i===tr.active?"▶ ":""}${esc(en.name)}${(en.h&&dm)?" 🕶":""}</span></div>`).join("");
+  el.innerHTML=`<div class="tfh">ROUND ${tr.round||1}</div>`+tr.order.map((en,i)=>
+    `<div class="tfr${i===tr.active?" on":""}"><span class="n">${(en.h&&!dm)?"—":en.total}</span><span>${i===tr.active?"▶ ":""}${en.marker?"◆ ":""}${esc(en.name)}${(en.h&&dm)?" 🕶":""}</span></div>`).join("");
 }
 function renderPanel(){
   updateTrackerFloat();
@@ -279,14 +279,22 @@ function renderPanel(){
       const focus=App.document.rooms.find(room=>room.id===App.session.verso.tacticalFocus);
       const room=App.document.rooms.find(room=>room.id===App.session.selRoom);
       const doors=room?App.document.doors.filter(door=>doorAdjoiningRooms(door,App.document.rooms).includes(room)):[];
+      const statefulProps=room?App.document.level.props.filter(prop=>Array.isArray(prop.states)&&prop.states.length&&roomAtTile(...propCenter(prop))===room):[];
+      const effectPresets=App.document.level.encounterEffects||[];
       html+=`<div class="sect dm-only"><h3>Tactical Control</h3>
         <div class="hint" style="margin-bottom:7px">${focus?`Encounter focus: ${esc(focus.name)}`:"No encounter room emphasized."}</div>
         <div class="row"><button class="rbtn quiet" id="tac-focus">${room&&focus?.id!==room.id?"FOCUS SELECTED ROOM":"CLEAR ROOM FOCUS"}</button></div>
         ${doors.length?`<div class="hint" style="margin-top:9px">Doors adjoining ${esc(room.name)}:</div><div class="toklist">${doors.map(door=>`<div class="tok"><span class="nm">${esc(door.id)}</span><button class="rbtn quiet" data-door-toggle="${door.id}" style="flex:none">${doorIsOpen(door,App.session.verso.doorStates)?"OPEN":"CLOSED"}</button></div>`).join("")}</div>`:""}
-        <div class="hint" style="margin-top:9px">Temporary encounter terrain:</div>
-        <div class="row"><select id="tac-effect-type"><option value="hazard">hazard</option><option value="difficult">difficult terrain</option><option value="cover">full cover</option></select><select id="tac-effect-size"><option value="1">1×1</option><option value="2">2×2</option><option value="3">3×3</option></select></div>
+        ${statefulProps.length?`<div class="hint" style="margin-top:9px">Scene objects:</div><div class="toklist">${statefulProps.map(prop=>{const current=App.session.verso.propStates[prop.id]||prop.states[0].id,state=prop.states.find(item=>item.id===current)||prop.states[0];return`<div class="tok"><span class="nm">${esc(prop.label||PROP_LIB[prop.t]?.n||"Object")}</span><button class="rbtn quiet" data-prop-state="${prop.id}" style="flex:none">${esc(state.name||state.id)}</button></div>`;}).join("")}</div>`:""}
+        <div class="hint" style="margin-top:9px">Ruler and area template:</div>
+        <div class="row"><select id="tac-ruler-mode"><option value="line" ${App.session.rulerMode==="line"?"selected":""}>line</option><option value="radius" ${App.session.rulerMode==="radius"?"selected":""}>radius</option><option value="cone" ${App.session.rulerMode==="cone"?"selected":""}>cone</option></select><button class="rbtn quiet" id="tac-ruler">MEASURE</button></div>
+        <div class="hint" style="margin-top:9px">Encounter effects:</div>
+        ${effectPresets.length?`<div class="row"><select id="tac-effect-preset"><option value="">custom effect</option>${effectPresets.map(effect=>`<option value="${effect.id}">${esc(effect.name)}</option>`).join("")}</select></div>`:""}
+        <div class="row"><input id="tac-effect-name" value="Hazard" maxlength="80" style="flex:1"><input id="tac-effect-duration" type="number" min="0" max="99" value="0" title="rounds; zero is persistent" style="width:54px"></div>
+        <div class="row"><select id="tac-effect-type"><option value="hazard">hazard</option><option value="difficult">difficult terrain</option><option value="cover">full cover</option></select><select id="tac-effect-shape"><option value="rect">rectangle</option><option value="circle">ellipse</option></select></div>
+        <div class="row"><label>size</label><input id="tac-effect-w" type="number" min="1" max="20" value="1"><span>×</span><input id="tac-effect-h" type="number" min="1" max="20" value="1"><span>squares</span></div>
         <button class="rbtn" id="tac-effect-place" style="width:100%;margin-top:6px">PLACE ON MAP</button>
-        ${(App.session.verso.effects||[]).length?`<div class="toklist" style="margin-top:7px">${App.session.verso.effects.map(effect=>`<div class="tok"><span class="dot" style="background:${effect.terrain==="hazard"?"#B5443C":effect.terrain==="cover"?"#8A6E36":"#C8A14E"}"></span><span class="nm">${esc(effect.label)}</span><span class="del" data-effect-del="${effect.id}">✕</span></div>`).join("")}</div>`:""}
+        ${(App.session.verso.effects||[]).length?`<div class="toklist" style="margin-top:7px">${App.session.verso.effects.map(effect=>`<div class="tok"><span class="dot" style="background:${effect.terrain==="hazard"?"#B5443C":effect.terrain==="cover"?"#8A6E36":"#C8A14E"}"></span><span class="nm">${esc(effect.label)}${effect.timed?` · ${effect.remaining}r`:""}</span>${effect.timed?`<span class="del" data-effect-dec="${effect.id}">−</span><span class="del" data-effect-inc="${effect.id}">+</span>`:""}<span class="del" data-effect-del="${effect.id}">✕</span></div>`).join("")}</div>`:""}
         <div class="hint">Open doors here or click a door line. Placed effects belong to this session, not the reusable level.</div></div>`;
     }
   }else{
@@ -328,12 +336,13 @@ function renderPanel(){
     <div class="hint" style="margin-top:6px">Rolls flash on the player window. The tray at the bottom of that window is clickable too (for a table TV).</div></div>`;
 
   // initiative tracker
-  html+=`<div class="sect"><h3>Initiative</h3>`+trackerListHTML(true)+
+  html+=`<div class="sect"><h3>Initiative · Round ${App.session.tracker.round||1}</h3>`+trackerListHTML(true)+
     (App.session.tracker.order.length
       ?`<div class="row" style="margin-top:7px"><button class="rbtn" id="tr-next">NEXT TURN</button><button class="rbtn quiet" id="tr-clear">CLEAR</button></div>`
       :`<div class="hint" style="margin-bottom:7px">Players' INITIATIVE button adds them automatically; ROLL PCS rolls for every PC token from its sheet.</div>`)+
     `<div class="row"><button class="rbtn quiet" id="tr-pcs">ROLL PCS</button></div>
     <div class="row"><input type="text" id="tr-name" placeholder="name" style="flex:1"><input type="number" id="tr-total" placeholder="#" style="width:52px"><button class="rbtn quiet" id="tr-add" style="flex:none;padding:6px 10px">ADD</button></div>
+    <label class="check"><input type="checkbox" id="tr-marker"> initiative marker / lair action</label>
     <label class="check"><input type="checkbox" id="tr-hide" checked> added entries hidden from players (5e style)</label>
   </div>`;
 
@@ -362,7 +371,8 @@ function renderPanel(){
     </div>`;
     if(patrolRec===selT.id) html+=`<div class="hint">Click the map to drop waypoints for ${esc(selT.name)}, then STOP. PULSE (Events) walks the route.</div>`;
     if(tacticalView())html+=`<div class="row" style="margin-top:7px"><label>elevation</label><input id="tok-z" type="number" min="0" max="40" value="${selT.z||0}" style="width:56px"><span>× 5 ft</span></div>
-      <div class="row" style="margin-top:5px">${["prone","concentrating","marked"].map(status=>`<button class="rbtn quiet" data-status="${status}" style="${(selT.statuses||[]).includes(status)?"color:var(--brass);border-color:var(--brass-dim)":""}">${status.toUpperCase()}</button>`).join("")}</div>`;
+      <div class="row" style="margin-top:5px">${["prone","concentrating","marked"].map(status=>`<button class="rbtn quiet" data-status="${status}" style="${(selT.statuses||[]).includes(status)?"color:var(--brass);border-color:var(--brass-dim)":""}">${status.toUpperCase()}</button>`).join("")}</div>
+      ${selT.phases?.length>1?`<button class="rbtn" id="tok-phase" style="width:100%;margin-top:7px">CHANGE TO ${esc((selT.phases[((selT.phase||0)+1)%selT.phases.length].title||selT.phases[((selT.phase||0)+1)%selT.phases.length].name||"NEXT PHASE").toUpperCase())}</button>`:""}`;
   }
   html+=`</div>`;
   if(selT && selT.sheet){
@@ -434,10 +444,28 @@ function renderPanel(){
       const door=App.document.doors.find(door=>door.id===el.dataset.doorToggle);if(!door)return;
       App.session.verso.doorStates[door.id]=!doorIsOpen(door,App.session.verso.doorStates);markDirty();renderPanel();
     };});
-    const effectPlace=$("tac-effect-place");if(effectPlace)effectPlace.onclick=()=>{
-      tacticalEffectType=$("tac-effect-type").value;tacticalEffectSize=+$("tac-effect-size").value||1;
-      $("st-hint").textContent="Click the tactical map to place the temporary "+tacticalEffectType+" area";
+    p.querySelectorAll("[data-prop-state]").forEach(el=>{el.onclick=()=>{
+      const prop=App.document.level.props.find(item=>item.id===el.dataset.propState);if(!prop||!prop.states?.length)return;
+      const current=App.session.verso.propStates[prop.id]||prop.states[0].id,index=prop.states.findIndex(state=>state.id===current);
+      App.session.verso.propStates[prop.id]=prop.states[(index+1)%prop.states.length].id;markDirty();renderPanel();
+    };});
+    const rulerMode=$("tac-ruler-mode");if(rulerMode)rulerMode.onchange=()=>{App.session.rulerMode=rulerMode.value;};
+    const rulerButton=$("tac-ruler");if(rulerButton)rulerButton.onclick=()=>{App.session.rulerMode=$("tac-ruler-mode").value;setTool("ruler");};
+    const effectPreset=$("tac-effect-preset");if(effectPreset)effectPreset.onchange=()=>{
+      const preset=(App.document.level.encounterEffects||[]).find(effect=>effect.id===effectPreset.value);if(!preset)return;
+      $("tac-effect-name").value=preset.name;$("tac-effect-type").value=preset.terrain;$("tac-effect-shape").value=preset.shape;
+      $("tac-effect-w").value=preset.w;$("tac-effect-h").value=preset.h;$("tac-effect-duration").value=preset.duration;
     };
+    const effectPlace=$("tac-effect-place");if(effectPlace)effectPlace.onclick=()=>{
+      tacticalEffectType=$("tac-effect-type").value;tacticalEffectWidth=Math.max(1,+$("tac-effect-w").value||1);tacticalEffectHeight=Math.max(1,+$("tac-effect-h").value||1);
+      tacticalEffectName=$("tac-effect-name").value.trim()||"Encounter effect";tacticalEffectDuration=Math.max(0,+$("tac-effect-duration").value||0);
+      tacticalEffectShape=$("tac-effect-shape").value;$("st-hint").textContent="Click the tactical map to place "+tacticalEffectName;
+    };
+    for(const [attr,delta]of[["data-effect-dec",-1],["data-effect-inc",1]])p.querySelectorAll(`[${attr}]`).forEach(el=>{el.onclick=()=>{
+      const effect=App.session.verso.effects.find(item=>item.id===el.getAttribute(attr));if(!effect)return;
+      effect.remaining=Math.max(0,Math.min(99,(effect.remaining||0)+delta));effect.timed=true;
+      if(effect.remaining===0)App.session.verso.effects=App.session.verso.effects.filter(item=>item!==effect);markDirty();renderPanel();
+    };});
     p.querySelectorAll("[data-effect-del]").forEach(el=>{el.onclick=()=>{
       App.session.verso.effects=App.session.verso.effects.filter(effect=>effect.id!==el.dataset.effectDel);markDirty();renderPanel();
     };});
@@ -519,10 +547,16 @@ function renderPanel(){
   const trNext=$("tr-next"); if(trNext) trNext.onclick=()=>{
     const tr=App.session.tracker;
     if(!tr.order.length) return;
+    const wrapped=tr.active===tr.order.length-1;
     tr.active=(tr.active+1)%tr.order.length;
-    trackerAnnounce(); renderPanel();
+    if(wrapped){
+      tr.round=(tr.round||1)+1;
+      for(const effect of App.session.verso.effects)if(effect.remaining>0)effect.remaining--;
+      App.session.verso.effects=App.session.verso.effects.filter(effect=>!effect.timed||effect.remaining>0);
+    }
+    markDirty();trackerAnnounce();renderPanel();
   };
-  const trClear=$("tr-clear"); if(trClear) trClear.onclick=()=>{App.session.tracker={order:[],active:0};netMark();renderPanel();};
+  const trClear=$("tr-clear"); if(trClear) trClear.onclick=()=>{App.session.tracker={order:[],active:0,round:1};markDirty();renderPanel();};
   const trPcs=$("tr-pcs"); if(trPcs) trPcs.onclick=()=>{
     for(const t of S().tokens.filter(t=>t.pc)){
       const e=roll(20,1,t.sheet?initOf(t.sheet):0,"dm",t.name+" · Initiative");
@@ -532,7 +566,7 @@ function renderPanel(){
   const trAdd=$("tr-add"); if(trAdd) trAdd.onclick=()=>{
     const nm=($("tr-name").value||"").trim();
     if(!nm) return;
-    trackerSet(nm,(+$("tr-total").value||0)|0,null,$("tr-hide").checked);
+    trackerSet(nm,(+$("tr-total").value||0)|0,null,$("tr-hide").checked,$("tr-marker").checked);
   };
   const dh=$("dice-hide"); if(dh) dh.onchange=e=>{dmHidden=e.target.checked;};
   p.querySelectorAll("[data-trh]").forEach(el=>{el.onclick=()=>{
@@ -581,6 +615,13 @@ function renderPanel(){
     if(!selT)return;const statuses=new Set(selT.statuses||[]);statuses.has(el.dataset.status)?statuses.delete(el.dataset.status):statuses.add(el.dataset.status);
     selT.statuses=[...statuses];markDirty();renderPanel();
   };});
+  const tokPhase=$("tok-phase");if(tokPhase&&selT)tokPhase.onclick=()=>{
+    const next=((selT.phase||0)+1)%selT.phases.length,phase=selT.phases[next],phases=selT.phases;
+    for(const key of ["name","letter","color","size","sheet"]){if(phase[key]!=null)selT[key]=JSON.parse(JSON.stringify(phase[key]));}
+    selT.phase=next;selT.phases=phases;
+    const entry=App.session.tracker.order.find(item=>item.tok===selT.id);if(entry)entry.name=selT.name;
+    markDirty();renderPanel();
+  };
   /* sheet wiring (DM edits any selected token; rolls as it too) */
   if(selT && !rollsFloatOpen) wireSheetRolls(p,selT);
   const srp=$("sr-pop"); if(srp) srp.onclick=()=>{rollsFloatOpen=true;renderPanel();};
@@ -660,14 +701,17 @@ function renderEditorPanel(){
     <div class="row"><label>type</label><select id="ed-prop-type">${Object.entries(PROP_LIB).map(([k,v])=>`<option value="${k}" ${k===prop.t?"selected":""}>${v.n}</option>`).join("")}</select></div>
     <div class="row"><label>x</label><input id="ed-prop-x" type="number" step=".1" value="${prop.x}"><label>y</label><input id="ed-prop-y" type="number" step=".1" value="${prop.y}"></div>
     <div class="row"><label>scale</label><input id="ed-prop-scale" type="range" min=".5" max="2" step=".05" value="${prop.scale||1}"><span>${(prop.scale||1).toFixed(2)}×</span></div>
-    <div class="row"><label>label</label><input id="ed-prop-label" type="text" maxlength="120" value="${esc(prop.label||"")}" placeholder="shown on inspect"></div>
-    <textarea id="ed-prop-inspect" rows="2" maxlength="300" placeholder="brief player-safe description">${esc(prop.inspect||"")}</textarea>
+    <div class="row"><label>orientation</label><select id="ed-prop-rotation">${[[0,"north"],[1,"east"],[2,"south"],[3,"west"]].map(([v,n])=>`<option value="${v}" ${(prop.rotation||0)===v?"selected":""}>${n}</option>`).join("")}</select></div>
+    <div class="row"><label>GM name</label><input id="ed-prop-label" type="text" maxlength="120" value="${esc(prop.label||"")}"></div>
+    <textarea id="ed-prop-inspect" rows="2" maxlength="300" placeholder="GM-only notes">${esc(prop.inspect||"")}</textarea>
+    <div class="row"><label>player name</label><input id="ed-prop-player-label" type="text" maxlength="120" value="${esc(prop.playerLabel||"")}" placeholder="optional"></div>
+    <textarea id="ed-prop-player-inspect" rows="2" maxlength="300" placeholder="optional player-safe description">${esc(prop.playerInspect||"")}</textarea>
     <label class="check"><input type="checkbox" id="ed-prop-focus" ${prop.focus?"checked":""}> landmark lighting</label>
     <div class="row"><label>tactical</label><select id="ed-prop-terrain">${[["","furniture only"],["cover","full cover"],["difficult","difficult terrain"],["hazard","hazard zone"],["overhead","overhead object"]].map(([v,n])=>`<option value="${v}" ${(prop.terrain||"")===v?"selected":""}>${n}</option>`).join("")}</select></div>
     <div class="row"><label>footprint</label><input id="ed-prop-fw" type="number" min=".25" max="20" step=".25" value="${prop.footprint?.w||1}" title="width in five-foot tiles"><span>×</span><input id="ed-prop-fh" type="number" min=".25" max="20" step=".25" value="${prop.footprint?.h||1}" title="height in five-foot tiles"></div>
     <label class="check"><input type="checkbox" id="ed-prop-circle" ${prop.footprint?.shape==="circle"?"checked":""}> circular footprint</label>
     <button class="rbtn quiet" id="ed-prop-delete" style="width:100%;color:var(--oxblood);border-color:var(--oxblood)">DELETE PROP</button>
-    <div class="hint">Landmarks receive a restrained light pool. Props with a label or description can be inspected at the table.</div></div>`;
+    <div class="hint">GM metadata stays private. Players only see the explicit player name and description.</div></div>`;
   if(stair)html+=`<div class="sect"><h3>Stairs · ${esc(stair.id)}</h3>
     <div class="row"><label>rise toward</label><select id="ed-stair-dir">${[["n","north"],["e","east"],["s","south"],["w","west"]].map(([v,n])=>`<option value="${v}" ${stair.dir===v?"selected":""}>${n}</option>`).join("")}</select></div>
     <div class="row"><label>style</label><select id="ed-stair-style">${["stone","wood","metal"].map(v=>`<option ${stair.style===v?"selected":""}>${v}</option>`).join("")}</select></div>
@@ -776,8 +820,11 @@ function renderEditorPanel(){
   const propX=$("ed-prop-x");if(propX)propX.onchange=e=>mutateProp(p=>p.x=+e.target.value||0);
   const propY=$("ed-prop-y");if(propY)propY.onchange=e=>mutateProp(p=>p.y=+e.target.value||0);
   const propScale=$("ed-prop-scale");if(propScale)propScale.onchange=e=>mutateProp(p=>p.scale=Math.max(.5,Math.min(2,+e.target.value||1)));
+  const propRotation=$("ed-prop-rotation");if(propRotation)propRotation.onchange=e=>mutateProp(p=>{p.rotation=+e.target.value||0;if(!p.rotation)delete p.rotation;});
   const propLabel=$("ed-prop-label");if(propLabel)propLabel.onchange=e=>mutateProp(p=>{const v=e.target.value.trim();if(v)p.label=v;else delete p.label;});
   const propInspect=$("ed-prop-inspect");if(propInspect)propInspect.onchange=e=>mutateProp(p=>{const v=e.target.value.trim();if(v)p.inspect=v;else delete p.inspect;});
+  const propPlayerLabel=$("ed-prop-player-label");if(propPlayerLabel)propPlayerLabel.onchange=e=>mutateProp(p=>{const v=e.target.value.trim();if(v)p.playerLabel=v;else delete p.playerLabel;});
+  const propPlayerInspect=$("ed-prop-player-inspect");if(propPlayerInspect)propPlayerInspect.onchange=e=>mutateProp(p=>{const v=e.target.value.trim();if(v)p.playerInspect=v;else delete p.playerInspect;});
   const propFocus=$("ed-prop-focus");if(propFocus)propFocus.onchange=e=>mutateProp(p=>{if(e.target.checked)p.focus=true;else delete p.focus;});
   const propTerrain=$("ed-prop-terrain");if(propTerrain)propTerrain.onchange=e=>mutateProp(p=>{const v=e.target.value;if(v){p.terrain=v;p.footprint=p.footprint||{w:1,h:1,shape:"rect"};}else{delete p.terrain;delete p.footprint;}});
   const mutateFootprint=(key,value)=>mutateProp(p=>{p.footprint=p.footprint||{w:1,h:1,shape:"rect"};p.footprint[key]=value;});
@@ -819,7 +866,7 @@ function renderEditorPanel(){
     if(!confirm("Replace the current level with Level 2 — The Vault of the Bella Rosa?"))return;
     edSnapshot();loadLevel(App.content.VAULT_LEVEL);
     App.session.verso.revealed={...App.content.VAULT_START.revealed};
-    App.session.verso.tokens=App.content.VAULT_START.tokens.map(t=>mkTok(t.name,t.letter,t.color,t.x,t.y,t.size,t.pc));
+    App.session.verso.tokens=App.content.VAULT_START.tokens.map(mkTokFrom);App.session.verso.propStates={};App.session.tracker=JSON.parse(JSON.stringify(App.content.VAULT_START.tracker||{order:[],active:0,round:1}));
     setEdSelection([]);edFit();levelTouched();
   };
   if(sel){

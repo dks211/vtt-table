@@ -5,8 +5,8 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const LEVEL_SCHEMA_VERSION = 2;
-  const SESSION_SCHEMA_VERSION = 4;
+  const LEVEL_SCHEMA_VERSION = 3;
+  const SESSION_SCHEMA_VERSION = 5;
 
   const clone = value => JSON.parse(JSON.stringify(value));
   const objectOrNull = value => value && typeof value === "object" && !Array.isArray(value) ? value : null;
@@ -94,7 +94,10 @@
         scale: Math.max(.5, Math.min(2, finite(prop.scale, 1))),
         label: String(prop.label || "").trim().slice(0, 120),
         inspect: String(prop.inspect || "").trim().slice(0, 300),
+        playerLabel: String(prop.playerLabel || "").trim().slice(0, 120),
+        playerInspect: String(prop.playerInspect || "").trim().slice(0, 300),
         focus: !!prop.focus,
+        rotation: ((integer(prop.rotation, 0) % 4) + 4) % 4,
       };
       delete normalized.terrain;
       delete normalized.footprint;
@@ -109,8 +112,44 @@
       };
       if (!normalized.label) delete normalized.label;
       if (!normalized.inspect) delete normalized.inspect;
+      if (!normalized.playerLabel) delete normalized.playerLabel;
+      if (!normalized.playerInspect) delete normalized.playerInspect;
       if (!normalized.focus) delete normalized.focus;
+      if (!normalized.rotation) delete normalized.rotation;
+      if (Array.isArray(prop.states) && prop.states.length) {
+        normalized.states = prop.states.slice(0, 8).map((sourceState, stateIndex) => {
+          const state = objectOrNull(sourceState) || {};
+          const out = {
+            ...clone(state),
+            id: String(state.id || `state-${stateIndex + 1}`).replace(/[^A-Za-z0-9_-]/g, "-").slice(0, 64),
+            name: String(state.name || state.label || `State ${stateIndex + 1}`).slice(0, 80),
+          };
+          if (!state.label) delete out.label;
+          if (state.t) out.t = String(state.t).slice(0, 64);
+          if (state.terrain && !["cover", "difficult", "hazard", "overhead"].includes(state.terrain)) delete out.terrain;
+          if (state.footprint) out.footprint = {
+            w: Math.max(.25, Math.min(20, finite(state.footprint.w, 1))),
+            h: Math.max(.25, Math.min(20, finite(state.footprint.h, 1))),
+            shape: state.footprint.shape === "circle" ? "circle" : "rect",
+          };
+          out.rotation = ((integer(state.rotation, normalized.rotation || 0) % 4) + 4) % 4;
+          return out;
+        });
+      }
       return normalized;
+    });
+
+    const encounterEffects = (Array.isArray(level.encounterEffects) ? level.encounterEffects : []).slice(0, 30).map((source, index) => {
+      const effect = objectOrNull(source) || {};
+      return {
+        id: String(effect.id || `preset-${index + 1}`).replace(/[^A-Za-z0-9_-]/g, "-").slice(0, 64),
+        name: String(effect.name || `Encounter effect ${index + 1}`).slice(0, 80),
+        terrain: ["cover", "difficult", "hazard"].includes(effect.terrain) ? effect.terrain : "hazard",
+        shape: effect.shape === "circle" ? "circle" : "rect",
+        w: Math.max(.25, Math.min(20, finite(effect.w, 1))),
+        h: Math.max(.25, Math.min(20, finite(effect.h, 1))),
+        duration: Math.max(0, Math.min(99, integer(effect.duration, 0))),
+      };
     });
 
     const stairIds = new Set();
@@ -151,6 +190,7 @@
       props,
       stairs,
       roster,
+      encounterEffects,
     };
   }
 
@@ -179,8 +219,28 @@
         h: Math.max(.25, Math.min(20, finite(effect.h, 1))),
         shape: effect.shape === "circle" ? "circle" : "rect",
         label: String(effect.label || "Temporary effect").slice(0, 80),
+        remaining: Math.max(0, Math.min(99, integer(effect.remaining, 0))),
+        timed: !!effect.timed || integer(effect.remaining, 0) > 0,
       };
     });
+    const propStates = {};
+    if (objectOrNull(verso.propStates)) {
+      for (const [id, state] of Object.entries(verso.propStates).slice(0, 500))
+        propStates[String(id).slice(0, 64)] = String(state).slice(0, 64);
+    }
+    const trackerSource = objectOrNull(session.tracker) || {};
+    const tracker = {
+      order: (Array.isArray(trackerSource.order) ? trackerSource.order : []).slice(0, 100).map(entry => ({
+        name: String(entry && entry.name || "Initiative").slice(0, 120),
+        total: Math.max(-99, Math.min(999, integer(entry && entry.total, 0))),
+        ...(entry && entry.tok != null ? { tok: integer(entry.tok) } : {}),
+        ...(entry && entry.h ? { h: 1 } : {}),
+        ...(entry && entry.marker ? { marker: true } : {}),
+      })),
+      active: Math.max(0, integer(trackerSource.active, 0)),
+      round: Math.max(1, integer(trackerSource.round, 1)),
+    };
+    if (tracker.active >= tracker.order.length) tracker.active = 0;
     return {
       schemaVersion: SESSION_SCHEMA_VERSION,
       scene: session.scene === "map" ? "map" : "verso",
@@ -199,8 +259,10 @@
         tokens: Array.isArray(verso.tokens) ? clone(verso.tokens) : [],
         doorStates,
         effects,
+        propStates,
         tacticalFocus: verso.tacticalFocus == null ? null : String(verso.tacticalFocus).slice(0, 64),
       },
+      tracker,
       // saves from before the level system carried no level at all — every one of
       // those was a Verso session, so callers pass the bundled pack as the fallback
       // rather than silently loading the party into an empty floor plan
@@ -320,13 +382,32 @@
   function pointInFootprint(x, y, item) {
     const fp = item && (item.footprint || item);
     if (!item || !fp) return false;
-    const w = finite(fp.w, 1), h = finite(fp.h, 1);
+    const rawW = finite(fp.w, 1), rawH = finite(fp.h, 1);
+    const quarterTurn = ((integer(item.rotation, 0) % 4) + 4) % 4;
+    const w = quarterTurn % 2 ? rawH : rawW, h = quarterTurn % 2 ? rawW : rawH;
     if (fp.shape === "circle") {
       const rx = w / 2, ry = h / 2;
       if (rx <= 0 || ry <= 0) return false;
       return ((x - item.x - rx) / rx) ** 2 + ((y - item.y - ry) / ry) ** 2 <= 1;
     }
     return x >= item.x && x < item.x + w && y >= item.y && y < item.y + h;
+  }
+
+  function resolvePropState(prop, propStates) {
+    if (!prop) return prop;
+    const stateId = propStates && propStates[prop.id];
+    const state = stateId && Array.isArray(prop.states) ? prop.states.find(item => item.id === stateId) : null;
+    if (!state) return prop;
+    const merged = { ...prop, ...clone(state), id: prop.id, stateId: state.id, states: prop.states };
+    delete merged.name;
+    return merged;
+  }
+
+  function propFootprintBounds(prop) {
+    const fp = prop && prop.footprint;
+    if (!fp) return { x: prop.x, y: prop.y, w: 1, h: 1, shape: "rect" };
+    const rotation = ((integer(prop.rotation, 0) % 4) + 4) % 4;
+    return { x: prop.x, y: prop.y, w: rotation % 2 ? fp.h : fp.w, h: rotation % 2 ? fp.w : fp.h, shape: fp.shape };
   }
 
   function doorIsOpen(door, doorStates) {
@@ -427,12 +508,24 @@
 
   function sanitizeLevelForClient(level) {
     const roster = (level.roster || []).map(entry => {
-      if (entry.pc || !entry.sheet) return entry;
       const copy = { ...entry };
-      delete copy.sheet;
+      if (!entry.pc) { delete copy.sheet; delete copy.phases; }
       return copy;
     });
-    return { ...level, roster };
+    const props = (level.props || []).map(prop => {
+      const copy = clone(prop);
+      delete copy.label;
+      delete copy.inspect;
+      if (Array.isArray(copy.states)) copy.states = copy.states.map(state => {
+        const safe = { ...state };
+        delete safe.name;
+        delete safe.label;
+        delete safe.inspect;
+        return safe;
+      });
+      return copy;
+    });
+    return { ...level, roster, props, encounterEffects: [] };
   }
 
   function setBannerContent(doc, banner, data, totalClass) {
@@ -462,6 +555,8 @@
     roomContainsPoint,
     findRoomAt,
     pointInFootprint,
+    resolvePropState,
+    propFootprintBounds,
     doorIsOpen,
     doorAdjoiningRooms,
     tacticalMoveAllowed,

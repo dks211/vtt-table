@@ -31,7 +31,7 @@ function moveAllowed(x,y,t){
   if(App.session.scene==="verso"){
     return tacticalMoveAllowed({rooms:App.document.rooms,doors:App.document.doors,
       revealed:App.session.verso.revealed,doorStates:App.session.verso.doorStates,
-      props:App.document.level.props,effects:App.session.verso.effects},t,x,y).allowed;
+      props:activeLevelProps(),effects:App.session.verso.effects},t,x,y).allowed;
   }
   const m=App.session.map;
   if(!m.img) return false;
@@ -57,19 +57,19 @@ function revealRoomOnPcEntry(t,x,y){
 function clientToken(t){
   // NPC stat blocks (AC/HP/attacks/skills) are DM-only; patrol routes are always
   // DM staging info. Clone only when there's actually something to strip.
-  if((!t.sheet||t.pc) && !t.patrol && t.pi==null) return t;
   const c={...t};
   if(!t.pc) delete c.sheet;
+  if(!t.pc) delete c.phases;
   delete c.patrol; delete c.pi;
   return c;
 }
 function lightSnapshot(){
   return {type:"sync",scene:App.session.scene,levelView:App.session.verso.view,revealed:App.session.verso.revealed,
-    doorStates:App.session.verso.doorStates,effects:App.session.verso.effects,tacticalFocus:App.session.verso.tacticalFocus,
+    doorStates:App.session.verso.doorStates,effects:App.session.verso.effects,propStates:App.session.verso.propStates,tacticalFocus:App.session.verso.tacticalFocus,
     grid:App.session.map.grid,fogOn:App.session.map.fogOn,
     tokens:{map:App.session.map.tokens.map(clientToken),verso:App.session.verso.tokens.map(clientToken)},
     // hidden initiative entries: players get the position, never the number
-    tracker:{order:App.session.tracker.order.map(e=>e.h?{name:e.name,h:1}:e), active:App.session.tracker.active},
+    tracker:{order:App.session.tracker.order.map(e=>e.h?{name:e.name,h:1,marker:!!e.marker}:e), active:App.session.tracker.active,round:App.session.tracker.round||1},
     imgStamp:NET.imgStamp,dice:NET.lastDice};
 }
 function netBroadcast(msg){
@@ -190,10 +190,11 @@ function pulsePatrols(){ // advance every patrolling token one waypoint
   if(moved) markDirty();
   return moved;
 }
-function trackerSet(name,total,tok,hidden){
+function trackerSet(name,total,tok,hidden,marker){
   const tr=App.session.tracker;
   const en={name,total,tok};
   if(hidden) en.h=1;
+  if(marker) en.marker=true;
   const i=tr.order.findIndex(e=>(tok&&e.tok===tok)||e.name===name);
   if(i>=0) tr.order[i]=en; else tr.order.push(en);
   tr.order.sort((a,b)=>b.total-a.total);
@@ -309,6 +310,7 @@ function clientHandle(m){
     App.session.verso.revealed=m.revealed||{};
     App.session.verso.doorStates=m.doorStates||{};
     App.session.verso.effects=m.effects||[];
+    App.session.verso.propStates=m.propStates||{};
     App.session.verso.tacticalFocus=m.tacticalFocus||null;
     Object.assign(App.session.map.grid,m.grid||{});
     App.session.map.fogOn=m.fogOn!==false;

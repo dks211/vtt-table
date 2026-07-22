@@ -1,5 +1,5 @@
 "use strict";
-const {LEVEL_SCHEMA_VERSION, SESSION_SCHEMA_VERSION, escapeHTML:esc, parseDice, sanitizeSheet, spellAtkBonus, spellSaveDC, roomEntryReveal, cameraFocusFromViewport, cameraFromFocus, findRoomAt, doorIsOpen, doorAdjoiningRooms, tacticalMoveAllowed, tacticalMoveCost, shouldSnapLevelToken, tokenVisibleToPlayers, orderedLevelTokens, sanitizeLevelForClient, setBannerContent, normalizeLevel, normalizeSession}=App.core;
+const {LEVEL_SCHEMA_VERSION, SESSION_SCHEMA_VERSION, escapeHTML:esc, parseDice, sanitizeSheet, spellAtkBonus, spellSaveDC, roomEntryReveal, cameraFocusFromViewport, cameraFromFocus, findRoomAt, doorIsOpen, doorAdjoiningRooms, tacticalMoveAllowed, tacticalMoveCost, shouldSnapLevelToken, tokenVisibleToPlayers, orderedLevelTokens, resolvePropState, propFootprintBounds, sanitizeLevelForClient, setBannerContent, normalizeLevel, normalizeSession}=App.core;
 /* =====================================================================
    PALIMPSEST VTT — state and isometric rendering
    Scenes: "map" (uploaded image, square grid, fog of war)
@@ -25,7 +25,7 @@ const unIso = (x,y)=> [ (x/(TW/2)+y/(TH/2))/2, (y/(TH/2)-x/(TW/2))/2 ];
 /* ---------------- level system ----------------
    App.document.rooms/App.document.doors are the live, editable level; the Verso ships as the built-in
    default. Levels round-trip as JSON via the editor's export/import. */
-function levelData(){return {schemaVersion:LEVEL_SCHEMA_VERSION,name:App.document.level.name,bg:App.document.level.bg,rooms:App.document.rooms,doors:App.document.doors,stairs:App.document.stairs,roster:App.document.level.roster,props:App.document.level.props};}
+function levelData(){return {schemaVersion:LEVEL_SCHEMA_VERSION,name:App.document.level.name,bg:App.document.level.bg,rooms:App.document.rooms,doors:App.document.doors,stairs:App.document.stairs,roster:App.document.level.roster,props:App.document.level.props,encounterEffects:App.document.level.encounterEffects};}
 function clientLevelData(){
   // the Token Library can hold NPC sheets (stat blocks) — never ship those to players,
   // even though placed tokens are already sanitized separately in lightSnapshot()
@@ -41,6 +41,7 @@ function loadLevel(lv){
   App.document.level.bg=data.bg;
   App.document.level.roster=data.roster;
   App.document.level.props=data.props;
+  App.document.level.encounterEffects=data.encounterEffects;
   App.document.rooms=data.rooms;
   App.document.doors=data.doors;
   App.document.stairs=data.stairs;
@@ -48,6 +49,8 @@ function loadLevel(lv){
   for(const k of Object.keys(App.session.verso.revealed)) if(!ids.has(k)) delete App.session.verso.revealed[k];
   const doorIds=new Set(App.document.doors.map(d=>d.id));
   for(const k of Object.keys(App.session.verso.doorStates||{}))if(!doorIds.has(k))delete App.session.verso.doorStates[k];
+  const propIds=new Set(App.document.level.props.map(prop=>prop.id));
+  for(const k of Object.keys(App.session.verso.propStates||{}))if(!propIds.has(k))delete App.session.verso.propStates[k];
   if(App.session.verso.tacticalFocus&&!ids.has(App.session.verso.tacticalFocus))App.session.verso.tacticalFocus=null;
   enforceAlwaysRoomReveal();
   if(App.session.selRoom && !ids.has(App.session.selRoom)) App.session.selRoom=null;
@@ -63,13 +66,19 @@ const mkTok = (name,letter,color,x,y,size=1,pc=false)=>{
   if(pc) t.pc=true;                 // pc = players may see in the claim list & claim
   return t;
 };
+const mkTokFrom = source=>{
+  const t=mkTok(source.name,source.letter,source.color,source.x,source.y,source.size,source.pc);
+  for(const key of ["sheet","statuses","z","phases","phase"])if(source[key]!=null)t[key]=JSON.parse(JSON.stringify(source[key]));
+  return t;
+};
 
 App.session = {
   view:"dm",
   scene:"verso",
   mode:"play",     // "play" | "edit" (edit = top-down level editor, DM only)
   tool:"select",
-  tracker:{order:[],active:0},   // initiative: [{name,total,tok?}]
+  rulerMode:"line",
+  tracker:{order:[],active:0,round:1},   // initiative: [{name,total,tok?,marker?}]
   selToken:null,
   selRoom:null,
   map:{
@@ -82,9 +91,10 @@ App.session = {
   verso:{
     view:"isometric",                  // same level and tokens; alternate renderer only
     revealed:{...VERSO_START.revealed},
-    tokens:VERSO_START.tokens.map(t=>mkTok(t.name,t.letter,t.color,t.x,t.y,t.size,t.pc)),
+    tokens:VERSO_START.tokens.map(mkTokFrom),
     doorStates:{},
     effects:[],
+    propStates:{},
     tacticalFocus:null,
     cam:{x:0,y:0,s:1},
     tacticalCam:{x:0,y:0,s:1}
@@ -93,6 +103,7 @@ App.session = {
 
 const S  = ()=> App.session[App.session.scene];
 const tacticalView=()=>App.session.scene==="verso"&&App.session.verso.view==="tactical";
+const activeLevelProps=()=>App.document.level.props.map(prop=>resolvePropState(prop,App.session.verso.propStates));
 const levelWorldFromTile=(i,j)=>tacticalView()?[i*BT,j*BT]:[isoX(i,j),isoY(i,j)];
 const levelTileFromWorld=(x,y)=>tacticalView()?[x/BT,y/BT]:unIso(x,y);
 const cam= ()=> CAMOVR || (App.session.mode==="edit" ? edCam : tacticalView() ? App.session.verso.tacticalCam : S().cam);
@@ -277,19 +288,20 @@ const TERRAIN_STYLE={
 };
 function drawTacticalTerrain(pr,c){
   if(!pr.terrain&&!pr.footprint)return;
-  const fp=pr.footprint||{w:1,h:1,shape:"rect"},style=TERRAIN_STYLE[pr.terrain]||TERRAIN_STYLE.feature;
-  const x=pr.x*BT,y=pr.y*BT,w=fp.w*BT,h=fp.h*BT;
+  const bounds=propFootprintBounds(pr),style=TERRAIN_STYLE[pr.terrain]||TERRAIN_STYLE.feature;
+  const x=bounds.x*BT,y=bounds.y*BT,w=bounds.w*BT,h=bounds.h*BT;
   ctx.save();ctx.fillStyle=style.fill;ctx.strokeStyle=style.stroke;ctx.lineWidth=2/c.s;
   if(pr.terrain==="overhead")ctx.setLineDash([9/c.s,6/c.s]);
   ctx.beginPath();
-  if(fp.shape==="circle")ctx.ellipse(x+w/2,y+h/2,w/2,h/2,0,0,7);else ctx.rect(x,y,w,h);
+  if(bounds.shape==="circle")ctx.ellipse(x+w/2,y+h/2,w/2,h/2,0,0,7);else ctx.rect(x,y,w,h);
   ctx.fill();ctx.stroke();ctx.setLineDash([]);
   if(pr.terrain==="difficult"){
     ctx.save();ctx.clip();ctx.strokeStyle="rgba(233,226,206,.22)";ctx.lineWidth=1/c.s;ctx.beginPath();
     for(let q=-h;q<w+h;q+=BT*.45){ctx.moveTo(x+q,y+h);ctx.lineTo(x+q+h,y);}ctx.stroke();ctx.restore();
   }
   ctx.fillStyle=style.stroke;ctx.font=`600 ${10/c.s}px 'IBM Plex Mono', monospace`;ctx.textAlign="center";ctx.textBaseline="middle";
-  ctx.fillText((pr.label||style.label).toUpperCase(),x+w/2,y+h/2);
+  const authored=RVIEW==="dm"?pr.label:pr.playerLabel;
+  ctx.fillText((authored||style.label).toUpperCase(),x+w/2,y+h/2);
   ctx.restore();
 }
 function clipRevealedTactical(){
@@ -321,7 +333,7 @@ function drawTactical(){
     ctx.strokeStyle=r.wall;ctx.lineWidth=Math.max(3,5/c.s);ctx.stroke();ctx.restore();
   }
   // Area footprints sit beneath furniture and tokens and turn authored props into usable mechanics.
-  for(const pr of(App.document.level.props||[])){
+  for(const pr of activeLevelProps()){
     const room=roomAtTile(pr.x+.01,pr.y+.01),rev=room&&v.revealed[room.id];
     ctx.save();if(!showHidden)clipRevealedTactical();else if(!rev)ctx.globalAlpha=.2;drawTacticalTerrain(pr,c);ctx.restore();
   }
@@ -339,7 +351,7 @@ function drawTactical(){
     ctx.fillStyle="#E9E2CE";ctx.font=`600 ${18/c.s}px 'IBM Plex Mono', monospace`;ctx.textAlign="center";ctx.textBaseline="middle";
     ctx.fillText(({n:"↑",e:"→",s:"↓",w:"←"})[stair.dir],(stair.x+stair.w/2)*BT,(stair.y+stair.h/2)*BT);ctx.restore();
   }
-  for(const pr of(App.document.level.props||[])){
+  for(const pr of activeLevelProps()){
     const room=roomAtTile(pr.x+.5,pr.y+.5),rev=room&&v.revealed[room.id];
     if(pr.footprint)continue; // footprint already carries the tactical meaning
     ctx.save();if(!showHidden)clipRevealedTactical();else if(!rev)ctx.globalAlpha=.22;
@@ -416,7 +428,8 @@ function stairVisible(stair){
 function propVisible(pr){
   const fp=pr.footprint;
   if(!fp){const room=roomAtTile(pr.x+.5,pr.y+.5);return !!(room&&App.session.verso.revealed[room.id]);}
-  for(let x=pr.x+.125;x<pr.x+fp.w;x+=.25)for(let y=pr.y+.125;y<pr.y+fp.h;y+=.25){
+  const bounds=propFootprintBounds(pr);
+  for(let x=bounds.x+.125;x<bounds.x+bounds.w;x+=.25)for(let y=bounds.y+.125;y<bounds.y+bounds.h;y+=.25){
     const room=roomAtTile(x,y);if(!room||!App.session.verso.revealed[room.id])return false;
   }
   return true;
@@ -424,7 +437,21 @@ function propVisible(pr){
 const GLYPHS="ᚠᚢᚦᚨᚱᚲᚷᚹᚺᚾᛁᛃᛇᛈᛉᛋᛏᛒᛖᛗᛚᛜᛞᛟ";
 
 /* ----- iso prop primitives ----- */
-const P=(i,j)=>[isoX(i,j),isoY(i,j)];
+let PROP_FRAME=null;
+function orientedPropPoint(i,j){
+  if(!PROP_FRAME)return [i,j];
+  const {cx,cy,dcx,dcy,rotation}=PROP_FRAME,dx=i-cx,dy=j-cy;
+  if(rotation===1)return[dcx-dy,dcy+dx];
+  if(rotation===2)return[dcx-dx,dcy-dy];
+  if(rotation===3)return[dcx+dy,dcy-dx];
+  return[dcx+dx,dcy+dy];
+}
+const P=(i,j)=>{const q=orientedPropPoint(i,j);return[isoX(q[0],q[1]),isoY(q[0],q[1])];};
+function setPropFrame(pr){
+  const rotation=pr.rotation||0;if(!rotation){PROP_FRAME=null;return;}
+  const fp=pr.footprint||{w:1,h:1},bounds=propFootprintBounds(pr);
+  PROP_FRAME={rotation,cx:pr.x+fp.w/2,cy:pr.y+fp.h/2,dcx:bounds.x+bounds.w/2,dcy:bounds.y+bounds.h/2};
+}
 function quad(a,b,c,d,fill,stroke){
   ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.lineTo(c[0],c[1]);ctx.lineTo(d[0],d[1]);ctx.closePath();
   ctx.fillStyle=fill;ctx.fill();
@@ -885,10 +912,10 @@ function drawVerso(){
   for(const stair of (App.document.stairs||[]))if(RVIEW==="dm"||stairVisible(stair))drawStair(stair);
   // Data-driven furniture and landmarks. Important props use light rather than
   // unrealistic scale to remain legible at the fitted player-view zoom.
-  for(const pr of (App.document.level.props||[])){
+  for(const pr of activeLevelProps()){
     const lib=PROP_LIB[pr.t];
     if(!lib) continue;
-    const room=roomAtTile(pr.x+.5,pr.y+.5);
+    const [centerX,centerY]=propCenter(pr),room=roomAtTile(centerX,centerY);
     const rev=room && v.revealed[room.id];
     if(!showHidden&&!propVisible(pr)) continue;
     ctx.save();
@@ -897,15 +924,17 @@ function drawVerso(){
     const isHover=hoverPropId===pr.id;
     if(pr.focus||isHover){
       const pulse=REDUCED?.8:.72+.12*Math.sin(tNow/650+(pr.x+pr.y));
-      lightPool(pr.x+.5,pr.y+.56,isHover?46:38,`rgba(232,196,120,${(isHover?.2:.11)*pulse})`);
-      const [hx,hy]=P(pr.x+.5,pr.y+.55);
+      lightPool(centerX,centerY+.06,isHover?46:38,`rgba(232,196,120,${(isHover?.2:.11)*pulse})`);
+      const [hx,hy]=P(centerX,centerY+.05);
       ctx.save();ctx.translate(hx,hy);ctx.scale(1,.5);
       ctx.strokeStyle=`rgba(232,196,120,${isHover?.9:.38})`;ctx.lineWidth=isHover?2:1;
       ctx.beginPath();ctx.arc(0,0,isHover?15:12,0,7);ctx.stroke();ctx.restore();
     }
-    const scale=pr.scale||1,[pcx,pcy]=P(pr.x+.5,pr.y+.5);
+    const scale=pr.scale||1,[pcx,pcy]=P(centerX,centerY);
     ctx.translate(pcx,pcy);ctx.scale(scale,scale);ctx.translate(-pcx,-pcy);
+    setPropFrame(pr);
     lib.draw(pr.x,pr.y,pr);
+    PROP_FRAME=null;
     ctx.restore();
   }
   // lighting overlays (dim / dark / flicker per room)
@@ -987,8 +1016,10 @@ function drawVerso(){
 function setPropHover(i,j){
   if(App.session.scene!=="verso"||App.session.mode==="edit"){hoverPropId=null;return;}
   let best=null,bestD=1e9;
-  for(const pr of (App.document.level.props||[])){
-    if(!pr.label&&!pr.inspect)continue;
+  for(const source of (App.document.level.props||[])){
+    const pr=resolvePropState(source,App.session.verso.propStates);
+    const label=RVIEW==="dm"?pr.label:pr.playerLabel,inspect=RVIEW==="dm"?pr.inspect:pr.playerInspect;
+    if(!label&&!inspect)continue;
     const [px,py]=propCenter(pr);
     if(RVIEW!=="dm"&&!propVisible(pr))continue;
     const d=Math.hypot(i-px,j-py),radius=pr.footprint?Math.max(.7,Math.hypot(pr.footprint.w,pr.footprint.h)/2):Math.max(.55,(pr.scale||1)*.52);
@@ -996,15 +1027,17 @@ function setPropHover(i,j){
   }
   hoverPropId=best?best.id:null;
 }
-function propCenter(pr){const fp=pr.footprint;return fp?[pr.x+fp.w/2,pr.y+fp.h/2]:[pr.x+.5,pr.y+.5];}
+function propCenter(pr){const fp=pr.footprint;if(!fp)return[pr.x+.5,pr.y+.5];const bounds=propFootprintBounds(pr);return[bounds.x+bounds.w/2,bounds.y+bounds.h/2];}
 function drawPropTooltip(){
-  const pr=(App.document.level.props||[]).find(p=>p.id===hoverPropId);
-  if(!pr||(!pr.label&&!pr.inspect))return;
+  const source=(App.document.level.props||[]).find(p=>p.id===hoverPropId),pr=resolvePropState(source,App.session.verso.propStates);
+  if(!pr)return;
+  const label=RVIEW==="dm"?(pr.label||(PROP_LIB[pr.t]?.n||"Object")):pr.playerLabel;
+  const detail=RVIEW==="dm"?(pr.inspect||""):pr.playerInspect;
+  if(!label&&!detail)return;
   if(RVIEW!=="dm"&&!propVisible(pr))return;
   const [px,py]=propCenter(pr),room=roomAtTile(px,py),elev=tacticalView()?0:roomElevation(room||{});
   const [lx,ly]=levelWorldFromTile(px,py);
   const [sx,sy]=toScreen(lx,ly-elev-(tacticalView()?BT*.35:38)*(pr.scale||1));
-  const label=pr.label||(PROP_LIB[pr.t]?.n||"Object"),detail=pr.inspect||"";
   ctx.save();ctx.font="600 12px 'IBM Plex Mono', monospace";
   const width=Math.min(350,Math.max(ctx.measureText(label).width,detail?ctx.measureText(detail).width:0)+20);
   const height=detail?43:25,x=Math.max(8,Math.min(W-width-8,sx-width/2)),y=Math.max(8,sy-height-10);
@@ -1087,22 +1120,28 @@ let ruler=null; // {x1,y1,x2,y2} world coords
 let moveGuide=null; // {token:{x,y,pc?},x,y} in level tile coordinates
 function drawRuler(){
   if(!ruler) return;
-  const c=cam();
   const [sx1,sy1]=toScreen(ruler.x1,ruler.y1);
   const [sx2,sy2]=toScreen(ruler.x2,ruler.y2);
   ctx.save();
-  ctx.strokeStyle="#7FA8B8"; ctx.lineWidth=2; ctx.setLineDash([8,5]);
-  ctx.beginPath(); ctx.moveTo(sx1,sy1); ctx.lineTo(sx2,sy2); ctx.stroke();
+  ctx.strokeStyle="#7FA8B8";ctx.fillStyle="rgba(127,168,184,.16)";ctx.lineWidth=2;ctx.setLineDash([8,5]);
+  const mode=App.session.rulerMode||"line",radius=Math.hypot(sx2-sx1,sy2-sy1);
+  ctx.beginPath();
+  if(mode==="radius")ctx.arc(sx1,sy1,radius,0,Math.PI*2);
+  else if(mode==="cone"){
+    const angle=Math.atan2(sy2-sy1,sx2-sx1),spread=Math.PI/6;
+    ctx.moveTo(sx1,sy1);ctx.arc(sx1,sy1,radius,angle-spread,angle+spread);ctx.closePath();
+  }else{ctx.moveTo(sx1,sy1);ctx.lineTo(sx2,sy2);}
+  if(mode!=="line")ctx.fill();ctx.stroke();
   ctx.setLineDash([]);
   let label;
   if(App.session.scene==="map"){
     const g=App.session.map.grid.size||70;
     const d=Math.hypot(ruler.x2-ruler.x1,ruler.y2-ruler.y1)/g;
-    label=(d*5).toFixed(0)+" ft · "+d.toFixed(1)+" sq";
+    label=(mode==="line"?"":"AREA · ")+(d*5).toFixed(0)+" ft · "+d.toFixed(1)+" sq";
   }else{
     const [i1,j1]=levelTileFromWorld(ruler.x1,ruler.y1), [i2,j2]=levelTileFromWorld(ruler.x2,ruler.y2);
     const d=Math.max(Math.abs(i2-i1),Math.abs(j2-j1)); // 5e square-grid diagonals
-    label=(d*5).toFixed(0)+" ft · "+d.toFixed(1)+" squares";
+    label=(mode==="line"?"":"AREA · ")+(d*5).toFixed(0)+" ft · "+d.toFixed(1)+" squares";
   }
   ctx.font="600 12px 'IBM Plex Mono', monospace";
   const mx=(sx1+sx2)/2,my=(sy1+sy2)/2;
@@ -1117,10 +1156,10 @@ function drawMoveGuide(){
   if(!moveGuide||!tacticalView())return;
   const c=cam(),from=levelWorldFromTile(moveGuide.token.x,moveGuide.token.y),to=levelWorldFromTile(moveGuide.x,moveGuide.y);
   const [sx1,sy1]=toScreen(...from),[sx2,sy2]=toScreen(...to);
-  const cost=tacticalMoveCost(moveGuide.token,moveGuide.x,moveGuide.y,App.document.level.props,App.session.verso.effects);
+  const cost=tacticalMoveCost(moveGuide.token,moveGuide.x,moveGuide.y,activeLevelProps(),App.session.verso.effects);
   const result=NET.mode==="client"?tacticalMoveAllowed({rooms:App.document.rooms,doors:App.document.doors,
     revealed:App.session.verso.revealed,doorStates:App.session.verso.doorStates,
-    props:App.document.level.props,effects:App.session.verso.effects},moveGuide.token,moveGuide.x,moveGuide.y):{allowed:true};
+    props:activeLevelProps(),effects:App.session.verso.effects},moveGuide.token,moveGuide.x,moveGuide.y):{allowed:true};
   const color=result.allowed?"#7FA8B8":"#B5443C";
   ctx.save();ctx.strokeStyle=color;ctx.lineWidth=3;ctx.setLineDash([9,5]);ctx.beginPath();ctx.moveTo(sx1,sy1);ctx.lineTo(sx2,sy2);ctx.stroke();ctx.setLineDash([]);
   const label=Math.round(cost.feet)+" ft"+(cost.difficult?" · "+cost.difficult+" difficult":"")+(result.allowed?"":" · BLOCKED");
@@ -1128,5 +1167,5 @@ function drawMoveGuide(){
   ctx.fillStyle="rgba(7,9,8,.9)";ctx.fillRect(mx-tw/2-7,my-22,tw+14,18);ctx.fillStyle=color;ctx.textAlign="center";ctx.fillText(label,mx,my-9);ctx.restore();
 }
 
-Object.assign(App.services.model,{levelData,clientLevelData,loadLevel});
+Object.assign(App.services.model,{levelData,clientLevelData,loadLevel,activeLevelProps});
 Object.assign(App.services.renderer,{resize,fitScene,focusRoom});

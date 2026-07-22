@@ -315,7 +315,7 @@ function drawEditor(){
   ctx.textAlign="center"; ctx.textBaseline="middle";
   for(const pr of (App.document.level.props||[])){
     if(pr.footprint){
-      const fp=pr.footprint,x=pr.x*ET,y=pr.y*ET,w=fp.w*ET,h=fp.h*ET;
+      const fp=propFootprintBounds(pr),x=fp.x*ET,y=fp.y*ET,w=fp.w*ET,h=fp.h*ET;
       ctx.fillStyle=pr.terrain==="hazard"?"rgba(138,46,37,.34)":pr.terrain==="overhead"?"rgba(127,168,184,.18)":"rgba(200,161,78,.22)";
       ctx.strokeStyle=pr.id===edPropSel?"#E9E2CE":"#C8A14E";ctx.lineWidth=2/c.s;ctx.beginPath();
       if(fp.shape==="circle")ctx.ellipse(x+w/2,y+h/2,w/2,h/2,0,0,7);else ctx.rect(x,y,w,h);ctx.fill();ctx.stroke();
@@ -534,12 +534,12 @@ function edUp(){
 function edPropAt(fi,fj,sx,sy){
   const props=App.document.level.props;
   for(let k=props.length-1;k>=0;k--){
-    const pr=props[k],fp=pr.footprint;
+    const pr=props[k],fp=pr.footprint,bounds=fp?propFootprintBounds(pr):null;
     if(fp){
       if(fp.shape==="circle"){
-        const rx=fp.w/2,ry=fp.h/2,cx=pr.x+rx,cy=pr.y+ry;
+        const rx=bounds.w/2,ry=bounds.h/2,cx=bounds.x+rx,cy=bounds.y+ry;
         if(rx>0&&ry>0&&((fi-cx)/rx)**2+((fj-cy)/ry)**2<=1)return pr;
-      }else if(fi>=pr.x&&fi<=pr.x+fp.w&&fj>=pr.y&&fj<=pr.y+fp.h)return pr;
+      }else if(fi>=bounds.x&&fi<=bounds.x+bounds.w&&fj>=bounds.y&&fj<=bounds.y+bounds.h)return pr;
       continue;
     }
     const [px,py]=toScreen((pr.x+.5)*ET,(pr.y+.5)*ET);
@@ -723,21 +723,21 @@ function showStartScreen(){
 function newBlankLevel(){
   edUndoStack.length=0;edRedoStack.length=0;edClipboard=[];
   loadLevel({name:"Untitled Level",bg:"#0A0F0C",rooms:[],doors:[],roster:[]});
-  App.session.verso.revealed={};App.session.verso.tokens=[];App.session.verso.doorStates={};App.session.verso.effects=[];App.session.verso.tacticalFocus=null;App.session.tracker={order:[],active:0};
+  App.session.verso.revealed={};App.session.verso.tokens=[];App.session.verso.doorStates={};App.session.verso.effects=[];App.session.verso.propStates={};App.session.verso.tacticalFocus=null;App.session.tracker={order:[],active:0,round:1};
   setEdSelection([]);edSetTool("draw");setMode("edit");edFit();levelTouched();hideStartScreen();
 }
 function startVerso(){
   loadLevel(App.content.VERSO_LEVEL);
   App.session.verso.revealed={...App.content.VERSO_START.revealed};
-  App.session.verso.doorStates={};App.session.verso.effects=[];App.session.verso.tacticalFocus=null;
-  App.session.verso.tokens=App.content.VERSO_START.tokens.map(t=>mkTok(t.name,t.letter,t.color,t.x,t.y,t.size,t.pc));
+  App.session.verso.doorStates={};App.session.verso.effects=[];App.session.verso.propStates={};App.session.verso.tacticalFocus=null;
+  App.session.verso.tokens=App.content.VERSO_START.tokens.map(mkTokFrom);App.session.tracker={order:[],active:0,round:1};
   setScene("verso");hideStartScreen();
 }
 function startVault(){
   loadLevel(App.content.VAULT_LEVEL);
   App.session.verso.revealed={...App.content.VAULT_START.revealed};
-  App.session.verso.doorStates={};App.session.verso.effects=[];App.session.verso.tacticalFocus=null;
-  App.session.verso.tokens=App.content.VAULT_START.tokens.map(t=>mkTok(t.name,t.letter,t.color,t.x,t.y,t.size,t.pc));
+  App.session.verso.doorStates={};App.session.verso.effects=[];App.session.verso.propStates={};App.session.verso.tacticalFocus=null;
+  App.session.verso.tokens=App.content.VAULT_START.tokens.map(mkTokFrom);App.session.tracker=JSON.parse(JSON.stringify(App.content.VAULT_START.tracker||{order:[],active:0,round:1}));
   setLevelView("isometric");setScene("verso");hideStartScreen();
 }
 async function resumeAutosave(){
@@ -758,7 +758,8 @@ function serialize(){
       fogURL: App.session.map.fog ? App.session.map.fog.toDataURL("image/png") : null
     },
     verso:{view:App.session.verso.view,revealed:App.session.verso.revealed,tokens:App.session.verso.tokens,
-      doorStates:App.session.verso.doorStates,effects:App.session.verso.effects,tacticalFocus:App.session.verso.tacticalFocus},
+      doorStates:App.session.verso.doorStates,effects:App.session.verso.effects,propStates:App.session.verso.propStates,tacticalFocus:App.session.verso.tacticalFocus},
+    tracker:App.session.tracker,
     level:levelData()
   };
 }
@@ -774,9 +775,13 @@ function deserialize(d){
     App.session.verso.tokens=session.verso.tokens;
     App.session.verso.doorStates=session.verso.doorStates;
     App.session.verso.effects=session.verso.effects;
+    App.session.verso.propStates=session.verso.propStates;
     App.session.verso.tacticalFocus=session.verso.tacticalFocus;
+    App.session.tracker=session.tracker;
     const doorIds=new Set(App.document.doors.map(door=>door.id));
     for(const id of Object.keys(App.session.verso.doorStates))if(!doorIds.has(id))delete App.session.verso.doorStates[id];
+    const propIds=new Set(App.document.level.props.map(prop=>prop.id));
+    for(const id of Object.keys(App.session.verso.propStates))if(!propIds.has(id))delete App.session.verso.propStates[id];
     if(App.session.verso.tacticalFocus&&!App.document.rooms.some(room=>room.id===App.session.verso.tacticalFocus))App.session.verso.tacticalFocus=null;
     uid=Math.max(uid,...App.session.verso.tokens.map(t=>t.id+1),1);
     Object.assign(App.session.map.grid,session.map.grid);

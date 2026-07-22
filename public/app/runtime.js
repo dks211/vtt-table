@@ -20,6 +20,7 @@
         bg: "#0A0F0C",
         roster: [],
         props: [],
+        encounterEffects: [],
       },
       rooms: [],
       doors: [],

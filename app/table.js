@@ -326,7 +326,7 @@ function frame(t){
 
 /* ---------------- input ---------------- */
 let pointers=new Map(), panRef=null, dragTok=null, pinchRef=null, spaceDown=false, downAt=null, fogPainting=false, lastTap=null, patrolRec=null;
-let dragOrigin=null, tacticalEffectType=null, tacticalEffectSize=1;
+let dragOrigin=null,tacticalEffectType=null,tacticalEffectWidth=1,tacticalEffectHeight=1,tacticalEffectName="Temporary effect",tacticalEffectDuration=0,tacticalEffectShape="rect";
 
 function tokenAt(sx,sy){
   const [wx,wy]=toWorld(sx,sy);
@@ -380,8 +380,8 @@ cv.addEventListener("pointerdown",e=>{
   if(tacticalView()&&tacticalEffectType&&NET.mode!=="client"&&e.button===0){
     const [wx,wy]=toWorld(e.offsetX,e.offsetY),[i,j]=levelTileFromWorld(wx,wy);
     App.session.verso.effects.push({id:"effect-"+Date.now().toString(36),terrain:tacticalEffectType,
-      x:Math.floor(i),y:Math.floor(j),w:tacticalEffectSize,h:tacticalEffectSize,shape:"rect",
-      label:"Temporary "+tacticalEffectType});
+      x:Math.floor(i),y:Math.floor(j),w:tacticalEffectWidth,h:tacticalEffectHeight,shape:tacticalEffectShape,
+      label:tacticalEffectName||("Temporary "+tacticalEffectType),remaining:tacticalEffectDuration,timed:tacticalEffectDuration>0});
     tacticalEffectType=null;markDirty();renderPanel();return;
   }
   // patrol recording: DM clicks drop waypoints for the selected token
@@ -504,7 +504,7 @@ cv.addEventListener("pointerup",e=>{
   pointers.delete(e.pointerId);
   if(pointers.size<2) pinchRef=null;
   if(App.session.mode==="edit"){edUp();return;}
-  if(ruler && App.session.tool==="ruler"){ setTimeout(()=>{ruler=null;},900); }
+  if(ruler && App.session.tool==="ruler")downAt=null;
   if(dragTok && NET.mode==="client"){
     if(App.session.scene==="map" && App.session.map.grid.snap && App.session.map.grid.show){
       const g=App.session.map.grid.size;
@@ -604,6 +604,7 @@ addEventListener("keydown",e=>{
   if(e.code==="Space"){spaceDown=true;cv.style.cursor="grabbing";e.preventDefault();}
   const k=e.key.toLowerCase();
   if(e.key==="Escape"&&tacticalEffectType){tacticalEffectType=null;$("st-hint").textContent="Temporary effect placement cancelled";return;}
+  if(e.key==="Escape"&&ruler){ruler=null;return;}
   if(App.session.mode==="edit"){
     if((e.metaKey||e.ctrlKey) && k==="z"){e.shiftKey?edRedoPop():edUndoPop();e.preventDefault();return;}
     if((e.metaKey||e.ctrlKey) && k==="y"){edRedoPop();e.preventDefault();return;}

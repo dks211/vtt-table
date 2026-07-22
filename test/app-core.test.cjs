@@ -16,6 +16,9 @@ const {
   shouldSnapLevelToken,
   tokenVisibleToPlayers,
   orderedLevelTokens,
+  pointInFootprint,
+  resolvePropState,
+  propFootprintBounds,
   sanitizeLevelForClient,
   setBannerContent,
   LEVEL_SCHEMA_VERSION,
@@ -93,13 +96,17 @@ test("tactical snapping, movement cost, visibility, and stacking follow play rul
 test("session tactical state normalizes temporary effects and door overrides", () => {
   const session = normalizeSession({ schemaVersion: SESSION_SCHEMA_VERSION, verso: {
     doorStates: { front: true, back: 0 }, tacticalFocus: "arena",
-    effects: [{ id: "fire", terrain: "hazard", x: 2, y: 3, w: 2, h: 1 }],
-  }, level: { rooms: [] } });
+    propStates: { pillar: "collapsed" },
+    effects: [{ id: "fire", terrain: "hazard", x: 2, y: 3, w: 2, h: 1, remaining: 2 }],
+  }, tracker:{order:[{name:"Lair action",total:20,marker:true}],active:0,round:3},
+  level: { rooms: [] } });
   assert.deepEqual(session.verso.doorStates, { front: true, back: false });
   assert.equal(session.verso.tacticalFocus, "arena");
   assert.deepEqual(session.verso.effects[0], {
-    id: "fire", terrain: "hazard", x: 2, y: 3, w: 2, h: 1, shape: "rect", label: "Temporary effect",
+    id: "fire", terrain: "hazard", x: 2, y: 3, w: 2, h: 1, shape: "rect", label: "Temporary effect",remaining:2,timed:true,
   });
+  assert.deepEqual(session.verso.propStates,{pillar:"collapsed"});
+  assert.deepEqual(session.tracker,{order:[{name:"Lair action",total:20,marker:true}],active:0,round:3});
 });
 
 test("parseDice accepts supported notation and applies limits", () => {
@@ -208,6 +215,31 @@ test("tactical room grids and terrain footprints normalize safely", () => {
   assert.equal(level.props[0].terrain,"cover");
   assert.deepEqual(level.props[0].footprint,{w:20,h:.25,shape:"circle"});
   assert.equal(level.props[1].terrain,undefined);
+});
+
+test("rotated and stateful props keep portable geometry",()=>{
+  const level=normalizeLevel({rooms:[{name:"Arena",rect:{x:0,y:0,w:8,h:8}}],props:[{
+    id:"pillar",t:"pillar",x:1,y:2,rotation:5,terrain:"cover",playerLabel:"Stone pillar",
+    footprint:{w:1,h:3,shape:"rect"},states:[{id:"standing",name:"Standing"},{id:"fallen",name:"Fallen",terrain:"difficult",footprint:{w:4,h:1}}]
+  }],encounterEffects:[{id:"fire",name:"Molten Leaf",terrain:"hazard",w:6,h:2,duration:2}]});
+  const prop=level.props[0];
+  assert.equal(prop.rotation,1);
+  assert.deepEqual(propFootprintBounds(prop),{x:1,y:2,w:3,h:1,shape:"rect"});
+  assert.equal(pointInFootprint(3.5,2.5,prop),true);
+  const fallen=resolvePropState(prop,{pillar:"fallen"});
+  assert.equal(fallen.terrain,"difficult");
+  assert.equal(fallen.stateId,"fallen");
+  assert.equal(level.encounterEffects[0].name,"Molten Leaf");
+});
+
+test("client levels expose only explicit player prop metadata",()=>{
+  const level=normalizeLevel({rooms:[],props:[{id:"mechanism",t:"chest",x:0,y:0,label:"Secret counterweight",inspect:"GM solution",playerLabel:"Brass fixture",playerInspect:"A chain rises into the ceiling."}],encounterEffects:[{name:"Secret lair action"}]});
+  const safe=sanitizeLevelForClient(level);
+  assert.equal(safe.props[0].label,undefined);
+  assert.equal(safe.props[0].inspect,undefined);
+  assert.equal(safe.props[0].playerLabel,"Brass fixture");
+  assert.equal(safe.encounterEffects.length,0);
+  assert.equal(level.props[0].label,"Secret counterweight");
 });
 
 test("room reveal policies default safely and reject unknown values", () => {
