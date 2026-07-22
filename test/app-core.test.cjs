@@ -6,6 +6,9 @@ const {
   sanitizeSheet,
   spellAtkBonus,
   spellSaveDC,
+  roomEntryReveal,
+  cameraFocusFromViewport,
+  cameraFromFocus,
   sanitizeLevelForClient,
   setBannerContent,
   LEVEL_SCHEMA_VERSION,
@@ -13,6 +16,35 @@ const {
   normalizeLevel,
   normalizeSession,
 } = require("../app/core.js");
+
+test("room entry reveal applies only to PCs and consumes armed rooms", () => {
+  const pc = { pc: true };
+  assert.deepEqual(roomEntryReveal({ revealMode: "armed" }, pc, false), {
+    reveal: true,
+    nextMode: "manual",
+  });
+  assert.deepEqual(roomEntryReveal({ revealMode: "always" }, pc, false), {
+    reveal: true,
+    nextMode: "always",
+  });
+  assert.equal(roomEntryReveal({ revealMode: "always" }, pc, true), null);
+  assert.equal(roomEntryReveal({ revealMode: "armed" }, { pc: false }, false), null);
+  assert.equal(roomEntryReveal({ revealMode: "manual" }, pc, false), null);
+});
+
+test("camera focus preserves the GM center across player viewport sizes", () => {
+  const focus = cameraFocusFromViewport({ x: 100, y: 50, s: 2 }, 1200, 800, "verso", "tactical");
+  assert.deepEqual(focus, {
+    scene: "verso",
+    levelView: "tactical",
+    centerX: 400,
+    centerY: 250,
+    worldWidth: 600,
+    worldHeight: 400,
+  });
+  assert.deepEqual(cameraFromFocus(focus, 600, 800), { x: 100, y: -150, s: 1 });
+  assert.equal(cameraFromFocus({ worldWidth: 0, worldHeight: 20 }, 600, 800), null);
+});
 
 test("parseDice accepts supported notation and applies limits", () => {
   assert.deepEqual(parseDice("2d4 + 2"), { n: 2, d: 4, mod: 2 });

@@ -1,5 +1,5 @@
 "use strict";
-const {LEVEL_SCHEMA_VERSION, SESSION_SCHEMA_VERSION, escapeHTML:esc, parseDice, sanitizeSheet, spellAtkBonus, spellSaveDC, sanitizeLevelForClient, setBannerContent, normalizeLevel, normalizeSession}=App.core;
+const {LEVEL_SCHEMA_VERSION, SESSION_SCHEMA_VERSION, escapeHTML:esc, parseDice, sanitizeSheet, spellAtkBonus, spellSaveDC, roomEntryReveal, cameraFocusFromViewport, cameraFromFocus, sanitizeLevelForClient, setBannerContent, normalizeLevel, normalizeSession}=App.core;
 /* =====================================================================
    PALIMPSEST VTT — state and isometric rendering
    Scenes: "map" (uploaded image, square grid, fog of war)

@@ -246,6 +246,46 @@
     return attack == null ? null : 8 + attack;
   }
 
+  function roomEntryReveal(room, token, revealed) {
+    if (!room || !token || !token.pc) return null;
+    if (room.revealMode === "armed") return { reveal: true, nextMode: "manual" };
+    if (room.revealMode === "always" && !revealed) return { reveal: true, nextMode: "always" };
+    return null;
+  }
+
+  function cameraFocusFromViewport(camera, width, height, scene, levelView) {
+    const scale = Math.max(0.0001, finite(camera && camera.s, 1));
+    const viewportWidth = Math.max(1, finite(width, 1));
+    const viewportHeight = Math.max(1, finite(height, 1));
+    const x = finite(camera && camera.x, 0);
+    const y = finite(camera && camera.y, 0);
+    return {
+      scene: scene === "map" ? "map" : "verso",
+      levelView: levelView === "tactical" ? "tactical" : "isometric",
+      centerX: x + viewportWidth / (2 * scale),
+      centerY: y + viewportHeight / (2 * scale),
+      worldWidth: viewportWidth / scale,
+      worldHeight: viewportHeight / scale,
+    };
+  }
+
+  function cameraFromFocus(focus, width, height) {
+    if (!objectOrNull(focus)) return null;
+    const worldWidth = finite(focus.worldWidth, 0);
+    const worldHeight = finite(focus.worldHeight, 0);
+    if (worldWidth <= 0 || worldHeight <= 0) return null;
+    const viewportWidth = Math.max(1, finite(width, 1));
+    const viewportHeight = Math.max(1, finite(height, 1));
+    const scale = Math.min(viewportWidth / worldWidth, viewportHeight / worldHeight);
+    const centerX = finite(focus.centerX, 0);
+    const centerY = finite(focus.centerY, 0);
+    return {
+      x: centerX - viewportWidth / (2 * scale),
+      y: centerY - viewportHeight / (2 * scale),
+      s: scale,
+    };
+  }
+
   function sanitizeLevelForClient(level) {
     const roster = (level.roster || []).map(entry => {
       if (entry.pc || !entry.sheet) return entry;
@@ -277,6 +317,9 @@
     sanitizeSheet,
     spellAtkBonus,
     spellSaveDC,
+    roomEntryReveal,
+    cameraFocusFromViewport,
+    cameraFromFocus,
     sanitizeLevelForClient,
     setBannerContent,
     normalizeLevel,

@@ -57,14 +57,10 @@ function revealRoomOnPcEntry(t,x,y){
   if(App.session.scene!=="verso"||!t||!t.pc) return false;
   const room=roomAtTile(x,y);
   if(!room) return false;
-  if(room.revealMode==="always"){
-    if(App.session.verso.revealed[room.id]) return false;
-    App.session.verso.revealed[room.id]=true;
-  }else if(room.revealMode==="armed"){
-    App.session.verso.revealed[room.id]=true;
-    room.revealMode="manual"; // armed reveal is intentionally one-shot
-    netMarkLevel();
-  }else return false;
+  const result=roomEntryReveal(room,t,!!App.session.verso.revealed[room.id]);
+  if(!result) return false;
+  App.session.verso.revealed[room.id]=result.reveal;
+  if(result.nextMode!==room.revealMode){room.revealMode=result.nextMode;netMarkLevel();}
   markDirty(); renderPanel();
   return true;
 }
@@ -89,6 +85,11 @@ function lightSnapshot(){
 function netBroadcast(msg){
   const s=JSON.stringify(msg);
   for(const c of NET.conns.values()){try{c.send(s);}catch(e){}}
+}
+function focusRemotePlayers(focus){
+  if(NET.mode!=="host") return;
+  netBroadcast(lightSnapshot());
+  netBroadcast({type:"camera",...focus});
 }
 function sendFullTo(c){
   try{
@@ -351,6 +352,19 @@ function clientHandle(m){
     loadLevel(m.data);
     if(!cliLevelFit){cliLevelFit=true; if(App.session.scene==="verso"){fitScene();updZoom();}}
   }
+  if(m.type==="camera"){
+    const nextScene=m.scene==="map"?"map":"verso";
+    const nextView=m.levelView==="tactical"?"tactical":"isometric";
+    App.session.scene=nextScene;
+    App.session.verso.view=nextView;
+    document.body.classList.toggle("mapscene",nextScene==="map");
+    document.body.classList.toggle("tacticalscene",nextScene==="verso"&&nextView==="tactical");
+    $("view-iso").classList.toggle("on",nextView==="isometric");
+    $("view-tactical").classList.toggle("on",nextView==="tactical");
+    resize();
+    const target=cameraFromFocus(m,W,H);
+    if(target){Object.assign(cam(),target);updZoom();}
+  }
   if(m.type==="ping" && !PINGS.some(q=>q.stamp===String(m.stamp))){
     const wx=+m.x, wy=+m.y;
     if(isFinite(wx)&&isFinite(wy))
@@ -381,4 +395,4 @@ function clientBanner(d){
 }
 function clientSend(msg){if(clientConn)try{clientConn.send(JSON.stringify(msg));}catch(e){}}
 
-Object.assign(App.services.network,{hostTable,joinTable,netMark,netMarkFog,netMarkLevel,clientSend,trackerSet});
+Object.assign(App.services.network,{hostTable,joinTable,netMark,netMarkFog,netMarkLevel,clientSend,trackerSet,focusRemotePlayers});

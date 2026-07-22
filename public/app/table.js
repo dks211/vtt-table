@@ -220,7 +220,7 @@ function pushRollBanner(e){
 }
 
 /* ---------------- player window (second screen) ---------------- */
-let pwin=null, pcv=null, pctx=null;
+let pwin=null, pcv=null, pctx=null, pwinFocus=null;
 function openPlayerWindow(){
   if(pwin && !pwin.closed){ pwin.focus(); return; }
   pwin=window.open("","versoPlayer","width=1280,height=800");
@@ -256,6 +256,7 @@ function openPlayerWindow(){
   d.close();
   pcv=d.getElementById("c");
   pctx=pcv.getContext("2d");
+  pwinFocus=cameraFocusFromViewport(cam(),W,H,App.session.scene,App.session.verso.view);
   d.querySelectorAll("#dice-tray button").forEach(b=>{
     b.onclick=()=>{
       const v=b.dataset.d;
@@ -264,7 +265,7 @@ function openPlayerWindow(){
   });
   $("btn-pwin").textContent="PLAYER WINDOW · LIVE";
   const watch=setInterval(()=>{
-    if(!pwin||pwin.closed){clearInterval(watch);pwin=null;pcv=null;pctx=null;
+    if(!pwin||pwin.closed){clearInterval(watch);pwin=null;pcv=null;pctx=null;pwinFocus=null;
       const b=$("btn-pwin"); if(b) b.textContent="PLAYER WINDOW ↗";}
   },800);
 }
@@ -280,11 +281,9 @@ function renderPlayerWindow(){
     pcv.width=Math.round(pW*pd); pcv.height=Math.round(pH*pd);
   }
   pctx.setTransform(pd,0,0,pd,0,0);
-  // mirror the DM camera: same world center, zoom fitted to the player window
-  const c=S().cam;
-  const wcx=c.x+W/(2*c.s), wcy=c.y+H/(2*c.s);
-  const s=c.s*Math.min(pW/W,pH/H);
-  CAMOVR={x:wcx-pW/(2*s), y:wcy-pH/(2*s), s};
+  if(!pwinFocus||pwinFocus.scene!==App.session.scene||pwinFocus.levelView!==App.session.verso.view)
+    pwinFocus=cameraFocusFromViewport(cam(),W,H,App.session.scene,App.session.verso.view);
+  CAMOVR=cameraFromFocus(pwinFocus,pW,pH);
   const oc=ctx,oW=W,oH=H,ov=RVIEW;
   ctx=pctx; W=pW; H=pH; RVIEW="pl";
   ctx.clearRect(0,0,pW,pH);
@@ -292,6 +291,16 @@ function renderPlayerWindow(){
   drawRuler();
   ctx=oc; W=oW; H=oH; RVIEW=ov; CAMOVR=null;
 }
+
+function focusPlayerViews(){
+  const focus=cameraFocusFromViewport(cam(),W,H,App.session.scene,App.session.verso.view);
+  pwinFocus=focus;
+  focusRemotePlayers(focus);
+  const b=$("btn-focus");
+  b.textContent="PLAYERS FOCUSED";
+  setTimeout(()=>{if(b)b.textContent="FOCUS PLAYERS";},1200);
+}
+$("btn-focus").onclick=focusPlayerViews;
 
 /* ---------------- main loop ---------------- */
 function frame(t){
@@ -607,4 +616,4 @@ addEventListener("keyup",e=>{
 
 function updZoom(){$("st-zoom").textContent=Math.round(cam().s*100)+"%";}
 
-Object.assign(App.services.table,{frame,roll,openPlayerWindow,updZoom});
+Object.assign(App.services.table,{frame,roll,openPlayerWindow,focusPlayerViews,updZoom});
