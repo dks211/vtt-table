@@ -135,6 +135,65 @@ const PROP_LIB={
    ctx.strokeStyle="#3A3E45";ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(x-14,y-14);ctx.lineTo(x-14,y-31);ctx.lineTo(x-7,y-31);ctx.stroke();
    ctx.fillStyle="#CFE3EA";ctx.beginPath();ctx.arc(x-4,y-19,2.4,0,7);ctx.arc(x+5,y-21,2.4,0,7);ctx.fill();}}
 };
+
+/* Level 2 is below the Verso. Its authored square grid is confined to the
+   vault: the rest remains an exploration level in either renderer. */
+const VAULT_ROOMS=[
+ {id:"landing2",name:"The Landing",sub:"below the verso · the paint runs out",rect:{x:0,y:8,w:5,h:5},
+  floorA:"#4A4A4E",floorB:"#3F3F44",wall:"#596052",bleedAll:true,revealMode:"always",
+  read:"The stairs descend into a place the casino only partly managed to disguise. Your footsteps stop echoing midway across the landing. Painted marble ends at a ruler-straight waterline; above it, raw dressed stone is warm beneath your hand. The last crystal sconces have no wire behind them. Iron torch brackets wait underneath.",
+  dm:"<b>LEVEL 2 IS BELOW.</b> No lift, no teleport, no transition trick: these are the same stairs visible in the Verso. Before the bargain, remind David that he still holds the Cure ticket; Belinda will remember him, but redeeming it costs every memory he has of her—narrate established images leaving rather than asking him to invent one at the table. Then force the immediate PAY/WORK decision that permits the party to leave the Verso and descend. PAY settles Randy's account but does not provide passage out of Val du Cendre; the Writs do. WORK remains open until the named document is delivered to the Concierge. The House will accept PAY later if it receives the same weight: Rasura unused, plus Randy returning the restored nine days.",
+  clues:["Sound changes first, then the marble waterline, then the unwired sconces.","The stone is the same warm scriptio inferior exposed in the Verso."]},
+ {id:"mirrors2",name:"The Mirror Gallery",sub:"five junctions · three arches each",rect:{x:5,y:9,w:14,h:3},
+  floorA:"#C9BD9C",floorB:"#BFB28F",wall:"#8F8468",corridor:true,revealMode:"armed",
+  read:"Three arches wait at the first junction. Each looks open from here. In the brass mirror-plate opposite them, two reflections end at blank stone a few feet in. The third keeps going.",
+  dm:"<b>NO ROLL.</b> Prepare a five-answer L/C/R key and keep it fixed. Looking in the mirror always reveals the continuing arch. A wrong choice ends at a wall; its dust drifts through the correct arch as a free hint. If they indiscriminately smash their way through three junctions, the Counting Floor is alerted. There is no backward-walking solution.",
+  clues:["The mirror shows depth the direct view conceals.","Every wrong passage gives a physical hint toward the right one."]},
+ {id:"counting2",name:"The Counting Floor",sub:"night count · mortal employees",rect:{x:19,y:7,w:8,h:7},
+  floorA:"#21392B",floorB:"#1B3024",wall:"#2E4A38",revealMode:"armed",
+  read:"Green baize tables stand under hard white lamps. Four employees count chips into regimented towers, calling totals over one another. None looks eager to die for the privilege.",
+  dm:"<b>3 THUGS + 1 VETERAN.</b> Four routes: group Stealth DC 12, 50 gp or casino chips, a plausible 'Sarlossi sent us' bluff, or a short fight. The social reward is gossip: Sarlossi received only <b>three Letters of Transit</b> and expected four; he has spent two nights in the vault and gets ugly when asked why. A loud fight means Sarlossi is forewarned and cannot be surprised. Do not use a contents ledger here.",
+  clues:["The employees know there are three Writs before the party reaches the office.","They are employees, not fanatics; surrender and retreat are legitimate outcomes."]},
+ {id:"office2",name:"Sarlossi's Office",sub:"office · stage · strongbox 0001",rect:{x:27,y:8,w:11,h:7},
+  floorA:"#5C4630",floorB:"#4F3C29",wall:"#6B5A33",revealMode:"armed",
+  read:"The office opens around a small, dust-choked stage. A desk faces it like a private box. Behind the desk: a bank of strongboxes, one brass face stamped 0001. The far wall is uninterrupted paneling. There is no visible vault door.",
+  dm:"<b>CLOWN FART'S PERFORMANCE REVEALS THE VAULT DOOR.</b> Narrate the stage; do not gate the troupe's arrival behind a roll. They know the act, finish it with him, and disappear without commentary. One presses the <b>Plectrum of the Heavenly Host</b> into his hand: 1/day, when he casts a bard spell through it, increase that spell's save DC by 2 for that casting. One More Time, 1/day: DC 12 Performance as part of casting; success saves the slot, failure casts normally and spends it. <b>Desk:</b> Sarlossi's short service contract and Vaedryn's paid instruction concerning Klaus. <b>Strongbox 0001:</b> opens to ticket 0001 with Randy present; contains Rasura, not the photograph. Touching Rasura restores Randy's nine sealed days immediately, before he chooses what to do with them. The strongbox has nothing to do with Sarlossi's fight and does not reveal the vault.",
+  clues:["Contract: House protects fortune and forgives debts; Sarlossi guards the Vault when called; collateral is memory and recognition; release is surrender of the Bella Rosa and every claim upon it.","Vaedryn: three passages for four fugitives; Soundgarden is the remainder; keep him alive for Malrick; forward his destination manifest if he leaves.","Rasura's handle reads RASURA / FOR THE NINTH DAY in Elvish. The blade bears the negative scar of Kalaxia's name—not a second positive instance. The named Writ is the sole positive inscription."]},
+ {id:"vault2",name:"The Vault of the Bella Rosa",sub:"sarlossi's hoard · the original scriptorium",rect:{x:38,y:4,w:14,h:14},
+  floorA:"#66562F",floorB:"#574925",wall:"#8F8468",battleGrid:"square",tokensAlways:true,revealMode:"armed",
+  read:"The hidden panel opens on blank brass, then the running watch tells it the true hour. Beyond is a square of ancient stone under the casino's gold: pillars, coin drifts, a chandelier on a black counterweight chain, and a map-drawer set into the far wall. Don Sarlossi stands at the center at two in the morning. He looks as though he has only just noticed he is here.",
+  dm:"<b>OPEN TACTICAL MAP.</b> The office performance reveals this door; Clown Fart's running watch opens it. The fight begins here, never at strongbox 0001. Confront Sarlossi with the contract. If he sincerely renounces the Bella Rosa, the fight ends: the House has no guardian to recall. If the terms land but Persuasion fails, he still turns, shaken; Molten-Leaf Breath begins expended and must recharge. If they never get through to him, he turns at full capacity. Phase 1: AC 15, HP 60, two cane strikes +6 / 1d8+4; take Klaus alive. Phase 2: young brass dragon chassis; DC 14, 10d6 molten-leaf line; Scouring cone removes reactions and bonus actions on a failed DC 14 Con save. No goons—the caster-heavy party's pressure comes from the arena. Initiative 20 rotates coin spray, pillar collapse, persistent molten leaf, and a one-round telegraphed floor-unwrite zone. Trajan ruins the first threatened breath by cutting the chandelier chain, then may Make Amends when a PC would fall to 0. <b>Map-drawer:</b> three blank Writs and one named Writ. A valid Writ permits passage anywhere, even with debt unpaid. Returning the named Writ completes WORK, settles Randy's debt, and restores locked transit on delivery—not before; Kalaxia rides out on that valid named passage, leaving only three seats for the party. Erasing Kalaxia's sole positive name opens the fourth Writ, releases Kalaxia, and leaves the House's debt open. Keeping the intact named Writ leaves the demon filed and the debt open. They cannot trick the House. Rasura gets one cut.",
+  clues:["The arena is 70 feet square. Each visible grid square is five feet.","Four pillars provide full cover; coin dunes are difficult terrain; the chandelier footprint is overhead until its chain is cut.","There are three blank Writs for four travelers. The fourth Writ and Kalaxia's cage are the same written name.","The Concierge gives Randy the second half of the photograph only when they return: Randy, Rynard, and the younger Concierge; DON'T / LET THEM WAKE IT."]}
+];
+const VAULT_DOORS=[
+ {x:5,y:10,dir:"v",type:"open"},{x:19,y:10,dir:"v",type:"door"},
+ {x:27,y:10,dir:"v",type:"door"},{x:38,y:11,dir:"v",type:"door"}
+];
+const VAULT_ROSTER=[
+ {name:"Randy Meisner",letter:"R",color:"#8A6FB8",pc:true},
+ {name:"Klaus Soundgarden",letter:"K",color:"#E0B341",pc:true},
+ {name:"Clown Fart",letter:"CF",color:"#D96A9C",pc:true},
+ {name:"David Byrne",letter:"D",color:"#B5443C",pc:true},
+ {name:"Trajan",letter:"T",color:"#4E8F86"},
+ {name:"Don Sarlossi",letter:"S",color:"#C8A14E"},
+ {name:"Vault Guardian",letter:"D",color:"#B87333"},
+ {name:"Counting Floor Veteran",letter:"V",color:"#7FA8B8"},
+ {name:"Counting Floor Thug",letter:"T",color:"#9AA08F"}
+];
+const VAULT_PROPS=[
+ {id:"office-desk",t:"table",x:29,y:9,label:"Sarlossi's desk",inspect:"The unlocked drawer contains a house envelope and a recent paid instruction.",focus:true,scale:1.2},
+ {id:"office-strongboxes",t:"cabinet",x:35,y:9,label:"Strongbox array · 0001",inspect:"Box 0001 recognizes ticket 0001 and its claimant in person.",focus:true,scale:1.2},
+ {id:"office-stage",t:"rug",x:30,y:12,label:"The old stage",inspect:"Dust, rotted curtain, and marks where nine performers once stood.",focus:true,scale:1.4},
+ {id:"vault-pillar-a",t:"pillar",x:41,y:7,label:"Stone pillar",terrain:"cover",footprint:{w:1,h:1,shape:"rect"}},
+ {id:"vault-pillar-b",t:"pillar",x:48,y:7,label:"Stone pillar",terrain:"cover",footprint:{w:1,h:1,shape:"rect"}},
+ {id:"vault-pillar-c",t:"pillar",x:41,y:14,label:"Stone pillar",terrain:"cover",footprint:{w:1,h:1,shape:"rect"}},
+ {id:"vault-pillar-d",t:"pillar",x:48,y:14,label:"Stone pillar",terrain:"cover",footprint:{w:1,h:1,shape:"rect"}},
+ {id:"vault-dune-a",t:"stack",x:39,y:10,label:"Coin dune",terrain:"difficult",footprint:{w:4,h:2,shape:"rect"}},
+ {id:"vault-dune-b",t:"stack",x:46,y:5,label:"Coin dune",terrain:"difficult",footprint:{w:4,h:2,shape:"rect"}},
+ {id:"vault-dune-c",t:"stack",x:46,y:15,label:"Coin dune",terrain:"difficult",footprint:{w:3,h:2,shape:"rect"}},
+ {id:"vault-chandelier",t:"lamp",x:44,y:9,label:"Chandelier · counterweight chain",terrain:"overhead",footprint:{w:4,h:4,shape:"circle"},focus:true},
+ {id:"vault-writs",t:"cabinet",x:50.4,y:10.5,label:"Map-drawer · four Writs",inspect:"Three name-lines are blank. The fourth carries the only positive inscription of an impossible name.",focus:true,scale:1.2}
+];
 root.VTTContent=Object.freeze({
   VERSO_LEVEL:{schemaVersion:1,name:"The Verso · Back of House",bg:"#0A0F0C",rooms:VERSO_ROOMS,doors:VERSO_DOORS,roster:PARTY,props:[
     {id:"accounts-lectern",t:"lectern",x:19.5,y:5.05,label:"ACQUISITIONS lectern",inspect:"A master lectern bearing an open account book.",focus:true,scale:1.15},
@@ -146,6 +205,17 @@ root.VTTContent=Object.freeze({
     {name:"Randy Meisner",letter:"R",color:"#8A6FB8",x:3.5,y:3.5,size:1,pc:true},
     {name:"Trajan",letter:"T",color:"#4E8F86",x:4.5,y:4.5,size:1,pc:true},
     {name:"The Concierge",letter:"♠",color:"#C8A14E",x:10.5,y:14.5,size:1},
+  ]},
+  VAULT_LEVEL:{schemaVersion:2,name:"Level 2 · The Vault of the Bella Rosa",bg:"#080B09",rooms:VAULT_ROOMS,doors:VAULT_DOORS,stairs:[
+    {id:"verso-stairs",x:0,y:9,w:2,h:3,dir:"w",from:1,to:0,style:"stone"}
+  ],roster:VAULT_ROSTER,props:VAULT_PROPS},
+  VAULT_START:{revealed:{landing2:true},tokens:[
+    {name:"Randy Meisner",letter:"R",color:"#8A6FB8",x:2.5,y:9.5,size:1,pc:true},
+    {name:"Klaus Soundgarden",letter:"K",color:"#E0B341",x:3.5,y:9.5,size:1,pc:true},
+    {name:"Clown Fart",letter:"CF",color:"#D96A9C",x:2.5,y:10.5,size:1,pc:true},
+    {name:"David Byrne",letter:"D",color:"#B5443C",x:3.5,y:10.5,size:1,pc:true},
+    {name:"Trajan",letter:"T",color:"#4E8F86",x:2.5,y:11.5,size:1},
+    {name:"Don Sarlossi",letter:"S",color:"#C8A14E",x:45,y:11,size:1.2}
   ]},
   DEFAULT_ROSTER:PARTY,
   SWATCHES:SWATCH,

@@ -257,6 +257,7 @@ function renderPanel(){
         </div>
         <div class="rc-foot dm-only" style="flex-direction:column;align-items:stretch">
           <button class="rbtn" id="rc-toggle">${rev?"HIDE FROM PLAYERS":"REVEAL TO PLAYERS"}</button>
+          <button class="rbtn quiet" id="rc-tactical" style="margin-top:8px">${r.battleGrid==="square"?"OPEN TACTICAL MAP":"VIEW OVERHEAD"}</button>
           <div class="row" style="margin:8px 0 0">
             <button class="rbtn quiet" id="rc-light" title="cycle lit / dim / dark / flicker">☀ ${(r.light||"lit").toUpperCase()}</button>
             <button class="rbtn quiet" id="rc-tokens" title="off: NPCs here are hidden from players until a PC is also in the room. on: NPCs always show once the room is revealed.">${r.tokensAlways?"👁 NPCS VISIBLE":"🕶 PARTY ONLY"}</button>
@@ -377,6 +378,8 @@ function renderPanel(){
     };
     const rcm=$("rc-reveal-mode");
     if(rcm) rcm.onchange=e=>{const room=App.document.rooms.find(r=>r.id===App.session.selRoom);e.target.blur();setRoomRevealMode(room,e.target.value);};
+    const rctac=$("rc-tactical");
+    if(rctac)rctac.onclick=()=>{const room=App.document.rooms.find(r=>r.id===App.session.selRoom);setLevelView("tactical",room);};
     const rcl=$("rc-light");
     if(rcl) rcl.onclick=()=>{
       const room=App.document.rooms.find(x=>x.id===App.session.selRoom);
@@ -601,7 +604,8 @@ function renderEditorPanel(){
     <div class="row">
       <button class="rbtn quiet" id="lv-new">NEW BLANK</button>
       <button class="rbtn quiet" id="lv-verso">RESET TO VERSO</button>
-    </div></div>`;
+    </div>
+    <button class="rbtn quiet" id="lv-vault" style="width:100%">LOAD LEVEL 2 · THE VAULT</button></div>`;
   html+=`<div class="sect"><h3>Tools</h3>
     <div class="row">${toolBtn("draw","DRAW (D)")}${toolBtn("select","SELECT (V)")}</div>
     <div class="row">${toolBtn("door","DOORS (O)")}${toolBtn("prop","PROPS (P)")}${toolBtn("stair","STAIRS (S)")}</div>
@@ -622,6 +626,9 @@ function renderEditorPanel(){
     <div class="row"><label>label</label><input id="ed-prop-label" type="text" maxlength="120" value="${esc(prop.label||"")}" placeholder="shown on inspect"></div>
     <textarea id="ed-prop-inspect" rows="2" maxlength="300" placeholder="brief player-safe description">${esc(prop.inspect||"")}</textarea>
     <label class="check"><input type="checkbox" id="ed-prop-focus" ${prop.focus?"checked":""}> landmark lighting</label>
+    <div class="row"><label>tactical</label><select id="ed-prop-terrain">${[["","furniture only"],["cover","full cover"],["difficult","difficult terrain"],["hazard","hazard zone"],["overhead","overhead object"]].map(([v,n])=>`<option value="${v}" ${(prop.terrain||"")===v?"selected":""}>${n}</option>`).join("")}</select></div>
+    <div class="row"><label>footprint</label><input id="ed-prop-fw" type="number" min=".25" max="20" step=".25" value="${prop.footprint?.w||1}" title="width in five-foot tiles"><span>×</span><input id="ed-prop-fh" type="number" min=".25" max="20" step=".25" value="${prop.footprint?.h||1}" title="height in five-foot tiles"></div>
+    <label class="check"><input type="checkbox" id="ed-prop-circle" ${prop.footprint?.shape==="circle"?"checked":""}> circular footprint</label>
     <button class="rbtn quiet" id="ed-prop-delete" style="width:100%;color:var(--oxblood);border-color:var(--oxblood)">DELETE PROP</button>
     <div class="hint">Landmarks receive a restrained light pool. Props with a label or description can be inspected at the table.</div></div>`;
   if(stair)html+=`<div class="sect"><h3>Stairs · ${esc(stair.id)}</h3>
@@ -653,6 +660,7 @@ function renderEditorPanel(){
       <label class="check"><input type="checkbox" id="ed-corr" ${sel.corridor?"checked":""}> corridor (thin label styling)</label>
       <div class="row"><label>lighting</label><select id="ed-light">${["lit","bright","dim","dark","torchlight","flicker","magical"].map(v=>`<option ${(sel.light||"lit")===v?"selected":""}>${v}</option>`).join("")}</select></div>
       <div class="row"><label>entry reveal</label><select id="ed-reveal-mode" title="Manual, one-shot reveal when a PC enters, or always visible">${revealModeOptions(sel)}</select></div>
+      <label class="check"><input type="checkbox" id="ed-battle-grid" ${sel.battleGrid==="square"?"checked":""}> five-foot tactical grid in this room</label>
       <label class="check"><input type="checkbox" id="ed-tokens" ${sel.tokensAlways?"checked":""}> NPCs always visible here (default: hidden from players until a PC is also in the room)</label>
       <div class="row"><label>read-aloud</label></div>
       <textarea id="ed-read" rows="4" placeholder="What the players hear when they enter…">${esc(sel.read||"")}</textarea>
@@ -734,6 +742,11 @@ function renderEditorPanel(){
   const propLabel=$("ed-prop-label");if(propLabel)propLabel.onchange=e=>mutateProp(p=>{const v=e.target.value.trim();if(v)p.label=v;else delete p.label;});
   const propInspect=$("ed-prop-inspect");if(propInspect)propInspect.onchange=e=>mutateProp(p=>{const v=e.target.value.trim();if(v)p.inspect=v;else delete p.inspect;});
   const propFocus=$("ed-prop-focus");if(propFocus)propFocus.onchange=e=>mutateProp(p=>{if(e.target.checked)p.focus=true;else delete p.focus;});
+  const propTerrain=$("ed-prop-terrain");if(propTerrain)propTerrain.onchange=e=>mutateProp(p=>{const v=e.target.value;if(v){p.terrain=v;p.footprint=p.footprint||{w:1,h:1,shape:"rect"};}else{delete p.terrain;delete p.footprint;}});
+  const mutateFootprint=(key,value)=>mutateProp(p=>{p.footprint=p.footprint||{w:1,h:1,shape:"rect"};p.footprint[key]=value;});
+  const propFW=$("ed-prop-fw");if(propFW)propFW.onchange=e=>mutateFootprint("w",Math.max(.25,Math.min(20,+e.target.value||1)));
+  const propFH=$("ed-prop-fh");if(propFH)propFH.onchange=e=>mutateFootprint("h",Math.max(.25,Math.min(20,+e.target.value||1)));
+  const propCircle=$("ed-prop-circle");if(propCircle)propCircle.onchange=e=>mutateFootprint("shape",e.target.checked?"circle":"rect");
   const propDelete=$("ed-prop-delete");if(propDelete)propDelete.onclick=()=>{edSnapshot();App.document.level.props=App.document.level.props.filter(p=>p.id!==prop.id);edPropSel=null;levelTouched();renderPanel();};
   const mutateStair=(fn)=>{if(stair){edSnapshot();fn(stair);levelTouched();renderPanel();}};
   const stairDir=$("ed-stair-dir");if(stairDir)stairDir.onchange=e=>{const next=e.target.value;if(stair){mutateStair(s=>{const oldX=s.dir==="e"||s.dir==="w",newX=next==="e"||next==="w";if(oldX!==newX)[s.w,s.h]=[s.h,s.w];s.dir=next;});}else edStairDir=next;};
@@ -765,6 +778,13 @@ function renderEditorPanel(){
     if(App.document.rooms.some(r=>r.id==="white") && !Object.keys(App.session.verso.revealed).length) App.session.verso.revealed.white=true;
     setEdSelection([]);edFit();levelTouched();
   };
+  $("lv-vault").onclick=()=>{
+    if(!confirm("Replace the current level with Level 2 — The Vault of the Bella Rosa?"))return;
+    edSnapshot();loadLevel(App.content.VAULT_LEVEL);
+    App.session.verso.revealed={...App.content.VAULT_START.revealed};
+    App.session.verso.tokens=App.content.VAULT_START.tokens.map(t=>mkTok(t.name,t.letter,t.color,t.x,t.y,t.size,t.pc));
+    setEdSelection([]);edFit();levelTouched();
+  };
   if(sel){
     $("ed-name").onchange=e=>{edSnapshot();sel.name=e.target.value.trim()||"Room";levelTouched();};
     $("ed-sub").onchange=e=>{edSnapshot();sel.sub=e.target.value;levelTouched();};
@@ -785,6 +805,7 @@ function renderEditorPanel(){
     $("ed-corr").onchange=e=>{edSnapshot();if(e.target.checked)sel.corridor=true;else delete sel.corridor;levelTouched();};
     $("ed-light").onchange=e=>{edSnapshot();const v=e.target.value;if(v==="lit")delete sel.light;else sel.light=v;levelTouched();};
     $("ed-reveal-mode").onchange=e=>{edSnapshot();setRoomRevealMode(sel,e.target.value);};
+    $("ed-battle-grid").onchange=e=>{edSnapshot();sel.battleGrid=e.target.checked?"square":"none";levelTouched();};
     $("ed-tokens").onchange=e=>{edSnapshot();if(e.target.checked)sel.tokensAlways=true;else delete sel.tokensAlways;levelTouched();};
     $("ed-read").onchange=e=>{edSnapshot();sel.read=e.target.value;levelTouched();};
     $("ed-dm").onchange=e=>{edSnapshot();sel.dm=e.target.value;levelTouched();};

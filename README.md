@@ -32,6 +32,21 @@ wall height, raised platform edges, front-wall cutaways, expanded lighting
 modes, and grouped material packs. These properties travel with level exports and
 session saves.
 
+Play mode can render the same level and token state as either an isometric scene
+or a tactical overhead map. Rooms opt into a five-foot square grid individually,
+so exploration spaces remain representational while encounter arenas gain exact
+movement and ruler distances. The switch is synchronized to connected players and
+the separate player window.
+
+Props can also carry tactical footprints for full cover, difficult terrain,
+hazards, and overhead objects. Those footprints are editable in the prop panel and
+remain ordinary atmospheric props in the isometric renderer.
+
+The bundled Level 2 pack lays out the stairs below the Verso, Mirror Gallery,
+Counting Floor, Sarlossi's office/stage, and the Vault of the Bella Rosa. The vault
+ships as a 70-foot square tactical arena with pillars, coin dunes, and the hanging
+chandelier already authored.
+
 Room reveal policies can be manual, armed, or always visible. Armed rooms stay
 hidden until a PC enters through revealed space, then reveal and return to manual
 as a one-shot cue; unrevealed manual rooms continue to block player movement.

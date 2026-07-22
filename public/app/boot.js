@@ -13,6 +13,7 @@ $("start-open").onclick=()=>$("file-level").click();
 $("start-resume").onclick=editor.resumeAutosave;
 $("start-load").onclick=()=>$("file-json").click();
 $("start-verso").onclick=editor.startVerso;
+$("start-vault").onclick=editor.startVault;
 {
   // Convenience screen lock only. Deployment access is enforced by Worker Basic Auth.
   const DM_SCREEN_WORD="mindthecarpet";

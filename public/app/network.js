@@ -79,7 +79,7 @@ function clientToken(t){
   return c;
 }
 function lightSnapshot(){
-  return {type:"sync",scene:App.session.scene,revealed:App.session.verso.revealed,
+  return {type:"sync",scene:App.session.scene,levelView:App.session.verso.view,revealed:App.session.verso.revealed,
     grid:App.session.map.grid,fogOn:App.session.map.fogOn,
     tokens:{map:App.session.map.tokens.map(clientToken),verso:App.session.verso.tokens.map(clientToken)},
     // hidden initiative entries: players get the position, never the number
@@ -308,7 +308,13 @@ function cliRescue(delay){
 let firstSync=true;
 function clientHandle(m){
   if(m.type==="sync"){
-    if(m.scene!==App.session.scene){App.session.scene=m.scene; fitScene(); updZoom();}
+    let refit=false;
+    if(m.scene!==App.session.scene){App.session.scene=m.scene;document.body.classList.toggle("mapscene",m.scene==="map");refit=true;}
+    const levelView=m.levelView==="tactical"?"tactical":"isometric";
+    if(levelView!==App.session.verso.view){App.session.verso.view=levelView;refit=true;}
+    $("view-iso").classList.toggle("on",App.session.verso.view==="isometric");
+    $("view-tactical").classList.toggle("on",App.session.verso.view==="tactical");
+    if(refit){fitScene();updZoom();}
     App.session.verso.revealed=m.revealed||{};
     Object.assign(App.session.map.grid,m.grid||{});
     App.session.map.fogOn=m.fogOn!==false;

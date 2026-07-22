@@ -107,6 +107,21 @@ test("isometric room properties and stairs are normalized to portable bounds", (
   assert.deepEqual({...level.stairs[0],id:undefined},{id:undefined,x:0,y:0,w:2,h:3,dir:"e",from:0,to:12,style:"stone"});
 });
 
+test("tactical room grids and terrain footprints normalize safely", () => {
+  const level=normalizeLevel({rooms:[
+    {name:"Arena",rect:{x:0,y:0,w:8,h:8},battleGrid:"square"},
+    {name:"Hall",rect:{x:8,y:0,w:2,h:2},battleGrid:"hex"},
+  ],props:[
+    {t:"pillar",x:1,y:1,terrain:"cover",footprint:{w:99,h:.1,shape:"circle"}},
+    {t:"rug",x:2,y:2,terrain:"lava"},
+  ]});
+  assert.equal(level.rooms[0].battleGrid,"square");
+  assert.equal(level.rooms[1].battleGrid,"none");
+  assert.equal(level.props[0].terrain,"cover");
+  assert.deepEqual(level.props[0].footprint,{w:20,h:.25,shape:"circle"});
+  assert.equal(level.props[1].terrain,undefined);
+});
+
 test("room reveal policies default safely and reject unknown values", () => {
   const level=normalizeLevel({rooms:[
     {name:"Legacy",rect:{x:0,y:0,w:1,h:1}},
@@ -149,4 +164,10 @@ test("v1 sessions migrate to the current session and level schemas", () => {
   assert.equal(session.level.schemaVersion, LEVEL_SCHEMA_VERSION);
   assert.equal(session.scene, "map");
   assert.equal(session.map.grid.size, 50);
+  assert.equal(session.verso.view,"isometric");
+});
+
+test("sessions preserve the tactical renderer choice",()=>{
+  const session=normalizeSession({schemaVersion:SESSION_SCHEMA_VERSION,scene:"verso",map:{},verso:{view:"tactical"},level:{rooms:[]}});
+  assert.equal(session.verso.view,"tactical");
 });

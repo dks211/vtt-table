@@ -269,6 +269,10 @@ function drawEditor(){
     ctx.fillStyle=r.floorA; ctx.globalAlpha=.92;
     for(const rc of r.rects) ctx.fillRect(rc.x*ET,rc.y*ET,rc.w*ET,rc.h*ET);
     ctx.globalAlpha=1;
+    if(r.battleGrid==="square"){
+      ctx.strokeStyle="rgba(233,226,206,.2)";ctx.lineWidth=1/c.s;ctx.beginPath();
+      for(const [i,j]of roomTiles(r))ctx.rect(i*ET,j*ET,ET,ET);ctx.stroke();
+    }
     ctx.beginPath();
     for(const [x1,y1,x2,y2] of roomEdges(r)){ctx.moveTo(x1*ET,y1*ET);ctx.lineTo(x2*ET,y2*ET);}
     ctx.lineWidth=(edSelection.has(r.id)?3:2)/c.s;
@@ -303,6 +307,12 @@ function drawEditor(){
   ctx.font="600 9px 'IBM Plex Mono', monospace";
   ctx.textAlign="center"; ctx.textBaseline="middle";
   for(const pr of (App.document.level.props||[])){
+    if(pr.footprint){
+      const fp=pr.footprint,x=pr.x*ET,y=pr.y*ET,w=fp.w*ET,h=fp.h*ET;
+      ctx.fillStyle=pr.terrain==="hazard"?"rgba(138,46,37,.34)":pr.terrain==="overhead"?"rgba(127,168,184,.18)":"rgba(200,161,78,.22)";
+      ctx.strokeStyle=pr.id===edPropSel?"#E9E2CE":"#C8A14E";ctx.lineWidth=2/c.s;ctx.beginPath();
+      if(fp.shape==="circle")ctx.ellipse(x+w/2,y+h/2,w/2,h/2,0,0,7);else ctx.rect(x,y,w,h);ctx.fill();ctx.stroke();
+    }
     ctx.fillStyle=pr.id===edPropSel?"#E9E2CE":"rgba(200,161,78,.75)";
     ctx.fillRect((pr.x+.2)*ET,(pr.y+.2)*ET,ET*.6,ET*.6);
     if(pr.focus){ctx.strokeStyle="#C8A14E";ctx.lineWidth=2/c.s;ctx.strokeRect((pr.x+.12)*ET,(pr.y+.12)*ET,ET*.76,ET*.76);}
@@ -602,6 +612,7 @@ $("t-fit").onclick=()=>{if(App.session.mode==="edit")edFit();else fitScene();};
 function setScene(s){
   if(App.session.mode==="edit"){ App.session.mode="play";document.body.classList.remove("editing");$("tab-edit").classList.remove("on");setView(App.session.view);setTool(App.session.tool); }
   App.session.scene=s; App.session.selToken=null;
+  document.body.classList.toggle("mapscene",s==="map");
   $("tab-map").classList.toggle("on",s==="map");
   $("tab-verso").classList.toggle("on",s==="verso");
   const fogOK = s==="map";
@@ -619,6 +630,18 @@ function setView(v){
   $("st-view").textContent = v==="dm" ? "DM VIEW" : "PLAYER VIEW";
   renderPanel();
 }
+function setLevelView(v,focus){
+  if(NET.mode==="client")return;
+  App.session.verso.view=v==="tactical"?"tactical":"isometric";
+  $("view-iso").classList.toggle("on",App.session.verso.view==="isometric");
+  $("view-tactical").classList.toggle("on",App.session.verso.view==="tactical");
+  if(App.session.scene==="verso"){
+    if(focus&&App.session.verso.view==="tactical")focusRoom(focus);else fitScene();
+    updZoom();netMark();
+  }
+}
+$("view-iso").onclick=()=>setLevelView("isometric");
+$("view-tactical").onclick=()=>setLevelView("tactical",App.document.rooms.find(r=>r.id===App.session.selRoom));
 
 /* ---------------- map import ---------------- */
 function loadImageFile(file){
@@ -677,6 +700,12 @@ function startVerso(){
   App.session.verso.tokens=App.content.VERSO_START.tokens.map(t=>mkTok(t.name,t.letter,t.color,t.x,t.y,t.size,t.pc));
   setScene("verso");hideStartScreen();
 }
+function startVault(){
+  loadLevel(App.content.VAULT_LEVEL);
+  App.session.verso.revealed={...App.content.VAULT_START.revealed};
+  App.session.verso.tokens=App.content.VAULT_START.tokens.map(t=>mkTok(t.name,t.letter,t.color,t.x,t.y,t.size,t.pc));
+  setLevelView("isometric");setScene("verso");hideStartScreen();
+}
 async function resumeAutosave(){
   try{
     const local=localStorage.getItem(LOCAL_SESSION_KEY);
@@ -694,7 +723,7 @@ function serialize(){
       tokens:App.session.map.tokens,
       fogURL: App.session.map.fog ? App.session.map.fog.toDataURL("image/png") : null
     },
-    verso:{revealed:App.session.verso.revealed, tokens:App.session.verso.tokens},
+    verso:{view:App.session.verso.view,revealed:App.session.verso.revealed, tokens:App.session.verso.tokens},
     level:levelData()
   };
 }
@@ -702,6 +731,9 @@ function deserialize(d){
     const session=normalizeSession(d,{fallbackRoster:PARTY,fallbackLevel:App.content.VERSO_LEVEL});
     loadLevel(session.level);
     App.session.verso.revealed=session.verso.revealed;
+    App.session.verso.view=session.verso.view;
+    $("view-iso").classList.toggle("on",App.session.verso.view==="isometric");
+    $("view-tactical").classList.toggle("on",App.session.verso.view==="tactical");
     enforceAlwaysRoomReveal();
     App.session.verso.tokens=session.verso.tokens;
     uid=Math.max(uid,...App.session.verso.tokens.map(t=>t.id+1),1);
@@ -773,4 +805,4 @@ async function autosave(){
 }
 setInterval(autosave,8000);
 
-Object.assign(App.services.editor,{setTool,setScene,setView,serialize,deserialize,newEntityId,renderEditorPreview,fitIsoPreview,showStartScreen,hideStartScreen,newBlankLevel,startVerso,resumeAutosave});
+Object.assign(App.services.editor,{setTool,setScene,setView,setLevelView,serialize,deserialize,newEntityId,renderEditorPreview,fitIsoPreview,showStartScreen,hideStartScreen,newBlankLevel,startVerso,startVault,resumeAutosave});

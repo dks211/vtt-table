@@ -14,7 +14,7 @@ function drawPatrolPath(){ // DM-only: dashed loop for the selected token's patr
   if(RVIEW!=="dm" || NET.mode==="client") return;
   const t=S().tokens.find(t=>t.id===App.session.selToken);
   if(!t || !t.patrol || !t.patrol.length) return;
-  const pts=t.patrol.map(([a,b])=> App.session.scene==="verso" ? [isoX(a,b),isoY(a,b)] : [a,b]);
+  const pts=t.patrol.map(([a,b])=> App.session.scene==="verso" ? levelWorldFromTile(a,b) : [a,b]);
   const c=cam();
   ctx.save();
   ctx.strokeStyle="#7FA8B8"; ctx.lineWidth=2/c.s; ctx.setLineDash([8/c.s,6/c.s]);
@@ -288,7 +288,7 @@ function renderPlayerWindow(){
   const oc=ctx,oW=W,oH=H,ov=RVIEW;
   ctx=pctx; W=pW; H=pH; RVIEW="pl";
   ctx.clearRect(0,0,pW,pH);
-  if(App.session.scene==="map") drawMap(); else drawVerso();
+  if(App.session.scene==="map") drawMap(); else if(tacticalView())drawTactical();else drawVerso();
   drawRuler();
   ctx=oc; W=oW; H=oH; RVIEW=ov; CAMOVR=null;
 }
@@ -302,7 +302,7 @@ function frame(t){
     drawEditor();
     renderEditorPreview();
   }else{
-    if(App.session.scene==="map") drawMap(); else drawVerso();
+    if(App.session.scene==="map") drawMap(); else if(tacticalView())drawTactical();else drawVerso();
     drawRuler();
   }
   renderPlayerWindow();
@@ -321,7 +321,7 @@ function tokenAt(sx,sy){
       if(Math.hypot(wx-t.x,wy-t.y)<=g*.45*t.size) return t;
     }
   }else{
-    const [i,j]=unIso(wx,wy);
+    const [i,j]=levelTileFromWorld(wx,wy);
     // a player can only ever move their own claimed token — if it's anywhere under
     // the tap, grab it outright rather than losing to whatever else is on that tile
     if(NET.mode==="client" && NET.myToken!=null){
@@ -368,7 +368,7 @@ cv.addEventListener("pointerdown",e=>{
       const [pwx,pwy]=toWorld(e.offsetX,e.offsetY);
       let pt;
       if(App.session.scene==="verso"){
-        const [i,j]=unIso(pwx,pwy);
+        const [i,j]=levelTileFromWorld(pwx,pwy);
         pt=[Math.floor(i)+.5,Math.floor(j)+.5];
       }else{
         pt=[pwx,pwy];
@@ -444,7 +444,7 @@ cv.addEventListener("pointermove",e=>{
   if(App.session.mode==="edit"){
     /* edMove writes the tile readout */
   }else if(App.session.scene==="verso"){
-    const [i,j]=unIso(wx,wy);
+    const [i,j]=levelTileFromWorld(wx,wy);
     $("st-pos").textContent=`tile ${i.toFixed(1)}, ${j.toFixed(1)}`;
     setPropHover(i,j);
   }else{
@@ -466,7 +466,7 @@ cv.addEventListener("pointermove",e=>{
   if(fogPainting && e.buttons){paintFog(e.offsetX,e.offsetY);return;}
   if(dragTok && e.buttons){
     if(App.session.scene==="map"){dragTok.x=wx;dragTok.y=wy;}
-    else{const [i,j]=unIso(wx,wy);dragTok.x=i;dragTok.y=j;}
+    else{const [i,j]=levelTileFromWorld(wx,wy);dragTok.x=i;dragTok.y=j;}
     markDirty(); return;
   }
   if(panRef && e.buttons){
@@ -513,7 +513,7 @@ cv.addEventListener("pointerup",e=>{
   // click (no drag): select room in verso
   if(downAt && !downAt.moved && !dragTok && App.session.scene==="verso" && App.session.tool==="select"){
     const [wx,wy]=toWorld(e.offsetX,e.offsetY);
-    const [i,j]=unIso(wx,wy);
+    const [i,j]=levelTileFromWorld(wx,wy);
     const r=roomAtTile(i,j);
     App.session.selRoom = r ? r.id : null;
     renderPanel();
@@ -594,6 +594,7 @@ addEventListener("keydown",e=>{
   if(k==="r" && App.session.scene==="map") setTool("fogr");
   if(k==="h" && App.session.scene==="map") setTool("fogh");
   if(k==="f") fitScene();
+  if(k==="b" && App.session.scene==="verso" && NET.mode!=="client")setLevelView(tacticalView()?"isometric":"tactical",App.document.rooms.find(r=>r.id===App.session.selRoom));
   if(k==="g" && App.session.scene==="map"){App.session.map.grid.show=!App.session.map.grid.show;renderPanel();}
   if((k==="delete"||k==="backspace") && App.session.selToken!=null){
     const arr=S().tokens; const i=arr.findIndex(t=>t.id===App.session.selToken);

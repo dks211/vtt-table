@@ -3,7 +3,7 @@ const {LEVEL_SCHEMA_VERSION, SESSION_SCHEMA_VERSION, escapeHTML:esc, parseDice, 
 /* =====================================================================
    PALIMPSEST VTT — state and isometric rendering
    Scenes: "map" (uploaded image, square grid, fog of war)
-           "verso" (built-in isometric Back of House)
+           "verso" (level geometry in isometric or tactical overhead view)
    ===================================================================== */
 
 const {VERSO_LEVEL,VERSO_START,DEFAULT_ROSTER:PARTY,SWATCHES:SWATCH,ROOM_TEMPLATES:TEMPLATES,PROP_LIBRARY:PROP_LIB}=App.content;
@@ -16,6 +16,7 @@ const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /* ---------------- iso constants ---------------- */
 const TW = 72, TH = 36;                 // iso tile screen size at zoom 1
+const BT = 64;                          // tactical px per five-foot tile at zoom 1
 const ELEV_STEP = 12;
 const isoX = (i,j)=> (i-j)*TW/2;
 const isoY = (i,j)=> (i+j)*TH/2;
@@ -76,14 +77,19 @@ App.session = {
     cam:{x:0,y:0,s:1}
   },
   verso:{
+    view:"isometric",                  // same level and tokens; alternate renderer only
     revealed:{...VERSO_START.revealed},
     tokens:VERSO_START.tokens.map(t=>mkTok(t.name,t.letter,t.color,t.x,t.y,t.size,t.pc)),
-    cam:{x:0,y:0,s:1}
+    cam:{x:0,y:0,s:1},
+    tacticalCam:{x:0,y:0,s:1}
   }
 };
 
 const S  = ()=> App.session[App.session.scene];
-const cam= ()=> CAMOVR || (App.session.mode==="edit" ? edCam : S().cam);
+const tacticalView=()=>App.session.scene==="verso"&&App.session.verso.view==="tactical";
+const levelWorldFromTile=(i,j)=>tacticalView()?[i*BT,j*BT]:[isoX(i,j),isoY(i,j)];
+const levelTileFromWorld=(x,y)=>tacticalView()?[x/BT,y/BT]:unIso(x,y);
+const cam= ()=> CAMOVR || (App.session.mode==="edit" ? edCam : tacticalView() ? App.session.verso.tacticalCam : S().cam);
 
 /* ---------------- canvas sizing ---------------- */
 let W=0,H=0,DPR=1;
@@ -127,6 +133,21 @@ function fitScene(){
     const iw=App.session.map.img.width, ih=App.session.map.img.height;
     c.s=Math.min(W/iw,H/ih)*.94;
     c.x=-(W/c.s-iw)/2; c.y=-(H/c.s-ih)/2;
+  }else if(tacticalView()){
+    let fitRooms=App.document.rooms;
+    if(NET.mode==="client"){
+      const rev=App.document.rooms.filter(r=>App.session.verso.revealed[r.id]);
+      if(rev.length)fitRooms=rev;
+    }
+    let minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9;
+    for(const r of fitRooms)for(const rc of r.rects){
+      minX=Math.min(minX,rc.x*BT);maxX=Math.max(maxX,(rc.x+rc.w)*BT);
+      minY=Math.min(minY,rc.y*BT);maxY=Math.max(maxY,(rc.y+rc.h)*BT);
+    }
+    if(minX===1e9){minX=-BT;maxX=BT;minY=-BT;maxY=BT;}
+    const pad=BT*.8,bw=maxX-minX+pad*2,bh=maxY-minY+pad*2;
+    c.s=Math.min(W/bw,H/bh)*.96;
+    c.x=minX-pad-(W/c.s-bw)/2;c.y=minY-pad-(H/c.s-bh)/2;
   }else{
     // players only see revealed rooms — fit those, not the whole hidden floor plan
     let fitRooms=App.document.rooms;
@@ -151,6 +172,14 @@ function fitScene(){
     c.s=Math.min(W/bw,H/bh)*.9;
     c.x=minX-(W/c.s-bw)/2; c.y=minY-44-(H/c.s-bh)/2;
   }
+}
+function focusRoom(room){
+  if(!room||!tacticalView()||!(W>0&&H>0)){fitScene();return;}
+  const c=cam(),bb=roomBBox(room),pad=BT*.9;
+  const minX=bb.x0*BT-pad,minY=bb.y0*BT-pad;
+  const bw=(bb.x1-bb.x0)*BT+pad*2,bh=(bb.y1-bb.y0)*BT+pad*2;
+  c.s=Math.min(W/bw,H/bh)*.96;
+  c.x=minX-(W/c.s-bw)/2;c.y=minY-(H/c.s-bh)/2;
 }
 
 /* ---------------- drawing: map scene ---------------- */
@@ -216,6 +245,99 @@ function drawTokenFlat(t,g,s){
   ctx.strokeText(t.name,t.x,t.y+r+g*.18);
   ctx.fillText(t.name,t.x,t.y+r+g*.18);
   ctx.restore();
+}
+
+/* ---------------- drawing: tactical overhead level ---------------- */
+const TERRAIN_STYLE={
+  cover:{fill:"rgba(122,94,46,.78)",stroke:"#E9E2CE",label:"FULL COVER"},
+  difficult:{fill:"rgba(90,74,40,.52)",stroke:"#C8A14E",label:"DIFFICULT"},
+  hazard:{fill:"rgba(138,46,37,.42)",stroke:"#E07A56",label:"HAZARD"},
+  overhead:{fill:"rgba(127,168,184,.08)",stroke:"#7FA8B8",label:"OVERHEAD"}
+};
+function drawTacticalTerrain(pr,c){
+  if(!pr.terrain&&!pr.footprint)return;
+  const fp=pr.footprint||{w:1,h:1,shape:"rect"},style=TERRAIN_STYLE[pr.terrain]||TERRAIN_STYLE.difficult;
+  const x=pr.x*BT,y=pr.y*BT,w=fp.w*BT,h=fp.h*BT;
+  ctx.save();ctx.fillStyle=style.fill;ctx.strokeStyle=style.stroke;ctx.lineWidth=2/c.s;
+  if(pr.terrain==="overhead")ctx.setLineDash([9/c.s,6/c.s]);
+  ctx.beginPath();
+  if(fp.shape==="circle")ctx.ellipse(x+w/2,y+h/2,w/2,h/2,0,0,7);else ctx.rect(x,y,w,h);
+  ctx.fill();ctx.stroke();ctx.setLineDash([]);
+  if(pr.terrain==="difficult"){
+    ctx.save();ctx.clip();ctx.strokeStyle="rgba(233,226,206,.22)";ctx.lineWidth=1/c.s;ctx.beginPath();
+    for(let q=-h;q<w+h;q+=BT*.45){ctx.moveTo(x+q,y+h);ctx.lineTo(x+q+h,y);}ctx.stroke();ctx.restore();
+  }
+  ctx.fillStyle=style.stroke;ctx.font=`600 ${10/c.s}px 'IBM Plex Mono', monospace`;ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText((pr.label||style.label).toUpperCase(),x+w/2,y+h/2);
+  ctx.restore();
+}
+function drawTactical(){
+  const v=App.session.verso,c=cam(),showHidden=RVIEW==="dm";
+  ctx.fillStyle=App.document.level.bg||"#0A0F0C";ctx.fillRect(0,0,W,H);
+  ctx.save();ctx.scale(c.s,c.s);ctx.translate(-c.x,-c.y);
+  for(const r of App.document.rooms){
+    const rev=!!v.revealed[r.id];if(!rev&&!showHidden)continue;
+    ctx.save();if(!rev)ctx.globalAlpha=.22;
+    for(const [i,j] of roomTiles(r)){
+      ctx.fillStyle=hash2(i,j)>.5?r.floorA:r.floorB;ctx.fillRect(i*BT,j*BT,BT,BT);
+      if(r.battleGrid==="square"){
+        ctx.strokeStyle="rgba(233,226,206,.22)";ctx.lineWidth=1/c.s;ctx.strokeRect(i*BT,j*BT,BT,BT);
+      }
+    }
+    ctx.beginPath();for(const [x1,y1,x2,y2]of roomEdges(r)){ctx.moveTo(x1*BT,y1*BT);ctx.lineTo(x2*BT,y2*BT);}
+    ctx.strokeStyle=r.wall;ctx.lineWidth=Math.max(3,5/c.s);ctx.stroke();ctx.restore();
+  }
+  // Area footprints sit beneath furniture and tokens and turn authored props into usable mechanics.
+  for(const pr of(App.document.level.props||[])){
+    const room=roomAtTile(pr.x+.01,pr.y+.01),rev=room&&v.revealed[room.id];
+    if(!rev&&!showHidden)continue;
+    ctx.save();if(!rev)ctx.globalAlpha=.2;drawTacticalTerrain(pr,c);ctx.restore();
+  }
+  for(const stair of(App.document.stairs||[])){
+    if(!showHidden&&!stairVisible(stair))continue;
+    ctx.save();ctx.fillStyle="rgba(119,113,104,.68)";ctx.fillRect(stair.x*BT,stair.y*BT,stair.w*BT,stair.h*BT);
+    const alongX=stair.dir==="e"||stair.dir==="w",steps=(alongX?stair.w:stair.h)*3;
+    ctx.strokeStyle="rgba(7,9,8,.55)";ctx.lineWidth=1/c.s;ctx.beginPath();
+    for(let k=1;k<steps;k++)if(alongX){const x=(stair.x+k/3)*BT;ctx.moveTo(x,stair.y*BT);ctx.lineTo(x,(stair.y+stair.h)*BT);}else{const y=(stair.y+k/3)*BT;ctx.moveTo(stair.x*BT,y);ctx.lineTo((stair.x+stair.w)*BT,y);}
+    ctx.stroke();ctx.strokeStyle="#7FA8B8";ctx.lineWidth=2/c.s;ctx.strokeRect(stair.x*BT,stair.y*BT,stair.w*BT,stair.h*BT);
+    ctx.fillStyle="#E9E2CE";ctx.font=`600 ${18/c.s}px 'IBM Plex Mono', monospace`;ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.fillText(({n:"↑",e:"→",s:"↓",w:"←"})[stair.dir],(stair.x+stair.w/2)*BT,(stair.y+stair.h/2)*BT);ctx.restore();
+  }
+  for(const pr of(App.document.level.props||[])){
+    const room=roomAtTile(pr.x+.5,pr.y+.5),rev=room&&v.revealed[room.id];if(!rev&&!showHidden)continue;
+    if(pr.footprint)continue; // footprint already carries the tactical meaning
+    ctx.save();if(!rev)ctx.globalAlpha=.22;
+    const x=(pr.x+.5)*BT,y=(pr.y+.5)*BT;
+    ctx.fillStyle=pr.focus?"#E9E2CE":"#C8A14E";ctx.strokeStyle="rgba(7,9,8,.8)";ctx.lineWidth=2/c.s;
+    ctx.beginPath();ctx.arc(x,y,BT*.24*(pr.scale||1),0,7);ctx.fill();ctx.stroke();
+    ctx.fillStyle="#070908";ctx.font=`600 ${13/c.s}px 'IBM Plex Mono', monospace`;ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.fillText(PROP_LIB[pr.t]?PROP_LIB[pr.t].n[0]:"?",x,y);ctx.restore();
+  }
+  for(const d of App.document.doors){
+    const visible=doorVisible(d);if(!visible&&!showHidden)continue;
+    const len=d.len||1,x2=d.dir==="h"?d.x+len:d.x,y2=d.dir==="h"?d.y:d.y+len;
+    ctx.save();if(!visible)ctx.globalAlpha=.3;ctx.beginPath();ctx.moveTo(d.x*BT,d.y*BT);ctx.lineTo(x2*BT,y2*BT);
+    ctx.strokeStyle=d.type==="open"?"#2B2125":"#C8A14E";ctx.lineWidth=(d.type==="open"?8:5)/c.s;
+    if(d.type!=="open")ctx.setLineDash([8/c.s,5/c.s]);ctx.stroke();ctx.restore();
+  }
+  for(const r of App.document.rooms){
+    const rev=!!v.revealed[r.id];if(!rev&&!showHidden)continue;const bb=roomBBox(r);
+    ctx.save();ctx.globalAlpha=rev?1:.45;ctx.font=`600 ${11/c.s}px 'IBM Plex Mono', monospace`;ctx.textAlign="left";ctx.textBaseline="top";
+    ctx.fillStyle=(showHidden&&App.session.selRoom===r.id)?"#E9E2CE":"#C8A14E";
+    ctx.fillText(r.name.toUpperCase()+(r.battleGrid==="square"?" · 5 FT GRID":"")+(rev?"":" · HIDDEN"),bb.x0*BT+8/c.s,bb.y0*BT+8/c.s);ctx.restore();
+  }
+  const toks=[...v.tokens];let partyRoomIds=null;
+  for(const t of toks){
+    if(!showHidden){
+      const room=roomAtTile(t.x,t.y);if(room&&!v.revealed[room.id])continue;
+      if(room&&!t.pc&&!room.tokensAlways){
+        if(!partyRoomIds){partyRoomIds=new Set();for(const p of v.tokens)if(p.pc){const pr=roomAtTile(p.x,p.y);if(pr)partyRoomIds.add(pr.id);}}
+        if(!partyRoomIds.has(room.id))continue;
+      }
+    }
+    drawTokenFlat({...t,x:t.x*BT,y:t.y*BT},BT,c.s);
+  }
+  drawPatrolPath();drawPings();ctx.restore();drawPropTooltip();
 }
 
 /* ---------------- drawing: verso iso scene ---------------- */
@@ -845,8 +967,9 @@ function setPropHover(i,j){
 function drawPropTooltip(){
   const pr=(App.document.level.props||[]).find(p=>p.id===hoverPropId);
   if(!pr||(!pr.label&&!pr.inspect))return;
-  const room=roomAtTile(pr.x+.5,pr.y+.5),elev=roomElevation(room||{});
-  const [sx,sy]=toScreen(isoX(pr.x+.5,pr.y+.5),isoY(pr.x+.5,pr.y+.5)-elev-38*(pr.scale||1));
+  const room=roomAtTile(pr.x+.5,pr.y+.5),elev=tacticalView()?0:roomElevation(room||{});
+  const [lx,ly]=levelWorldFromTile(pr.x+.5,pr.y+.5);
+  const [sx,sy]=toScreen(lx,ly-elev-(tacticalView()?BT*.35:38)*(pr.scale||1));
   const label=pr.label||(PROP_LIB[pr.t]?.n||"Object"),detail=pr.inspect||"";
   ctx.save();ctx.font="600 12px 'IBM Plex Mono', monospace";
   const width=Math.min(350,Math.max(ctx.measureText(label).width,detail?ctx.measureText(detail).width:0)+20);
@@ -932,9 +1055,9 @@ function drawRuler(){
     const d=Math.hypot(ruler.x2-ruler.x1,ruler.y2-ruler.y1)/g;
     label=(d*5).toFixed(0)+" ft · "+d.toFixed(1)+" sq";
   }else{
-    const [i1,j1]=unIso(ruler.x1,ruler.y1), [i2,j2]=unIso(ruler.x2,ruler.y2);
-    const d=Math.hypot(i2-i1,j2-j1);
-    label=(d*5).toFixed(0)+" ft · "+d.toFixed(1)+" tiles";
+    const [i1,j1]=levelTileFromWorld(ruler.x1,ruler.y1), [i2,j2]=levelTileFromWorld(ruler.x2,ruler.y2);
+    const d=Math.max(Math.abs(i2-i1),Math.abs(j2-j1)); // 5e square-grid diagonals
+    label=(d*5).toFixed(0)+" ft · "+d.toFixed(1)+" squares";
   }
   ctx.font="600 12px 'IBM Plex Mono', monospace";
   const mx=(sx1+sx2)/2,my=(sy1+sy2)/2;
@@ -947,4 +1070,4 @@ function drawRuler(){
 }
 
 Object.assign(App.services.model,{levelData,clientLevelData,loadLevel});
-Object.assign(App.services.renderer,{resize,fitScene});
+Object.assign(App.services.renderer,{resize,fitScene,focusRoom});

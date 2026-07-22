@@ -52,6 +52,11 @@ input[type=color]{padding:1px 2px;width:40px;height:26px;cursor:pointer}
 .tbtn{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.08em;padding:7px 12px;
   border:1px solid var(--brass-faint);border-radius:3px;color:var(--vellum-dim)}
 .tbtn:hover{color:var(--brass);border-color:var(--brass-dim)}
+.level-view{display:flex;border:1px solid var(--brass-faint);border-radius:3px;overflow:hidden}
+.level-view button{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.08em;padding:6px 9px;color:var(--vellum-dim)}
+.level-view button+button{border-left:1px solid var(--brass-faint)}
+.level-view button.on{background:var(--brass);color:var(--ink)}
+body.editing .level-view,body.mapscene .level-view,body.netclient .level-view{display:none}
 
 /* ---------- tool rail ---------- */
 #rail{position:fixed;left:0;top:var(--top-h);bottom:26px;width:var(--rail-w);z-index:20;
@@ -258,6 +263,7 @@ body.netclient #stage{left:0}
       <button id="start-resume">RESUME AUTOSAVE</button>
       <button id="start-load">LOAD SESSION</button>
       <button id="start-verso">EXPLORE THE VERSO</button>
+      <button id="start-vault">LEVEL 2 · THE VAULT</button>
     </div>
   </div>
 </div>
@@ -269,6 +275,9 @@ body.netclient #stage{left:0}
     <button class="tab" id="tab-edit" title="Draw rooms on a top-down grid, write descriptions, save levels">EDITOR</button>
   </nav>
   <div class="spacer"></div>
+  <div class="level-view" id="level-view" title="Show this level as an isometric scene or a five-foot tactical surface (B)">
+    <button class="on" id="view-iso">ISO</button><button id="view-tactical">TACTICAL</button>
+  </div>
   <span id="net-status" style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--under);cursor:pointer;display:none" title="click to copy invite link"></span>
   <button class="tbtn" id="btn-host" title="Host an online table — players join with a code from their own devices">HOST TABLE</button>
   <button class="tbtn" id="btn-pwin" title="Open a separate live player-view window — share THAT window, keep this one private">PLAYER WINDOW ↗</button>

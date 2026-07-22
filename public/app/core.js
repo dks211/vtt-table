@@ -5,8 +5,8 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const LEVEL_SCHEMA_VERSION = 1;
-  const SESSION_SCHEMA_VERSION = 2;
+  const LEVEL_SCHEMA_VERSION = 2;
+  const SESSION_SCHEMA_VERSION = 3;
 
   const clone = value => JSON.parse(JSON.stringify(value));
   const objectOrNull = value => value && typeof value === "object" && !Array.isArray(value) ? value : null;
@@ -59,6 +59,8 @@
       normalized.cutaway = room.cutaway === "front" ? "front" : "none";
       normalized.revealMode = ["manual", "armed", "always"].includes(room.revealMode)
         ? room.revealMode : "manual";
+      normalized.battleGrid = room.battleGrid === "square" || room.battleGrid === true
+        ? "square" : "none";
       delete normalized.rect;
       return normalized;
     });
@@ -93,6 +95,17 @@
         label: String(prop.label || "").trim().slice(0, 120),
         inspect: String(prop.inspect || "").trim().slice(0, 300),
         focus: !!prop.focus,
+      };
+      delete normalized.terrain;
+      delete normalized.footprint;
+      const terrain = ["cover", "difficult", "hazard", "overhead"].includes(prop.terrain)
+        ? prop.terrain : null;
+      if (terrain) normalized.terrain = terrain;
+      const footprint = objectOrNull(prop.footprint);
+      if (footprint) normalized.footprint = {
+        w: Math.max(.25, Math.min(20, finite(footprint.w, 1))),
+        h: Math.max(.25, Math.min(20, finite(footprint.h, 1))),
+        shape: footprint.shape === "circle" ? "circle" : "rect",
       };
       if (!normalized.label) delete normalized.label;
       if (!normalized.inspect) delete normalized.inspect;
@@ -162,6 +175,7 @@
         tokens: Array.isArray(map.tokens) ? clone(map.tokens) : [],
       },
       verso: {
+        view: verso.view === "tactical" ? "tactical" : "isometric",
         revealed: objectOrNull(verso.revealed) ? clone(verso.revealed) : {},
         tokens: Array.isArray(verso.tokens) ? clone(verso.tokens) : [],
       },
