@@ -249,6 +249,7 @@ function drawTokenFlat(t,g,s){
 
 /* ---------------- drawing: tactical overhead level ---------------- */
 const TERRAIN_STYLE={
+  feature:{fill:"rgba(74,64,51,.52)",stroke:"#ABA38C",label:"FEATURE"},
   cover:{fill:"rgba(122,94,46,.78)",stroke:"#E9E2CE",label:"FULL COVER"},
   difficult:{fill:"rgba(90,74,40,.52)",stroke:"#C8A14E",label:"DIFFICULT"},
   hazard:{fill:"rgba(138,46,37,.42)",stroke:"#E07A56",label:"HAZARD"},
@@ -256,7 +257,7 @@ const TERRAIN_STYLE={
 };
 function drawTacticalTerrain(pr,c){
   if(!pr.terrain&&!pr.footprint)return;
-  const fp=pr.footprint||{w:1,h:1,shape:"rect"},style=TERRAIN_STYLE[pr.terrain]||TERRAIN_STYLE.difficult;
+  const fp=pr.footprint||{w:1,h:1,shape:"rect"},style=TERRAIN_STYLE[pr.terrain]||TERRAIN_STYLE.feature;
   const x=pr.x*BT,y=pr.y*BT,w=fp.w*BT,h=fp.h*BT;
   ctx.save();ctx.fillStyle=style.fill;ctx.strokeStyle=style.stroke;ctx.lineWidth=2/c.s;
   if(pr.terrain==="overhead")ctx.setLineDash([9/c.s,6/c.s]);
@@ -864,7 +865,7 @@ function drawVerso(){
     }
     const scale=pr.scale||1,[pcx,pcy]=P(pr.x+.5,pr.y+.5);
     ctx.translate(pcx,pcy);ctx.scale(scale,scale);ctx.translate(-pcx,-pcy);
-    lib.draw(pr.x,pr.y);
+    lib.draw(pr.x,pr.y,pr);
     ctx.restore();
   }
   // lighting overlays (dim / dark / flicker per room)
@@ -957,18 +958,19 @@ function setPropHover(i,j){
   let best=null,bestD=1e9;
   for(const pr of (App.document.level.props||[])){
     if(!pr.label&&!pr.inspect)continue;
-    const room=roomAtTile(pr.x+.5,pr.y+.5);
+    const [px,py]=propCenter(pr),room=roomAtTile(px,py);
     if(room&&RVIEW!=="dm"&&!App.session.verso.revealed[room.id])continue;
-    const d=Math.hypot(i-(pr.x+.5),j-(pr.y+.5)),radius=Math.max(.55,(pr.scale||1)*.52);
+    const d=Math.hypot(i-px,j-py),radius=pr.footprint?Math.max(.7,Math.hypot(pr.footprint.w,pr.footprint.h)/2):Math.max(.55,(pr.scale||1)*.52);
     if(d<=radius&&d<bestD){best=pr;bestD=d;}
   }
   hoverPropId=best?best.id:null;
 }
+function propCenter(pr){const fp=pr.footprint;return fp?[pr.x+fp.w/2,pr.y+fp.h/2]:[pr.x+.5,pr.y+.5];}
 function drawPropTooltip(){
   const pr=(App.document.level.props||[]).find(p=>p.id===hoverPropId);
   if(!pr||(!pr.label&&!pr.inspect))return;
-  const room=roomAtTile(pr.x+.5,pr.y+.5),elev=tacticalView()?0:roomElevation(room||{});
-  const [lx,ly]=levelWorldFromTile(pr.x+.5,pr.y+.5);
+  const [px,py]=propCenter(pr),room=roomAtTile(px,py),elev=tacticalView()?0:roomElevation(room||{});
+  const [lx,ly]=levelWorldFromTile(px,py);
   const [sx,sy]=toScreen(lx,ly-elev-(tacticalView()?BT*.35:38)*(pr.scale||1));
   const label=pr.label||(PROP_LIB[pr.t]?.n||"Object"),detail=pr.inspect||"";
   ctx.save();ctx.font="600 12px 'IBM Plex Mono', monospace";

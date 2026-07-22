@@ -133,7 +133,37 @@ const PROP_LIB={
    ctx.beginPath();ctx.moveTo(x,y-34);ctx.lineTo(x+3,y-36);ctx.moveTo(x,y-34);ctx.lineTo(x+1,y-30);ctx.stroke();}},
  cart:{n:"Service cart",draw(i,j){box(i+.08,j+.2,i+.92,j+.78,16,"#6E6E72");const [x,y]=P(i+.5,j+.5);
    ctx.strokeStyle="#3A3E45";ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(x-14,y-14);ctx.lineTo(x-14,y-31);ctx.lineTo(x-7,y-31);ctx.stroke();
-   ctx.fillStyle="#CFE3EA";ctx.beginPath();ctx.arc(x-4,y-19,2.4,0,7);ctx.arc(x+5,y-21,2.4,0,7);ctx.fill();}}
+   ctx.fillStyle="#CFE3EA";ctx.beginPath();ctx.arc(x-4,y-19,2.4,0,7);ctx.arc(x+5,y-21,2.4,0,7);ctx.fill();}},
+ stage:{n:"Stage",draw(i,j,p){
+   const fp=p&&p.footprint||{w:5,h:2.5},w=fp.w,h=fp.h;
+   box(i+.06,j+.08,i+w-.06,j+h-.06,10,"#60442E");
+   ctx.strokeStyle="rgba(26,17,12,.45)";ctx.lineWidth=.7;
+   for(let x=i+.45;x<i+w;x+=.45){const A=P(x,j+.08),B=P(x,j+h-.06);ctx.beginPath();ctx.moveTo(A[0],A[1]-10);ctx.lineTo(B[0],B[1]-10);ctx.stroke();}
+   wallPlate(i+.12,i+w-.12,j+.1,42,"#5A1F2A","rgba(200,161,78,.28)");
+   for(let x=i+.4;x<i+w-.1;x+=.55){const A=P(x,j+.1);ctx.strokeStyle="rgba(25,10,14,.45)";ctx.beginPath();ctx.moveTo(A[0],A[1]-40);ctx.lineTo(A[0]-2,A[1]-4);ctx.stroke();}
+   const topL=P(i+.12,j+.1),topR=P(i+w-.12,j+.1);ctx.strokeStyle="#8A6E36";ctx.lineWidth=2;
+   ctx.beginPath();ctx.moveTo(topL[0],topL[1]-41);ctx.lineTo(topR[0],topR[1]-41);ctx.stroke();
+   for(let x=i+.45;x<i+w-.15;x+=.65){const [lx,ly]=P(x,j+h-.08);ctx.fillStyle="rgba(240,200,120,.95)";ctx.beginPath();ctx.arc(lx,ly-12,2.2,0,7);ctx.fill();lightPool(x,j+h-.05,18,"rgba(232,196,120,.09)");}
+   const marks=[[.7,.75],[1.65,.7],[2.6,.78],[3.55,.7],[4.5,.77],[1.1,1.55],[2.1,1.48],[3.1,1.58],[4.05,1.5]];
+   ctx.strokeStyle="rgba(233,226,206,.56)";ctx.lineWidth=1;
+   for(const [mx,my]of marks){if(mx>w-.2||my>h-.15)continue;const [x,y]=P(i+mx,j+my);ctx.beginPath();ctx.moveTo(x-3,y-13);ctx.lineTo(x+3,y-7);ctx.moveTo(x+3,y-13);ctx.lineTo(x-3,y-7);ctx.stroke();}
+ }},
+ strongbox:{n:"Strongbox bank",draw(i,j,p){
+   const fp=p&&p.footprint||{w:2.2,h:.8},w=fp.w,h=fp.h,cols=Math.max(2,Math.round(w/.55));
+   for(let k=0;k<cols;k++){const x=i+k*w/cols;box(x+.02,j+.05,x+w/cols-.03,j+h-.05,31,"#4A4036");const [cx,cy]=P(x+w/cols/2,j+h/2);ctx.strokeStyle="rgba(7,9,8,.52)";ctx.lineWidth=.7;for(let r=0;r<3;r++){ctx.strokeRect(cx-4,cy-27+r*7,8,5);ctx.fillStyle="#C8A14E";ctx.fillRect(cx-.8,cy-25+r*7,1.6,1);}}
+ }},
+ mirror:{n:"Mirror plate",draw(i,j){
+   wallPlate(i+.08,i+.92,j+.12,30,"#B7A66E","rgba(200,161,78,.55)");const A=P(i+.16,j+.12),B=P(i+.84,j+.12);quad([A[0],A[1]-26],[B[0],B[1]-26],[B[0],B[1]-5],[A[0],A[1]-5],"rgba(127,168,184,.28)","rgba(233,226,206,.4)");
+ }},
+ chandelier:{n:"Chandelier",draw(i,j,p){
+   const fp=p&&p.footprint||{w:3,h:3},cx=i+fp.w/2,cy=j+fp.h/2,[x,y]=P(cx,cy),r=Math.max(16,Math.min(34,fp.w*7));
+   lightPool(cx,cy,70,"rgba(232,196,120,.15)");ctx.strokeStyle="#C8A14E";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x,y-r-32);ctx.lineTo(x,y-r);ctx.stroke();ctx.beginPath();ctx.ellipse(x,y-r,r,r*.45,0,0,7);ctx.stroke();
+   for(let a=0;a<8;a++){const q=a*Math.PI/4,ax=x+Math.cos(q)*r,ay=y-r+Math.sin(q)*r*.45;ctx.beginPath();ctx.moveTo(x,y-r);ctx.lineTo(ax,ay);ctx.stroke();ctx.fillStyle="rgba(240,200,120,.95)";ctx.beginPath();ctx.arc(ax,ay-3,2.4,0,7);ctx.fill();}
+ }},
+ hoard:{n:"Coin hoard",draw(i,j,p){
+   const fp=p&&p.footprint||{w:2,h:1};
+   for(let x=.3;x<fp.w-.05;x+=.55)for(let y=.3;y<fp.h-.05;y+=.58){const n=3+((x*7+y*11)|0)%5;chipStack(i+x,j+y,((x+y)*10|0)%2?"#C8A14E":"#8A2E25",n);}
+ }}
 };
 
 /* Level 2 is below the Verso. Its authored square grid is confined to the
@@ -181,18 +211,40 @@ const VAULT_ROSTER=[
  {name:"Counting Floor Thug",letter:"T",color:"#9AA08F"}
 ];
 const VAULT_PROPS=[
- {id:"office-desk",t:"table",x:29,y:9,label:"Sarlossi's desk",inspect:"The unlocked drawer contains a house envelope and a recent paid instruction.",focus:true,scale:1.2},
- {id:"office-strongboxes",t:"cabinet",x:35,y:9,label:"Strongbox array · 0001",inspect:"Box 0001 recognizes ticket 0001 and its claimant in person.",focus:true,scale:1.2},
- {id:"office-stage",t:"rug",x:30,y:12,label:"The old stage",inspect:"Dust, rotted curtain, and marks where nine performers once stood.",focus:true,scale:1.4},
+ {id:"landing-runner",t:"rug",x:2,y:11.4,label:"Paint-stiff runner",inspect:"Casino carpet ends in a ruler-straight line over the older stone.",scale:1.5},
+ {id:"landing-crate",t:"crate",x:.25,y:11.7,label:"Unopened lighting crate",inspect:"Crystal sconces, packed carefully, with no wiring anywhere in the walls."},
+ {id:"landing-dark-lamp",t:"lamp",x:4,y:8.25,label:"Unwired crystal standard",inspect:"Decorative, expensive, and entirely dark.",scale:.85},
+ {id:"mirror-1",t:"mirror",x:6,y:9.05,label:"Mirror plate I"},{id:"mirror-2",t:"mirror",x:8.8,y:9.05,label:"Mirror plate II"},
+ {id:"mirror-3",t:"mirror",x:11.6,y:9.05,label:"Mirror plate III"},{id:"mirror-4",t:"mirror",x:14.4,y:9.05,label:"Mirror plate IV"},
+ {id:"mirror-5",t:"mirror",x:17.2,y:9.05,label:"Mirror plate V",inspect:"Its reflected corridor continues where two apparent arches do not."},
+ {id:"mirror-lamp-1",t:"lamp",x:7.4,y:11.05,scale:.72},{id:"mirror-lamp-2",t:"lamp",x:10.2,y:11.05,scale:.72},
+ {id:"mirror-lamp-3",t:"lamp",x:13,y:11.05,scale:.72},{id:"mirror-lamp-4",t:"lamp",x:15.8,y:11.05,scale:.72},
+ {id:"count-table-1",t:"table",x:20,y:8.2,label:"Count table A",scale:1.35},{id:"count-table-2",t:"table",x:23.6,y:8.2,label:"Count table B",scale:1.35},
+ {id:"count-table-3",t:"table",x:21.8,y:11.4,label:"Night tally table",scale:1.45,focus:true},
+ {id:"count-chair-1",t:"chair",x:20.2,y:9.3},{id:"count-chair-2",t:"chair",x:24,y:9.3},{id:"count-chair-3",t:"chair",x:21.3,y:12.3},{id:"count-chair-4",t:"chair",x:23.5,y:12.2},
+ {id:"count-chips-1",t:"stack",x:20.7,y:8.1,label:"Counted chips"},{id:"count-chips-2",t:"stack",x:24.3,y:8.1,label:"Counted chips"},{id:"count-chips-3",t:"stack",x:22.4,y:11.3,label:"Unfinished night count"},
+ {id:"count-lamp-1",t:"lamp",x:19.4,y:7.4,scale:.8},{id:"count-lamp-2",t:"lamp",x:26,y:7.4,scale:.8},
+ {id:"office-stage",t:"stage",x:28,y:11,label:"The old stage",inspect:"Raised boards, rotted curtain, nine chalk marks, and footlights that should not still work.",focus:true,footprint:{w:5.5,h:3,shape:"rect"}},
+ {id:"office-desk",t:"table",x:34.2,y:10,label:"Sarlossi's desk",inspect:"The unlocked drawer contains a house envelope and a recent paid instruction.",focus:true,scale:1.35},
+ {id:"office-chair",t:"chair",x:35,y:11.1,label:"Sarlossi's chair",scale:1.05},
+ {id:"office-strongboxes",t:"strongbox",x:34.8,y:8.15,label:"Strongbox array · 0001",inspect:"Box 0001 recognizes ticket 0001 and its claimant in person.",focus:true,footprint:{w:2.7,h:.9,shape:"rect"}},
+ {id:"office-books",t:"shelf",x:33.3,y:8.25,label:"Forty years of untouched files",scale:1.1},
+ {id:"office-lamp",t:"lamp",x:36.8,y:13.5,label:"Private-box lamp",scale:.9},
+ {id:"office-rug",t:"rug",x:34.4,y:12.2,label:"Worn audience rug",scale:1.4},
  {id:"vault-pillar-a",t:"pillar",x:41,y:7,label:"Stone pillar",terrain:"cover",footprint:{w:1,h:1,shape:"rect"}},
  {id:"vault-pillar-b",t:"pillar",x:48,y:7,label:"Stone pillar",terrain:"cover",footprint:{w:1,h:1,shape:"rect"}},
  {id:"vault-pillar-c",t:"pillar",x:41,y:14,label:"Stone pillar",terrain:"cover",footprint:{w:1,h:1,shape:"rect"}},
  {id:"vault-pillar-d",t:"pillar",x:48,y:14,label:"Stone pillar",terrain:"cover",footprint:{w:1,h:1,shape:"rect"}},
- {id:"vault-dune-a",t:"stack",x:39,y:10,label:"Coin dune",terrain:"difficult",footprint:{w:4,h:2,shape:"rect"}},
- {id:"vault-dune-b",t:"stack",x:46,y:5,label:"Coin dune",terrain:"difficult",footprint:{w:4,h:2,shape:"rect"}},
- {id:"vault-dune-c",t:"stack",x:46,y:15,label:"Coin dune",terrain:"difficult",footprint:{w:3,h:2,shape:"rect"}},
- {id:"vault-chandelier",t:"lamp",x:44,y:9,label:"Chandelier · counterweight chain",terrain:"overhead",footprint:{w:4,h:4,shape:"circle"},focus:true},
- {id:"vault-writs",t:"cabinet",x:50.4,y:10.5,label:"Map-drawer · four Writs",inspect:"Three name-lines are blank. The fourth carries the only positive inscription of an impossible name.",focus:true,scale:1.2}
+ {id:"vault-dune-a",t:"hoard",x:39,y:10,label:"Coin dune",terrain:"difficult",footprint:{w:4,h:2,shape:"rect"}},
+ {id:"vault-dune-b",t:"hoard",x:46,y:5,label:"Coin dune",terrain:"difficult",footprint:{w:4,h:2,shape:"rect"}},
+ {id:"vault-dune-c",t:"hoard",x:46,y:15,label:"Coin dune",terrain:"difficult",footprint:{w:3,h:2,shape:"rect"}},
+ {id:"vault-chandelier",t:"chandelier",x:44,y:9,label:"Chandelier · counterweight chain",terrain:"overhead",footprint:{w:4,h:4,shape:"circle"},focus:true},
+ {id:"vault-writs",t:"cabinet",x:50.4,y:10.5,label:"Map-drawer · four Writs",inspect:"Three name-lines are blank. The fourth carries the only positive inscription of an impossible name.",focus:true,scale:1.2},
+ {id:"vault-chest-1",t:"chest",x:39,y:5.2,label:"Sarlossi's hoard chest",scale:1.15},{id:"vault-chest-2",t:"chest",x:50.4,y:16.1,label:"Sealed hoard chest",scale:1.15},
+ {id:"vault-ledgers-1",t:"shelf",x:38.3,y:14.8,label:"Filed vault ledgers",scale:1.1},{id:"vault-ledgers-2",t:"shelf",x:50.8,y:7.6,label:"Filed vault ledgers",scale:1.1},
+ {id:"vault-memory-tank-1",t:"barrel",x:39.2,y:16.3,label:"Memory-harvesting tank",inspect:"Brass tubing descends through the original stone floor.",focus:true,scale:1.25},
+ {id:"vault-memory-tank-2",t:"barrel",x:40.2,y:16.3,label:"Memory-harvesting tank",scale:1.25},
+ {id:"vault-service-cart",t:"cart",x:49.4,y:4.3,label:"Abandoned vault cart",inspect:"Inventory sheets stop halfway through the same line.",scale:1.05}
 ];
 root.VTTContent=Object.freeze({
   VERSO_LEVEL:{schemaVersion:1,name:"The Verso · Back of House",bg:"#0A0F0C",rooms:VERSO_ROOMS,doors:VERSO_DOORS,roster:PARTY,props:[

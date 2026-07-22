@@ -633,6 +633,7 @@ function setView(v){
 function setLevelView(v,focus){
   if(NET.mode==="client")return;
   App.session.verso.view=v==="tactical"?"tactical":"isometric";
+  document.body.classList.toggle("tacticalscene",App.session.verso.view==="tactical");
   $("view-iso").classList.toggle("on",App.session.verso.view==="isometric");
   $("view-tactical").classList.toggle("on",App.session.verso.view==="tactical");
   if(App.session.scene==="verso"){
@@ -642,6 +643,7 @@ function setLevelView(v,focus){
 }
 $("view-iso").onclick=()=>setLevelView("isometric");
 $("view-tactical").onclick=()=>setLevelView("tactical",App.document.rooms.find(r=>r.id===App.session.selRoom));
+$("stage-view-toggle").onclick=()=>setLevelView("isometric");
 
 /* ---------------- map import ---------------- */
 function loadImageFile(file){
@@ -732,6 +734,7 @@ function deserialize(d){
     loadLevel(session.level);
     App.session.verso.revealed=session.verso.revealed;
     App.session.verso.view=session.verso.view;
+    document.body.classList.toggle("tacticalscene",App.session.verso.view==="tactical");
     $("view-iso").classList.toggle("on",App.session.verso.view==="isometric");
     $("view-tactical").classList.toggle("on",App.session.verso.view==="tactical");
     enforceAlwaysRoomReveal();

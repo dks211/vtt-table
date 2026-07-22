@@ -80,6 +80,13 @@ body.editing .level-view,body.mapscene .level-view,body.netclient .level-view{di
   border:2px dashed var(--brass-dim);z-index:5;pointer-events:none;
   font-family:'Marcellus',serif;font-size:20px;letter-spacing:.1em;color:var(--brass)}
 #stage.dragging #dropzone{display:grid}
+#stage-view-toggle{display:none;position:absolute;right:14px;top:14px;z-index:14;
+  padding:9px 13px;background:rgba(14,20,17,.94);border:1px solid var(--brass-dim);border-radius:4px;
+  box-shadow:0 5px 18px rgba(0,0,0,.42);font-family:'IBM Plex Mono',monospace;font-size:10px;
+  letter-spacing:.08em;color:var(--brass)}
+#stage-view-toggle:hover{background:var(--brass);color:var(--ink)}
+body.tacticalscene:not(.editing):not(.mapscene) #stage-view-toggle{display:block}
+body.netclient #stage-view-toggle{display:none}
 #iso-preview{display:none;position:absolute;right:14px;bottom:14px;width:340px;height:230px;z-index:12;
   background:rgba(10,15,12,.96);border:1px solid var(--brass-dim);border-radius:5px;overflow:hidden;
   box-shadow:0 10px 30px rgba(0,0,0,.5)}
@@ -302,6 +309,7 @@ body.netclient #stage{left:0}
 
 <main id="stage">
   <canvas id="cv"></canvas>
+  <button id="stage-view-toggle" title="Return to the isometric exploration view (B)">↖ RETURN TO ISOMETRIC</button>
   <div id="dropzone">DROP MAP IMAGE</div>
   <div id="iso-preview">
     <div id="iso-preview-head"><span>ISOMETRIC PREVIEW</span>

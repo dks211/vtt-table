@@ -312,6 +312,7 @@ function clientHandle(m){
     if(m.scene!==App.session.scene){App.session.scene=m.scene;document.body.classList.toggle("mapscene",m.scene==="map");refit=true;}
     const levelView=m.levelView==="tactical"?"tactical":"isometric";
     if(levelView!==App.session.verso.view){App.session.verso.view=levelView;refit=true;}
+    document.body.classList.toggle("tacticalscene",App.session.verso.view==="tactical");
     $("view-iso").classList.toggle("on",App.session.verso.view==="isometric");
     $("view-tactical").classList.toggle("on",App.session.verso.view==="tactical");
     if(refit){fitScene();updZoom();}

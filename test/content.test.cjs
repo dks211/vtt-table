@@ -31,5 +31,10 @@ test("Level 2 ships with a room-scoped tactical vault arena",()=>{
   assert.ok(level.props.filter(prop=>prop.terrain==="cover").length>=4);
   assert.ok(level.props.some(prop=>prop.terrain==="difficult"));
   assert.ok(level.props.some(prop=>prop.terrain==="overhead"));
+  const stage=level.props.find(prop=>prop.id==="office-stage");
+  assert.equal(stage.t,"stage");
+  assert.ok(stage.footprint.w>=5);
+  assert.ok(level.props.filter(prop=>prop.t==="mirror").length>=5);
+  assert.ok(level.props.filter(prop=>prop.id.startsWith("count-table-")).length>=3);
   assert.equal(content.VAULT_START.tokens.filter(token=>token.pc).length,4);
 });
