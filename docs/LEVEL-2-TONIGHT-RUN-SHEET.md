@@ -39,7 +39,7 @@ The decision happens before the party can leave the Verso and descend.
 >
 > The Concierge places two cards on the counter.
 >
-> “You may **pay**. The deposit is surrendered, the account closes, and you owe the House nothing.”
+> “You may **pay**. You surrender every claim to the sealed property held under ticket 0001. The account closes, and you owe the House nothing.”
 >
 > He touches the second card.
 >
@@ -49,9 +49,9 @@ The decision happens before the party can leave the Verso and descend.
 
 ### If they ask whether PAY remains available later
 
-> “The House is indifferent to the hour of payment. If Mr. Meisner first reclaims what he deposited, the House will accept the unused knife and the nine restored days in full settlement. Weight is weight.”
+> “The House is indifferent to the hour of payment. If Mr. Meisner reclaims the sealed property before settling, the House will reassess the same weight at that time. Weight is weight.”
 
-Do not explain Rasura yet. This merely keeps the PAY door visibly open.
+Do not identify the contents. This keeps PAY visibly open without spoiling strongbox 0001.
 
 ### If they choose WORK
 
