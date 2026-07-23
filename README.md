@@ -64,9 +64,10 @@ size, color, and stat block while preserving position and initiative.
 The bundled Level 2 pack lays out the stairs below the Verso, Mirror Gallery,
 Counting Floor, Sarlossi's office/stage, and the Vault of the Bella Rosa. The vault
 ships as a 70-foot square tactical arena with pillars, coin dunes, and the hanging
-chandelier already authored. Its office is a private performance salon tied to
-Clown Fart's failed audition, the Mirror Gallery uses opposing mirror banks, and
-the vault includes named arena effects plus toggleable pillar and chandelier states.
+chandelier already authored. Its office is a private performance salon where an
+annotated score cues Clown Fart's returning memories. The descent and Mirror Gallery
+shift into torchlit exposed masonry beneath the casino veneer, while the vault includes
+named arena effects plus toggleable pillar and chandelier states.
 
 Room reveal policies can be manual, armed, or always visible. Armed rooms stay
 hidden until a PC enters through revealed space, then reveal and return to manual

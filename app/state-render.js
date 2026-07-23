@@ -478,6 +478,15 @@ function wallPlate(i0,i1,j,h,base,glint){ // upright plate standing on a j-line
     quad([A2[0],A2[1]-h+4],[B2[0],B2[1]-h+4],[B2[0],B2[1]-4],[A2[0],A2[1]-4],glint);
   }
 }
+function masonryCourses(A,B,h,seed){
+  ctx.save();ctx.strokeStyle="rgba(24,27,24,.5)";ctx.lineWidth=.65;
+  for(const q of [1/3,2/3]){ctx.beginPath();ctx.moveTo(A[0],A[1]-h*q);ctx.lineTo(B[0],B[1]-h*q);ctx.stroke();}
+  for(let course=0;course<3;course++){
+    const q=((seed+course)&1)?.34:.68,x=A[0]+(B[0]-A[0])*q,y=A[1]+(B[1]-A[1])*q;
+    ctx.beginPath();ctx.moveTo(x,y-h*(course+1)/3);ctx.lineTo(x,y-h*course/3);ctx.stroke();
+  }
+  ctx.restore();
+}
 function lightPool(i,j,r,col){
   const [cx,cy]=P(i,j);
   const g=ctx.createRadialGradient(cx,cy,0,cx,cy,r);
@@ -891,6 +900,7 @@ function drawVerso(){
       if(r.cutaway==="front"&&isFrontRoomEdge(r,edge))continue;
       if(!wallPx)continue;
       quad([A[0],A[1]-wallPx],[B[0],B[1]-wallPx],B,A,shade(r.wall,isFrontRoomEdge(r,edge)?.82:.68),"rgba(7,9,8,.6)");
+      if(r.masonry)masonryCourses(A,B,wallPx,Math.abs(x1+y1));
       ctx.beginPath();ctx.moveTo(A[0],A[1]-wallPx);ctx.lineTo(B[0],B[1]-wallPx);
       ctx.strokeStyle=shade(r.wall,1.12);ctx.lineWidth=2;ctx.lineCap="round";ctx.stroke();
     }
