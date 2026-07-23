@@ -43,5 +43,5 @@ test("Level 2 ships with a room-scoped tactical vault arena",()=>{
   assert.ok(level.props.filter(prop=>prop.id.startsWith("count-table-")).length>=3);
   assert.equal(content.VAULT_START.tokens.filter(token=>token.pc).length,4);
   assert.equal(content.VAULT_START.tokens.find(token=>token.name==="Don Sarlossi").phases.length,2);
-  assert.equal(content.VAULT_START.tracker.order[0].marker,true);
+  assert.deepEqual(content.VAULT_START.tracker,{order:[],active:0,round:1});
 });

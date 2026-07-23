@@ -529,7 +529,7 @@ function renderPanel(){
       if(t){ // center camera on token
         const c=cam();
         if(App.session.scene==="map"){c.x=t.x-W/(2*c.s);c.y=t.y-H/(2*c.s);}
-        else{c.x=isoX(t.x,t.y)-W/(2*c.s);c.y=isoY(t.x,t.y)-H/(2*c.s);}
+        else{const [wx,wy]=levelWorldFromTile(t.x,t.y);c.x=wx-W/(2*c.s);c.y=wy-H/(2*c.s);}
       }
       renderPanel();
     };
@@ -866,7 +866,9 @@ function renderEditorPanel(){
     if(!confirm("Replace the current level with Level 2 — The Vault of the Bella Rosa?"))return;
     edSnapshot();loadLevel(App.content.VAULT_LEVEL);
     App.session.verso.revealed={...App.content.VAULT_START.revealed};
-    App.session.verso.tokens=App.content.VAULT_START.tokens.map(mkTokFrom);App.session.verso.propStates={};App.session.tracker=JSON.parse(JSON.stringify(App.content.VAULT_START.tracker||{order:[],active:0,round:1}));
+    App.session.verso.tokens=App.content.VAULT_START.tokens.map(mkTokFrom);
+    App.session.verso.doorStates={};App.session.verso.effects=[];App.session.verso.propStates={};App.session.verso.tacticalFocus=null;
+    App.session.tracker=JSON.parse(JSON.stringify(App.content.VAULT_START.tracker||{order:[],active:0,round:1}));
     setEdSelection([]);edFit();levelTouched();
   };
   if(sel){

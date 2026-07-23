@@ -280,7 +280,7 @@ root.VTTContent=Object.freeze({
     {id:"floor-unwrite",name:"Floor Unwrite",terrain:"hazard",shape:"circle",w:4,h:4,duration:1},
     {id:"fallen-debris",name:"Fallen Debris",terrain:"cover",shape:"rect",w:2,h:2,duration:0}
   ]},
-  VAULT_START:{revealed:{landing2:true},tracker:{order:[{name:"Vault lair action",total:20,marker:true}],active:0,round:1},tokens:[
+  VAULT_START:{revealed:{landing2:true},tracker:{order:[],active:0,round:1},tokens:[
     {name:"Randy Meisner",letter:"R",color:"#8A6FB8",x:2.5,y:9.5,size:1,pc:true},
     {name:"Klaus Soundgarden",letter:"K",color:"#E0B341",x:3.5,y:9.5,size:1,pc:true},
     {name:"Clown Fart",letter:"CF",color:"#D96A9C",x:2.5,y:10.5,size:1,pc:true},

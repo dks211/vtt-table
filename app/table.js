@@ -537,7 +537,7 @@ cv.addEventListener("pointerup",e=>{
     markDirty();
   }
   // click (no drag): select room in verso
-  if(downAt && !downAt.moved && !dragTok && App.session.scene==="verso" && App.session.tool==="select"){
+  if(NET.mode!=="client" && downAt && !downAt.moved && !dragTok && App.session.scene==="verso" && App.session.tool==="select"){
     const [wx,wy]=toWorld(e.offsetX,e.offsetY);
     const [i,j]=levelTileFromWorld(wx,wy);
     const door=doorAtTile(i,j);
