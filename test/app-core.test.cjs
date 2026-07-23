@@ -3,6 +3,9 @@ const assert = require("node:assert/strict");
 const {
   escapeHTML,
   parseDice,
+  doubleDiceExpression,
+  isCriticalRoll,
+  migratePartyTokens,
   sanitizeSheet,
   spellAtkBonus,
   spellSaveDC,
@@ -111,10 +114,49 @@ test("session tactical state normalizes temporary effects and door overrides", (
 
 test("parseDice accepts supported notation and applies limits", () => {
   assert.deepEqual(parseDice("2d4 + 2"), { n: 2, d: 4, mod: 2 });
-  assert.deepEqual(parseDice("99d6-3"), { n: 10, d: 6, mod: -3 });
+  assert.deepEqual(parseDice("99d6-3"), { n: 20, d: 6, mod: -3 });
   assert.deepEqual(parseDice("d20"), { n: 1, d: 20, mod: 0 });
   assert.equal(parseDice("2d5"), null);
   assert.equal(parseDice("alert(1)"), null);
+});
+
+test("critical damage doubles dice but applies the modifier once", () => {
+  assert.equal(doubleDiceExpression("1d8+3"), "2d8+3");
+  assert.equal(doubleDiceExpression("2d6-1"), "4d6-1");
+  assert.equal(doubleDiceExpression("8d6"), "16d6");
+  assert.equal(doubleDiceExpression("10d6"), "20d6");
+  assert.equal(doubleDiceExpression("not dice"), null);
+  assert.equal(isCriticalRoll({ d: 20, n: 1, results: [20], kept: null }), true);
+  assert.equal(isCriticalRoll({ d: 20, n: 2, results: [20, 7], kept: 7 }), false);
+});
+
+test("level transitions preserve player state and durable assignments", () => {
+  const current = [
+    { id: 1, name: "Randy", pc: true, ownerKey: "player-a", owner: "peer-old", sheet: { hp: 7 }, statuses: ["marked"] },
+    { id: 2, name: "Guard", sheet: { hp: 2 } },
+  ];
+  const destination = [
+    { id: 10, name: "Randy", pc: true, x: 5, y: 6 },
+    { id: 11, name: "Boss", x: 8, y: 9 },
+  ];
+  const moved = migratePartyTokens(current, destination);
+  assert.deepEqual(moved[0], {
+    id: 10, name: "Randy", pc: true, x: 5, y: 6,
+    ownerKey: "player-a", owner: "peer-old", sheet: { hp: 7 }, statuses: ["marked"],
+  });
+  assert.equal(moved[1].sheet, undefined);
+  assert.equal(destination[0].ownerKey, undefined);
+});
+
+test("session loads retain durable ownership but discard stale peer ids", () => {
+  const session = normalizeSession({
+    schemaVersion: SESSION_SCHEMA_VERSION,
+    map: { tokens: [{ id: 1, owner: "peer-1", ownerKey: "player_1" }] },
+    verso: { tokens: [{ id: 2, owner: "peer-2", ownerKey: "player-2" }] },
+    level: { rooms: [] },
+  });
+  assert.deepEqual(session.map.tokens[0], { id: 1, ownerKey: "player_1" });
+  assert.deepEqual(session.verso.tokens[0], { id: 2, ownerKey: "player-2" });
 });
 
 test("sanitizeSheet constrains player-editable values", () => {

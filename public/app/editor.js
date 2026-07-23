@@ -726,19 +726,38 @@ function newBlankLevel(){
   App.session.verso.revealed={};App.session.verso.tokens=[];App.session.verso.doorStates={};App.session.verso.effects=[];App.session.verso.propStates={};App.session.verso.tacticalFocus=null;App.session.tracker={order:[],active:0,round:1};
   setEdSelection([]);edSetTool("draw");setMode("edit");edFit();levelTouched();hideStartScreen();
 }
-function startVerso(){
-  loadLevel(App.content.VERSO_LEVEL);
-  App.session.verso.revealed={...App.content.VERSO_START.revealed};
+function applyBundledLevel(level,start,{preserveParty=false,announce=false}={}){
+  const previous=App.session.verso.tokens;
+  loadLevel(level);
+  App.session.verso.revealed={...start.revealed};
   App.session.verso.doorStates={};App.session.verso.effects=[];App.session.verso.propStates={};App.session.verso.tacticalFocus=null;
-  App.session.verso.tokens=App.content.VERSO_START.tokens.map(mkTokFrom);App.session.tracker={order:[],active:0,round:1};
-  setScene("verso");hideStartScreen();
+  const destination=start.tokens.map(mkTokFrom);
+  if(preserveParty){
+    const migrated=migratePartyTokens(previous,destination);
+    const presentNames=new Set(destination.map(token=>token.name.toLowerCase()));
+    const entry=destination.find(token=>token.pc)||destination[0]||{x:.5,y:.5};
+    let extra=0;
+    for(const token of previous.filter(token=>token.pc&&!presentNames.has(token.name.toLowerCase()))){
+      const column=extra%2,row=Math.floor(extra/2);
+      migrated.push(mkTokFrom({...token,x:entry.x+column,y:entry.y+1+row}));
+      extra++;
+    }
+    App.session.verso.tokens=migrated;
+  }else App.session.verso.tokens=destination;
+  App.session.tracker=JSON.parse(JSON.stringify(start.tracker||{order:[],active:0,round:1}));
+  rebindConnectedOwners();
+  setLevelView("isometric");setScene("verso");markDirty();hideStartScreen();
+  if(announce)requestAnimationFrame(()=>broadcastLevelTransition(level.name));
+}
+function startVerso(){
+  applyBundledLevel(App.content.VERSO_LEVEL,App.content.VERSO_START);
 }
 function startVault(){
-  loadLevel(App.content.VAULT_LEVEL);
-  App.session.verso.revealed={...App.content.VAULT_START.revealed};
-  App.session.verso.doorStates={};App.session.verso.effects=[];App.session.verso.propStates={};App.session.verso.tacticalFocus=null;
-  App.session.verso.tokens=App.content.VAULT_START.tokens.map(mkTokFrom);App.session.tracker=JSON.parse(JSON.stringify(App.content.VAULT_START.tracker||{order:[],active:0,round:1}));
-  setLevelView("isometric");setScene("verso");hideStartScreen();
+  applyBundledLevel(App.content.VAULT_LEVEL,App.content.VAULT_START);
+}
+function transitionBundledLevel(key){
+  if(key==="verso")applyBundledLevel(App.content.VERSO_LEVEL,App.content.VERSO_START,{preserveParty:true,announce:true});
+  if(key==="vault")applyBundledLevel(App.content.VAULT_LEVEL,App.content.VAULT_START,{preserveParty:true,announce:true});
 }
 async function resumeAutosave(){
   try{
@@ -749,15 +768,16 @@ async function resumeAutosave(){
   return false;
 }
 function serialize(){
+  const persistedTokens=tokens=>tokens.map(token=>{const copy=JSON.parse(JSON.stringify(token));delete copy.owner;return copy;});
   return {
     schemaVersion:SESSION_SCHEMA_VERSION, scene:App.session.scene,
     map:{
       name:App.session.map.name, imgURL:App.session.map.imgURL,
       grid:App.session.map.grid, fogOn:App.session.map.fogOn, brush:App.session.map.brush,
-      tokens:App.session.map.tokens,
+      tokens:persistedTokens(App.session.map.tokens),
       fogURL: App.session.map.fog ? App.session.map.fog.toDataURL("image/png") : null
     },
-    verso:{view:App.session.verso.view,revealed:App.session.verso.revealed,tokens:App.session.verso.tokens,
+    verso:{view:App.session.verso.view,revealed:App.session.verso.revealed,tokens:persistedTokens(App.session.verso.tokens),
       doorStates:App.session.verso.doorStates,effects:App.session.verso.effects,propStates:App.session.verso.propStates,tacticalFocus:App.session.verso.tacticalFocus},
     tracker:App.session.tracker,
     level:levelData()
@@ -789,6 +809,7 @@ function deserialize(d){
     App.session.map.brush=session.map.brush;
     App.session.map.tokens=session.map.tokens;
     uid=Math.max(uid,...App.session.map.tokens.map(t=>t.id+1),uid);
+    rebindConnectedOwners();
     // saves from before the PC/claimable flag existed have no `pc` on any token —
     // without a backfill that makes every character look like an NPC to the newer
     // claim-list and room-visibility logic, silently hiding the party from itself.
@@ -852,4 +873,4 @@ async function autosave(){
 }
 setInterval(autosave,8000);
 
-Object.assign(App.services.editor,{setTool,setScene,setView,setLevelView,serialize,deserialize,newEntityId,renderEditorPreview,fitIsoPreview,showStartScreen,hideStartScreen,newBlankLevel,startVerso,startVault,resumeAutosave});
+Object.assign(App.services.editor,{setTool,setScene,setView,setLevelView,serialize,deserialize,newEntityId,renderEditorPreview,fitIsoPreview,showStartScreen,hideStartScreen,newBlankLevel,startVerso,startVault,transitionBundledLevel,resumeAutosave});

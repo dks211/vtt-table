@@ -1,5 +1,5 @@
 "use strict";
-const {LEVEL_SCHEMA_VERSION, SESSION_SCHEMA_VERSION, escapeHTML:esc, parseDice, sanitizeSheet, spellAtkBonus, spellSaveDC, roomEntryReveal, cameraFocusFromViewport, cameraFromFocus, findRoomAt, doorIsOpen, doorAdjoiningRooms, tacticalMoveAllowed, tacticalMoveCost, shouldSnapLevelToken, tokenVisibleToPlayers, orderedLevelTokens, resolvePropState, propFootprintBounds, sanitizeLevelForClient, setBannerContent, normalizeLevel, normalizeSession}=App.core;
+const {LEVEL_SCHEMA_VERSION, SESSION_SCHEMA_VERSION, escapeHTML:esc, parseDice, doubleDiceExpression, isCriticalRoll, migratePartyTokens, sanitizeSheet, spellAtkBonus, spellSaveDC, roomEntryReveal, cameraFocusFromViewport, cameraFromFocus, findRoomAt, doorIsOpen, doorAdjoiningRooms, tacticalMoveAllowed, tacticalMoveCost, shouldSnapLevelToken, tokenVisibleToPlayers, orderedLevelTokens, resolvePropState, propFootprintBounds, sanitizeLevelForClient, setBannerContent, normalizeLevel, normalizeSession}=App.core;
 /* =====================================================================
    PALIMPSEST VTT — state and isometric rendering
    Scenes: "map" (uploaded image, square grid, fog of war)
@@ -68,7 +68,7 @@ const mkTok = (name,letter,color,x,y,size=1,pc=false)=>{
 };
 const mkTokFrom = source=>{
   const t=mkTok(source.name,source.letter,source.color,source.x,source.y,source.size,source.pc);
-  for(const key of ["sheet","statuses","z","phases","phase"])if(source[key]!=null)t[key]=JSON.parse(JSON.stringify(source[key]));
+  for(const key of ["actorId","sheet","statuses","z","phases","phase","ownerKey","owner"])if(source[key]!=null)t[key]=JSON.parse(JSON.stringify(source[key]));
   return t;
 };
 

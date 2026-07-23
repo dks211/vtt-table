@@ -1,6 +1,25 @@
 "use strict";
 /* ---------------- right panel ---------------- */
 let addColor=SWATCH[0];
+let dmPanelTab="scene",lastPanelToken=null,lastPanelRoom=null;
+let sheetEditorOpenFor=null,tokenAddOpen=false;
+const dmPanelScroll={scene:0,combat:0,tokens:0};
+const CHECK_RECENT_KEY="palimpsest-recent-checks";
+const DEFAULT_CHECKS=["Perception","Investigation","Insight","Stealth","Persuasion","Arcana"];
+let recentChecks=[];
+try{recentChecks=JSON.parse(localStorage.getItem(CHECK_RECENT_KEY)||"[]");if(!Array.isArray(recentChecks))recentChecks=[];}catch(e){recentChecks=[];}
+function checkNames(){
+  const abilities=["STR","DEX","CON","INT","WIS","CHA"];
+  return [...abilities.map(a=>a+" check"),...abilities.map(a=>a+" save"),...Object.keys(SKILL_ABIL).sort()];
+}
+function checkBonus(sh,key){
+  const chk=/^(\w{3}) check$/.exec(key);
+  return chk?(sh.abil[chk[1].toLowerCase()]||0):skillBonus(sh,key);
+}
+function rememberCheck(key){
+  recentChecks=[key,...recentChecks.filter(item=>item!==key)].slice(0,6);
+  try{localStorage.setItem(CHECK_RECENT_KEY,JSON.stringify(recentChecks));}catch(e){}
+}
 
 const REVEAL_MODES=[["manual","MANUAL"],["armed","ARMED"],["always","ALWAYS"]];
 function roomRevealMode(room){return REVEAL_MODES.some(([v])=>v===room.revealMode)?room.revealMode:"manual";}
@@ -33,10 +52,16 @@ function tokenRoll(t,o){ // o: {die,mod,expr,label,init}
   // o.label is omitted for freeform custom rolls — the dice notation (e.g. "8d6")
   // already says what was rolled, so echoing it a second time is just noise
   const label=o.label ? t.name+" · "+o.label : t.name;
-  if(NET.mode==="client"){clientSend({type:"roll",die:o.die,mod:o.mod,expr:o.expr,label,init:o.init});return;}
+  if(NET.mode==="client"){clientSend({type:"roll",die:o.die,mod:o.mod,expr:o.expr,label,init:o.init,critDmg:o.critDmg,critLabel:o.critLabel});return;}
   if(o.expr){const pd=parseDice(o.expr); if(pd) roll(pd.d,pd.n,pd.mod,"dm",label); return;}
-  const e=roll(o.die,1,o.mod||0,"dm",label);
+  const critExpr=doubleDiceExpression(o.critDmg);
+  const e=roll(o.die,1,o.mod||0,"dm",label,{attack:!!critExpr});
+  if(critExpr&&isCriticalRoll(e)){
+    showCritOffer({label:o.critLabel||o.label||"Attack",expr:critExpr,
+      onRoll:()=>tokenRoll(t,{expr:critExpr,label:(o.critLabel||o.label||"Attack")+" critical damage"})});
+  }
   if(o.init) trackerSet(t.name,e.total,t.id,false);
+  return e;
 }
 function adjustHP(t,delta){
   const sh=t.sheet; if(!sh) return;
@@ -83,32 +108,45 @@ function sheetRollsHTML(t){
     </div>`).join("")+`</div>`;
   }
   h+=`<div class="row" style="margin-top:7px"><input type="text" id="sr-custom" placeholder="custom: 8d6, 2d4+2…" style="flex:1"><button class="rbtn quiet" id="sr-customgo" style="flex:none;padding:6px 10px">ROLL</button></div>`;
-  const bonusOf=k=>{
-    const chk=/^(\w{3}) check$/.exec(k);
-    return chk ? (sh.abil[chk[1].toLowerCase()]||0) : skillBonus(sh,k);
-  };
-  const opt=k=>`<option value="${k}">${k}  ${sign(bonusOf(k))}</option>`;
-  const ABL=["STR","DEX","CON","INT","WIS","CHA"];
-  const bySkill={}; ABL.forEach(a=>bySkill[a]=[]);
-  for(const [k,ab] of Object.entries(SKILL_ABIL)) bySkill[ab.toUpperCase()].push(k);
-  let sel=`<optgroup label="— Ability checks —">${ABL.map(a=>opt(a+" check")).join("")}</optgroup>`;
-  sel+=`<optgroup label="— Saving throws —">${ABL.map(a=>opt(a+" save")).join("")}</optgroup>`;
-  for(const a of ABL) if(bySkill[a].length)
-    sel+=`<optgroup label="— ${a} skills —">${bySkill[a].sort().map(opt).join("")}</optgroup>`;
-  h+=`<div class="row" style="margin-top:7px"><select id="sr-skill" style="flex:1">${sel}</select></div>
+  const current=recentChecks[0]||"Perception";
+  const quick=[...new Set([...recentChecks,...DEFAULT_CHECKS])].slice(0,6);
+  h+=`<div class="check-picker">
+    <div class="row" style="margin-top:7px"><input type="search" id="sr-check-search" placeholder="Find a check or save…" autocomplete="off"></div>
+    <input type="hidden" id="sr-skill" value="${current}">
+    <div class="check-results" id="sr-check-results">${quick.map(k=>`<button type="button" class="check-option ${k===current?"on":""}" data-check-pick="${k}"><span>${k}</span><b>${sign(checkBonus(sh,k))}</b></button>`).join("")}</div>
+  </div>
   <div class="row"><button class="rbtn quiet" id="sr-roll">ROLL</button><button class="rbtn quiet" id="sr-adv">ADV</button><button class="rbtn quiet" id="sr-dis">DIS</button></div>`;
   return h;
 }
 function wireSheetRolls(p,t){
   // all lookups scoped to the container: the same ids can exist transiently
   // in both the panel and the pop-out float during re-renders
-  const sh=t.sheet, q=sel=>p.querySelector(sel);
+  const sh=t.sheet, q=sel=>p.querySelector(sel),sign=v=>(v>=0?"+":"")+v;
   if(!sh || !q("#sr-roll")) return;
   const skillPick=()=>{
     const k=q("#sr-skill").value;
-    const chk=/^(\w{3}) check$/.exec(k);
-    return {k, bonus: chk ? (sh.abil[chk[1].toLowerCase()]||0) : skillBonus(sh,k)};
+    return {k,bonus:checkBonus(sh,k)};
   };
+  const renderChecks=query=>{
+    const needle=String(query||"").trim().toLowerCase();
+    const names=needle?checkNames().filter(name=>name.toLowerCase().includes(needle)).slice(0,8)
+      :[...new Set([...recentChecks,...DEFAULT_CHECKS])].slice(0,6);
+    const current=q("#sr-skill").value;
+    q("#sr-check-results").innerHTML=names.map(k=>`<button type="button" class="check-option ${k===current?"on":""}" data-check-pick="${k}"><span>${k}</span><b>${sign(checkBonus(sh,k))}</b></button>`).join("");
+    q("#sr-check-results").querySelectorAll("[data-check-pick]").forEach(button=>{
+      button.onclick=()=>{q("#sr-skill").value=button.dataset.checkPick;q("#sr-check-search").value=button.dataset.checkPick;renderChecks("");};
+    });
+    return names;
+  };
+  const checkSearch=q("#sr-check-search");
+  if(checkSearch){
+    renderChecks("");
+    checkSearch.oninput=()=>renderChecks(checkSearch.value);
+    checkSearch.onkeydown=e=>{
+      if(e.key==="Escape"){checkSearch.value="";renderChecks("");checkSearch.blur();}
+      if(e.key==="Enter"){e.preventDefault();const names=renderChecks(checkSearch.value);if(names[0]){q("#sr-skill").value=names[0];checkSearch.value=names[0];renderChecks("");}}
+    };
+  }
   p.querySelectorAll("[data-hpd]").forEach(el=>{el.onclick=()=>adjustHP(t,+el.dataset.hpd);});
   const si=q("#sr-init"); if(si) si.onclick=()=>tokenRoll(t,{die:20,mod:initOf(sh),label:"Initiative",init:true});
   const ssa=q("#sr-spellatk"); if(ssa) ssa.onclick=()=>tokenRoll(t,{die:20,mod:spellAtkBonus(sh),label:"Spell Attack"});
@@ -124,13 +162,13 @@ function wireSheetRolls(p,t){
     scg.onclick=goCustom;
     q("#sr-custom").addEventListener("keydown",e=>{if(e.key==="Enter")goCustom();});
   }
-  p.querySelectorAll("[data-srhit]").forEach(el=>{el.onclick=()=>{const a=sh.atks[+el.dataset.srhit];if(a)tokenRoll(t,{die:20,mod:a.hit,label:a.name});};});
-  p.querySelectorAll("[data-sradv]").forEach(el=>{el.onclick=()=>{const a=sh.atks[+el.dataset.sradv];if(a)tokenRoll(t,{die:"adv",mod:a.hit,label:a.name+" (adv)"});};});
-  p.querySelectorAll("[data-srdis]").forEach(el=>{el.onclick=()=>{const a=sh.atks[+el.dataset.srdis];if(a)tokenRoll(t,{die:"dis",mod:a.hit,label:a.name+" (dis)"});};});
+  p.querySelectorAll("[data-srhit]").forEach(el=>{el.onclick=()=>{const a=sh.atks[+el.dataset.srhit];if(a)tokenRoll(t,{die:20,mod:a.hit,label:a.name,critDmg:a.dmg,critLabel:a.name});};});
+  p.querySelectorAll("[data-sradv]").forEach(el=>{el.onclick=()=>{const a=sh.atks[+el.dataset.sradv];if(a)tokenRoll(t,{die:"adv",mod:a.hit,label:a.name+" (adv)",critDmg:a.dmg,critLabel:a.name});};});
+  p.querySelectorAll("[data-srdis]").forEach(el=>{el.onclick=()=>{const a=sh.atks[+el.dataset.srdis];if(a)tokenRoll(t,{die:"dis",mod:a.hit,label:a.name+" (dis)",critDmg:a.dmg,critLabel:a.name});};});
   p.querySelectorAll("[data-srdmg]").forEach(el=>{el.onclick=()=>{const a=sh.atks[+el.dataset.srdmg];if(a)tokenRoll(t,{expr:a.dmg,label:a.name+" damage"});};});
-  q("#sr-roll").onclick=()=>{const s=skillPick();tokenRoll(t,{die:20,mod:s.bonus,label:s.k});};
-  q("#sr-adv").onclick=()=>{const s=skillPick();tokenRoll(t,{die:"adv",mod:s.bonus,label:s.k+" (adv)"});};
-  q("#sr-dis").onclick=()=>{const s=skillPick();tokenRoll(t,{die:"dis",mod:s.bonus,label:s.k+" (dis)"});};
+  q("#sr-roll").onclick=()=>{const s=skillPick();rememberCheck(s.k);tokenRoll(t,{die:20,mod:s.bonus,label:s.k});renderChecks("");};
+  q("#sr-adv").onclick=()=>{const s=skillPick();rememberCheck(s.k);tokenRoll(t,{die:"adv",mod:s.bonus,label:s.k+" (adv)"});renderChecks("");};
+  q("#sr-dis").onclick=()=>{const s=skillPick();rememberCheck(s.k);tokenRoll(t,{die:"dis",mod:s.bonus,label:s.k+" (dis)"});renderChecks("");};
 }
 
 /* pop-out roll palette: same controls, floating over the map, draggable by its header */
@@ -168,7 +206,7 @@ function renderRollsFloat(){
 function sheetFormHTML(t,toLib){
   const sh=t.sheet||{prof:2,init:null,abil:{str:0,dex:0,con:0,int:0,wis:0,cha:0},atks:[],skills:{}};
   const sign=v=>(v>=0?"+":"")+v;
-  return `<div class="sect"><h3>Sheet · ${esc(t.name)}</h3>
+  return `<div class="sect sheet-editor"><h3>Sheet · ${esc(t.name)}</h3>
     <div class="row"><label>prof</label><input type="number" id="sh-prof" value="${sh.prof}" style="width:52px">
       <label style="width:auto">init</label><input type="number" id="sh-init" value="${sh.init==null?"":sh.init}" placeholder="dex" style="width:52px" title="blank = use the DEX modifier"></div>
     <div class="row"><label>AC</label><input type="number" id="sh-ac" value="${sh.ac==null?"":sh.ac}" style="width:52px">
@@ -187,28 +225,54 @@ function sheetFormHTML(t,toLib){
     <textarea id="sh-skills" rows="2" placeholder="one per line:  Stealth +7  (unlisted skills use the ability mod)">${esc(Object.entries(sh.skills||{}).map(([k,v])=>k+" "+sign(v)).join("\n"))}</textarea>
     <div class="row" style="margin-top:8px">
       <button class="rbtn quiet" id="sh-import" title="reads the CSV export of the v2.1 5e Google Sheet — File → Download → .csv on the main tab">IMPORT GSHEET CSV</button>
-      <button class="rbtn" id="sh-save">SAVE SHEET</button>
+      <span class="sheet-save-state" id="sh-save-state">SAVED AUTOMATICALLY</span>
     </div>
     ${toLib?`<button class="rbtn quiet" id="sh-tolib" style="width:100%;margin-top:6px" title="store name/color/PC flag/sheet in this level's Token Library">SAVE TO TOKEN LIBRARY</button>`:""}
-    <div class="hint" style="margin-top:5px">Import fills the boxes from a Google Sheet CSV export — check them, then SAVE. Blank init = DEX.</div>
+    <div class="hint" style="margin-top:5px">Changes save automatically. Import fills the boxes from a Google Sheet CSV export. Blank init = DEX.</div>
   </div>`;
 }
-function readSheetForm(){
-  const num=id=>(+$(id).value||0)|0;
+function readSheetForm(root=document){
+  const q=id=>root.querySelector("#"+id);
+  const num=id=>(+q(id).value||0)|0;
   const abil={}; for(const k of ["str","dex","con","int","wis","cha"]) abil[k]=num("sh-"+k);
-  const atks=$("sh-atks").value.split("\n").map(s=>s.trim()).filter(Boolean).map(line=>{
+  const atks=q("sh-atks").value.split("\n").map(s=>s.trim()).filter(Boolean).map(line=>{
     const m=/^(.+?)\s+([+-]?\d+)\s+(\S+)$/.exec(line);
     return m?{name:m[1],hit:+m[2],dmg:m[3]}:null;
   }).filter(Boolean);
   const skills={};
-  $("sh-skills").value.split("\n").map(s=>s.trim()).filter(Boolean).forEach(line=>{
+  q("sh-skills").value.split("\n").map(s=>s.trim()).filter(Boolean).forEach(line=>{
     const m=/^(.+?)\s+([+-]?\d+)$/.exec(line);
     if(m) skills[m[1]]=+m[2];
   });
-  const raw=id=>{const v=$(id).value.trim();return v===""?null:+v;};
+  const raw=id=>{const v=q(id).value.trim();return v===""?null:+v;};
   return sanitizeSheet({prof:num("sh-prof"),init:raw("sh-init"),
     ac:raw("sh-ac"),hp:raw("sh-hp"),hpMax:raw("sh-hpmax"),
-    spellAbil:$("sh-spellabil").value||null,abil,atks,skills});
+    spellAbil:q("sh-spellabil").value||null,abil,atks,skills});
+}
+let sheetSaveTimer=null;
+function wireSheetAutosave(container,t){
+  const form=container.querySelector(".sheet-editor");
+  if(!form||!t)return;
+  const state=form.querySelector("#sh-save-state");
+  const save=()=>{
+    sheetSaveTimer=null;
+    t.sheet=readSheetForm(form);
+    if(NET.mode==="client")clientSend({type:"sheet",id:t.id,sheet:t.sheet});
+    else markDirty();
+    if(state){state.textContent="SAVED";state.classList.remove("saving");}
+  };
+  const schedule=()=>{
+    if(state){state.textContent="SAVING…";state.classList.add("saving");}
+    if(sheetSaveTimer)clearTimeout(sheetSaveTimer);
+    sheetSaveTimer=setTimeout(save,650);
+  };
+  form.querySelectorAll("input,textarea,select").forEach(field=>{
+    field.addEventListener("input",schedule);
+    field.addEventListener("change",schedule);
+  });
+  form.addEventListener("focusout",event=>{
+    if(event.relatedTarget&&!form.contains(event.relatedTarget)&&sheetSaveTimer){clearTimeout(sheetSaveTimer);save();}
+  });
 }
 function trackerListHTML(canEdit){
   const tr=App.session.tracker;
@@ -240,7 +304,25 @@ function renderPanel(){
   if(NET.mode==="client"){renderClientPanel();return;}
   if(App.session.mode==="edit"){renderEditorPanel();return;}
   const p=$("panel");
-  let html="";
+  if(App.session.selToken!==lastPanelToken){
+    if(App.session.selToken!=null)dmPanelTab="tokens";
+    sheetEditorOpenFor=null;
+    lastPanelToken=App.session.selToken;
+  }
+  if(App.session.selRoom!==lastPanelRoom){
+    if(App.session.selRoom!=null&&App.session.selToken==null)dmPanelTab="scene";
+    lastPanelRoom=App.session.selRoom;
+  }
+  let html=`<nav class="panel-tabs" aria-label="DM workspace">
+    ${[["scene","SCENE"],["combat","COMBAT"],["tokens","TOKENS"]].map(([key,label])=>`<button class="${dmPanelTab===key?"on":""}" data-panel-tab="${key}" aria-selected="${dmPanelTab===key}">${label}</button>`).join("")}
+  </nav>`;
+  const bundledLevel=App.document.level.name===App.content.VAULT_LEVEL.name?"vault":App.document.level.name===App.content.VERSO_LEVEL.name?"verso":"custom";
+  html+=`<div class="sect"><h3>Level</h3>
+    <div class="row"><select id="run-level" style="flex:1">
+      <option value="verso" ${bundledLevel==="verso"?"selected":""}>The Verso</option>
+      <option value="vault" ${bundledLevel==="vault"?"selected":""}>Level 2 · The Vault</option>
+    </select><button class="rbtn quiet" id="run-transition" style="flex:none">TRANSITION</button></div>
+    <div class="hint">Moves the table live and preserves PC sheets and player assignments.</div></div>`;
 
   if(App.session.scene==="verso"){
     const r=App.document.rooms.find(r=>r.id===App.session.selRoom);
@@ -357,7 +439,8 @@ function renderPanel(){
   html+=`<div class="sect"><h3>Tokens</h3><div class="toklist">`+
     toks.map(t=>`<div class="tok ${App.session.selToken===t.id?"sel":""}" data-tok="${t.id}">
       <span class="dot" style="background:${t.color}">${esc(t.letter)}</span>
-      <span class="nm">${esc(t.name)}${t.owner?' <span style="font-size:9px;color:var(--under)">· claimed</span>':''}</span>
+      <span class="nm">${esc(t.name)}${t.ownerKey?' <span style="font-size:9px;color:var(--under)">· assigned</span>':''}</span>
+      ${t.ownerKey?`<span class="del" data-unclaim="${t.id}" title="clear saved player assignment">UNASSIGN</span>`:""}
       <span class="del" data-pc="${t.id}" title="toggle: players can see & claim this token" style="font-size:9px;letter-spacing:.05em;color:${t.pc?"var(--brass)":"#666"}">${t.pc?"PC":"npc"}</span>
       <span class="del" data-del="${t.id}" title="remove">✕</span>
     </div>`).join("")+
@@ -374,6 +457,7 @@ function renderPanel(){
       <div class="row" style="margin-top:5px">${["prone","concentrating","marked"].map(status=>`<button class="rbtn quiet" data-status="${status}" style="${(selT.statuses||[]).includes(status)?"color:var(--brass);border-color:var(--brass-dim)":""}">${status.toUpperCase()}</button>`).join("")}</div>
       ${selT.phases?.length>1?`<button class="rbtn" id="tok-phase" style="width:100%;margin-top:7px">CHANGE TO ${esc((selT.phases[((selT.phase||0)+1)%selT.phases.length].title||selT.phases[((selT.phase||0)+1)%selT.phases.length].name||"NEXT PHASE").toUpperCase())}</button>`:""}`;
   }
+  html+=`<div class="row" style="margin-top:8px">${selT?`<button class="rbtn quiet" id="toggle-sheet-editor">${sheetEditorOpenFor===selT.id?"CLOSE SHEET EDITOR":selT.sheet?"EDIT SHEET":"ADD SHEET"}</button>`:""}<button class="rbtn quiet" id="toggle-add-token">${tokenAddOpen?"CLOSE ADD TOKEN":"+ ADD TOKEN"}</button></div>`;
   html+=`</div>`;
   if(selT && selT.sheet){
     html+=`<div class="sect"><h3>Roll as ${esc(selT.name)}</h3>`+
@@ -381,9 +465,9 @@ function renderPanel(){
         :sheetRollsHTML(selT)+`<button class="rbtn quiet" id="sr-pop" style="width:100%;margin-top:6px">POP OUT OVER MAP</button>`)+
       `</div>`;
   }
-  if(selT) html+=sheetFormHTML(selT,true);
+  if(selT&&sheetEditorOpenFor===selT.id) html+=sheetFormHTML(selT,true);
   // add token
-  html+=`<div class="sect"><h3>Add Token</h3>
+  if(tokenAddOpen)html+=`<div class="sect"><h3>Add Token</h3>
     <div class="row"><input type="text" id="at-name" placeholder="name" style="flex:1"></div>
     <div class="swatches">${SWATCH.map(c=>`<span class="sw ${c===addColor?"on":""}" data-c="${c}" style="background:${c}"></span>`).join("")}</div>
     <div class="row"><label>size</label><select id="at-size"><option value="1">Medium</option><option value="2">Large</option><option value="3">Huge</option></select></div>
@@ -395,6 +479,44 @@ function renderPanel(){
   </div>`;
 
   p.innerHTML=html;
+  const panelGroup=section=>{
+    const title=section.querySelector("h3")?.textContent.trim()||"";
+    if(title==="Dice"||title.startsWith("Initiative"))return"combat";
+    if(title==="Tokens"||title.startsWith("Roll as ")||title.startsWith("Sheet ·")||title==="Add Token")return"tokens";
+    return"scene";
+  };
+  for(const section of [...p.children].filter(child=>child.classList.contains("sect"))){
+    const group=panelGroup(section);
+    section.classList.add("panel-group-"+group);
+    section.classList.toggle("panel-section-hidden",group!==dmPanelTab);
+  }
+  p.querySelectorAll("[data-panel-tab]").forEach(button=>{
+    button.onclick=()=>{
+      dmPanelScroll[dmPanelTab]=p.scrollTop;
+      dmPanelTab=button.dataset.panelTab;
+      renderPanel();
+      requestAnimationFrame(()=>{p.scrollTop=dmPanelScroll[dmPanelTab]||0;});
+    };
+  });
+  const transition=$("run-transition");
+  const levelPick=$("run-level");
+  const updateTransition=()=>{
+    if(!transition||!levelPick)return;
+    const same=levelPick.value===bundledLevel;
+    transition.disabled=same;transition.textContent=same?"CURRENT":"TRANSITION";
+  };
+  if(levelPick)levelPick.onchange=updateTransition;
+  if(transition)transition.onclick=()=>{
+    const target=levelPick.value;
+    if(target===bundledLevel)return;
+    transition.disabled=true;transition.textContent="MOVING TABLE…";
+    transitionBundledLevel(target);
+  };
+  updateTransition();
+  const sheetToggle=$("toggle-sheet-editor");
+  if(sheetToggle&&selT)sheetToggle.onclick=()=>{sheetEditorOpenFor=sheetEditorOpenFor===selT.id?null:selT.id;renderPanel();};
+  const addToggle=$("toggle-add-token");
+  if(addToggle)addToggle.onclick=()=>{tokenAddOpen=!tokenAddOpen;renderPanel();};
 
   /* wire panel events */
   if(App.session.scene==="verso"){
@@ -515,14 +637,14 @@ function renderPanel(){
       e.stopPropagation();
       const t=S().tokens.find(t=>t.id===+el.dataset.pc);
       if(!t) return;
-      if(t.pc){delete t.pc; if(t.owner) delete t.owner;}    // demoting kicks any claim
+      if(t.pc){delete t.pc;delete t.owner;delete t.ownerKey;}    // demoting clears any assignment
       else t.pc=true;
       markDirty(); renderPanel();
     };
   });
   p.querySelectorAll("[data-tok]").forEach(el=>{
     el.onclick=e=>{
-      if(e.target.dataset.del||e.target.dataset.pc) return;
+      if(e.target.dataset.del||e.target.dataset.pc||e.target.dataset.unclaim) return;
       const id=+el.dataset.tok;
       App.session.selToken=id;
       const t=S().tokens.find(t=>t.id===id);
@@ -532,6 +654,14 @@ function renderPanel(){
         else{const [wx,wy]=levelWorldFromTile(t.x,t.y);c.x=wx-W/(2*c.s);c.y=wy-H/(2*c.s);}
       }
       renderPanel();
+    };
+  });
+  p.querySelectorAll("[data-unclaim]").forEach(el=>{
+    el.onclick=e=>{
+      e.stopPropagation();
+      const t=S().tokens.find(token=>token.id===+el.dataset.unclaim);
+      if(!t)return;
+      delete t.owner;delete t.ownerKey;markDirty();renderPanel();
     };
   });
   p.querySelectorAll("[data-del]").forEach(el=>{
@@ -625,10 +755,7 @@ function renderPanel(){
   /* sheet wiring (DM edits any selected token; rolls as it too) */
   if(selT && !rollsFloatOpen) wireSheetRolls(p,selT);
   const srp=$("sr-pop"); if(srp) srp.onclick=()=>{rollsFloatOpen=true;renderPanel();};
-  const shSave=$("sh-save"); if(shSave && selT) shSave.onclick=()=>{
-    selT.sheet=readSheetForm();
-    markDirty(); renderPanel();
-  };
+  if(selT)wireSheetAutosave(p,selT);
   const shLib=$("sh-tolib"); if(shLib && selT) shLib.onclick=()=>{
     const i=App.document.level.roster.findIndex(q=>q.name===selT.name);
     const entry={id:i>=0?App.document.level.roster[i].id:newEntityId("roster",App.document.level.roster),name:selT.name, letter:selT.letter, color:selT.color, sheet:readSheetForm()};
@@ -929,8 +1056,8 @@ function renderClientPanel(){
     html+=`<div class="hint" style="margin-bottom:8px">Claim your character. You'll be able to move only that token, and only into rooms the DM has revealed.</div>`;
   }
   html+=`<div class="toklist">`+toks.map(t=>{
-    const mine=t.id===NET.myToken;
-    const taken=t.owner&&t.owner!==NET.myId;
+    const mine=t.ownerKey===NET.playerKey||t.id===NET.myToken;
+    const taken=t.ownerKey&&t.ownerKey!==NET.playerKey;
     return `<div class="tok ${mine?"sel":""}" data-claim="${t.id}" style="${taken?"opacity:.45":""}">
       <span class="dot" style="background:${t.color}">${esc(t.letter)}</span>
       <span class="nm">${esc(t.name)}</span>
@@ -962,9 +1089,9 @@ function renderClientPanel(){
     el.onclick=()=>{
       const id=+el.dataset.claim;
       const t=S().tokens.find(t=>t.id===id);
-      if(!t||(t.owner&&t.owner!==NET.myId))return;
+      if(!t||(t.ownerKey&&t.ownerKey!==NET.playerKey))return;
       NET.myToken=id; cliWantTok=id;
-      clientSend({type:"claim",id});
+      clientSend({type:"claim",id,playerKey:NET.playerKey});
       if(t.sheet){                          // sheet's ready — surface the roll buttons right over the map
         rollsFloatOpen=true; setDrawer(false);
       } // else: leave the drawer open so they see the sheet form and can fill one in
@@ -989,13 +1116,7 @@ function renderClientPanel(){
   if(mine){
     if(!rollsFloatOpen) wireSheetRolls(p,mine);
     const srp=$("sr-pop"); if(srp) srp.onclick=()=>{rollsFloatOpen=true;renderPanel();setDrawer(false);};
-    const shSave=$("sh-save"); if(shSave) shSave.onclick=()=>{
-      const s2=readSheetForm();
-      mine.sheet=s2;                                   // optimistic; host confirms via sync
-      clientSend({type:"sheet",id:mine.id,sheet:s2});
-      rollsFloatOpen=true; setDrawer(false);            // sheet just got filled in — surface the roll buttons
-      renderPanel();
-    };
+    wireSheetAutosave(p,mine);
     const shImp=$("sh-import"); if(shImp) shImp.onclick=()=>$("file-sheet").click();
   }
 }

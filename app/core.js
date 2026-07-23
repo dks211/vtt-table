@@ -6,7 +6,7 @@
   "use strict";
 
   const LEVEL_SCHEMA_VERSION = 3;
-  const SESSION_SCHEMA_VERSION = 5;
+  const SESSION_SCHEMA_VERSION = 6;
 
   const clone = value => JSON.parse(JSON.stringify(value));
   const objectOrNull = value => value && typeof value === "object" && !Array.isArray(value) ? value : null;
@@ -229,6 +229,19 @@
         propStates[String(id).slice(0, 64)] = String(state).slice(0, 64);
     }
     const trackerSource = objectOrNull(session.tracker) || {};
+    const normalizeTokens = source => (Array.isArray(source) ? source : []).slice(0, 500).flatMap(token => {
+      const item = objectOrNull(token);
+      if (!item) return [];
+      const normalized = clone(item);
+      // Peer IDs are connection-scoped and must never survive a reload. ownerKey is
+      // the durable, browser-local player assignment used to reclaim the token.
+      delete normalized.owner;
+      if (normalized.ownerKey != null) {
+        normalized.ownerKey = String(normalized.ownerKey).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 80);
+        if (!normalized.ownerKey) delete normalized.ownerKey;
+      }
+      return [normalized];
+    });
     const tracker = {
       order: (Array.isArray(trackerSource.order) ? trackerSource.order : []).slice(0, 100).map(entry => ({
         name: String(entry && entry.name || "Initiative").slice(0, 120),
@@ -251,12 +264,12 @@
         grid: objectOrNull(map.grid) ? clone(map.grid) : {},
         fogOn: map.fogOn !== false,
         brush: Math.max(1, finite(map.brush, 90)),
-        tokens: Array.isArray(map.tokens) ? clone(map.tokens) : [],
+        tokens: normalizeTokens(map.tokens),
       },
       verso: {
         view: verso.view === "tactical" ? "tactical" : "isometric",
         revealed: objectOrNull(verso.revealed) ? clone(verso.revealed) : {},
-        tokens: Array.isArray(verso.tokens) ? clone(verso.tokens) : [],
+        tokens: normalizeTokens(verso.tokens),
         doorStates,
         effects,
         propStates,
@@ -285,10 +298,41 @@
     const die = +match[2];
     if (![2, 3, 4, 6, 8, 10, 12, 20, 100].includes(die)) return null;
     return {
-      n: Math.max(1, Math.min(10, +match[1] || 1)),
+      n: Math.max(1, Math.min(20, +match[1] || 1)),
       d: die,
       mod: match[3] ? +match[3].replace(/\s+/g, "") : 0,
     };
+  }
+
+  function doubleDiceExpression(expr) {
+    const parsed = parseDice(expr);
+    if (!parsed) return null;
+    const count = Math.min(20, parsed.n * 2);
+    const modifier = parsed.mod ? `${parsed.mod > 0 ? "+" : ""}${parsed.mod}` : "";
+    return `${count}d${parsed.d}${modifier}`;
+  }
+
+  function isCriticalRoll(entry) {
+    if (!entry || entry.d !== 20 || entry.n > 2) return false;
+    return (entry.kept == null ? entry.results && entry.results[0] : entry.kept) === 20;
+  }
+
+  function migratePartyTokens(currentTokens, destinationTokens) {
+    const identity = token => String(token && (token.actorId || token.name) || "").trim().toLowerCase();
+    const current = new Map();
+    for (const token of Array.isArray(currentTokens) ? currentTokens : []) {
+      if (token && token.pc) current.set(identity(token), token);
+    }
+    return (Array.isArray(destinationTokens) ? destinationTokens : []).map(token => {
+      const next = clone(token);
+      if (!next.pc) return next;
+      const previous = current.get(identity(next));
+      if (!previous) return next;
+      for (const key of ["sheet", "statuses", "z", "ownerKey", "owner"]) {
+        if (previous[key] != null) next[key] = clone(previous[key]);
+      }
+      return next;
+    });
   }
 
   function sanitizeSheet(sheet) {
@@ -546,6 +590,9 @@
     SESSION_SCHEMA_VERSION,
     escapeHTML,
     parseDice,
+    doubleDiceExpression,
+    isCriticalRoll,
+    migratePartyTokens,
     sanitizeSheet,
     spellAtkBonus,
     spellSaveDC,

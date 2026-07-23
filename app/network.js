@@ -1,10 +1,20 @@
 "use strict";
 /* ---------------- online table (WebRTC via PeerJS) ---------------- */
 const NET={mode:null,peer:null,conns:new Map(),code:null,myToken:null,myId:null,
-  dirty:false,fogDirty:false,imgStamp:0,diceStamp:0,lastDice:null};
+  playerKey:null,dirty:false,fogDirty:false,imgStamp:0,diceStamp:0,lastDice:null};
 function netMark(){NET.dirty=true;}
 function netMarkFog(){NET.fogDirty=true;}
 function netMarkLevel(){NET.levelDirty=true;}
+function cleanPlayerKey(value){return String(value||"").replace(/[^A-Za-z0-9_-]/g,"").slice(0,80);}
+function localPlayerKey(){
+  if(NET.playerKey) return NET.playerKey;
+  try{NET.playerKey=cleanPlayerKey(localStorage.getItem("palimpsest-player-key"));}catch(e){}
+  if(!NET.playerKey){
+    NET.playerKey="player-"+Math.random().toString(36).slice(2)+Date.now().toString(36);
+    try{localStorage.setItem("palimpsest-player-key",NET.playerKey);}catch(e){}
+  }
+  return NET.playerKey;
+}
 
 /* TURN relay — the deploy worker mints Cloudflare Realtime credentials at /turn.
    Remote players (cellular, different networks) usually can't connect peer-to-peer
@@ -81,6 +91,29 @@ function focusRemotePlayers(focus){
   netBroadcast(lightSnapshot());
   netBroadcast({type:"camera",...focus});
 }
+function broadcastLevelTransition(name){
+  const banner={head:"SCENE CHANGE",total:String(name||"New level"),detail:"same table · party assignments preserved",
+    stamp:++NET.diceStamp};
+  NET.lastDice=banner;
+  if(NET.mode==="host"){
+    NET.levelDirty=false;NET.dirty=false;
+    netBroadcast({type:"level",data:clientLevelData(),transition:true});
+    netBroadcast(lightSnapshot());
+    focusRemotePlayers(cameraFocusFromViewport(cam(),W,H,App.session.scene,App.session.verso.view));
+  }
+  clientBanner(banner);
+  if(typeof pwinBanner==="function")pwinBanner(banner,"");
+}
+function rebindConnectedOwners(){
+  if(NET.mode!=="host")return;
+  const tokens=[...App.session.map.tokens,...App.session.verso.tokens];
+  for(const connection of NET.conns.values()){
+    if(!connection.playerKey)continue;
+    const token=tokens.find(item=>item.ownerKey===connection.playerKey);
+    if(token)token.owner=connection.peer;
+  }
+  netMark();
+}
 function sendFullTo(c){
   try{
     c.send(JSON.stringify({type:"level",data:clientLevelData()}));
@@ -115,7 +148,8 @@ function startHost(){
     c.on("open",()=>{NET.conns.set(c.peer,c);updNetStatus();sendFullTo(c);});
     c.on("close",()=>{
       NET.conns.delete(c.peer);
-      // release that player's claims
+      // Release only the transient connection. ownerKey keeps the assignment so
+      // refreshes, restored saves, and level transitions can reclaim the token.
       for(const t of [...App.session.map.tokens,...App.session.verso.tokens]) if(t.owner===c.peer) delete t.owner;
       updNetStatus(); netMark(); renderPanel();
     });
@@ -136,12 +170,25 @@ function updNetStatus(){
   if(NET.mode==="host") el.textContent="TABLE "+NET.code+" · "+NET.conns.size+" joined ⧉";
 }
 function hostHandle(c,m){
+  if(m.type==="hello"){
+    const key=cleanPlayerKey(m.playerKey);
+    if(!key) return;
+    c.playerKey=key;
+    const mine=[...App.session.map.tokens,...App.session.verso.tokens].find(t=>t.ownerKey===key);
+    if(mine){mine.owner=c.peer;netMark();renderPanel();}
+    return;
+  }
   if(m.type==="claim"){
+    const key=cleanPlayerKey(c.playerKey||m.playerKey);
+    if(!key) return;
+    c.playerKey=key;
     const t=[...App.session.map.tokens,...App.session.verso.tokens].find(t=>t.id===m.id);
     if(!t || !t.pc) return;                                 // only designated player tokens
-    if(t.owner && t.owner!==c.peer) return;                 // already someone else's
-    for(const o of [...App.session.map.tokens,...App.session.verso.tokens]) if(o.owner===c.peer) delete o.owner;
-    t.owner=c.peer; netMark(); renderPanel();
+    if(t.ownerKey && t.ownerKey!==key) return;               // durably assigned to someone else
+    for(const o of [...App.session.map.tokens,...App.session.verso.tokens]){
+      if(o.ownerKey===key){delete o.ownerKey;delete o.owner;}
+    }
+    t.ownerKey=key;t.owner=c.peer;netMark();markDirty();renderPanel();
   }
   if(m.type==="move"){
     const t=S().tokens.find(t=>t.id===m.id);
@@ -151,6 +198,7 @@ function hostHandle(c,m){
   }
   if(m.type==="roll"){
     const label=m.label?String(m.label).slice(0,48):null;
+    let e=null;
     if(m.expr){
       const pd=parseDice(m.expr);
       if(pd) roll(pd.d,pd.n,pd.mod,"player",label);
@@ -159,7 +207,11 @@ function hostHandle(c,m){
     const die=(m.die==="adv"||m.die==="dis")?m.die:+m.die;
     if(die!=="adv" && die!=="dis" && ![4,6,8,10,12,20,100].includes(die)) return;
     const mod=Math.max(-30,Math.min(30,(+m.mod||0)|0));
-    const e=roll(die,1,mod,"player",label);
+    const critExpr=doubleDiceExpression(m.critDmg);
+    e=roll(die,1,mod,"player",label,{attack:!!critExpr});
+    if(e&&critExpr&&isCriticalRoll(e)){
+      try{c.send(JSON.stringify({type:"critOffer",expr:critExpr,label:String(m.critLabel||label||"Attack").slice(0,48)}));}catch(_){}
+    }
     if(m.init){
       const t=[...App.session.map.tokens,...App.session.verso.tokens].find(t=>t.owner===c.peer);
       trackerSet(t?t.name:(label||"Player"), e.total, t&&t.id);
@@ -233,10 +285,12 @@ $("btn-host").onclick=hostTable;
 /* ----- client ----- */
 let clientConn=null, clientDragging=false, cliOX=0, cliOY=0;
 let cliWantTok=null, cliLastMsg=0, cliRetry=null, cliOpened=false, cliLevelFit=false;
+let cliTransitionFit=false;
 function netStatus(t){const el=$("net-status");el.style.display="inline";el.textContent=t;}
 function joinTable(code){
   if(typeof Peer==="undefined"){alert("Couldn't load the connection library — check your internet and reload.");return;}
   NET.mode="client"; NET.code=code.trim();
+  localPlayerKey();
   document.body.classList.add("netclient");
   setDrawer(true);   // phones: start with the drawer up so players can claim a token
   setView("pl"); App.session.view="pl";
@@ -269,7 +323,8 @@ function clientPeer(){
     conn.on("open",()=>{
       cliOpened=true; cliLastMsg=Date.now(); firstSync=true;
       netStatus("CONNECTED · "+NET.code);
-      if(cliWantTok!=null) clientSend({type:"claim",id:cliWantTok}); // resume my token after a drop
+      clientSend({type:"hello",playerKey:NET.playerKey});
+      if(cliWantTok!=null) clientSend({type:"claim",id:cliWantTok,playerKey:NET.playerKey}); // resume my token after a drop
     });
     conn.on("data",raw=>{
       cliLastMsg=Date.now();
@@ -329,23 +384,30 @@ function clientHandle(m){
       const t=S().tokens.find(t=>t.id===keep.id);
       if(t){t.x=keep.x;t.y=keep.y;dragTok=t;}   // rebind the live drag to the fresh object
     }
-    // verify my claim still holds
-    if(NET.myToken!=null){
+    // Durable owner keys let the same browser reclaim its token after reconnects,
+    // restored saves, and level transitions where the token receives a new id.
+    const assigned=[...App.session.map.tokens,...App.session.verso.tokens].find(t=>t.ownerKey===NET.playerKey);
+    if(assigned){NET.myToken=assigned.id;cliWantTok=assigned.id;}
+    else if(NET.myToken!=null){
       const t=[...App.session.map.tokens,...App.session.verso.tokens].find(t=>t.id===NET.myToken);
       if(!t||t.owner!==NET.myId) NET.myToken=null;
     }
-    // claim sent but not yet confirmed (or re-sent after a reconnect): adopt it once the host agrees
     if(NET.myToken==null && cliWantTok!=null){
       const t=[...App.session.map.tokens,...App.session.verso.tokens].find(t=>t.id===cliWantTok);
-      if(t && t.owner===NET.myId) NET.myToken=cliWantTok;
+      if(t && (t.ownerKey===NET.playerKey||t.owner===NET.myId)) NET.myToken=cliWantTok;
     }
     if(m.dice && (!NET.lastDice||m.dice.stamp!==NET.lastDice.stamp)){NET.lastDice=m.dice;clientBanner(m.dice);}
-    if(firstSync){firstSync=false;fitScene();updZoom();}
+    if(firstSync||cliTransitionFit){firstSync=false;cliTransitionFit=false;fitScene();updZoom();}
     renderPanel();
   }
   if(m.type==="level" && m.data){
     loadLevel(m.data);
+    if(m.transition)cliTransitionFit=true;
     if(!cliLevelFit){cliLevelFit=true; if(App.session.scene==="verso"){fitScene();updZoom();}}
+  }
+  if(m.type==="critOffer"&&m.expr){
+    const expr=parseDice(m.expr)?m.expr:null;
+    if(expr)showCritOffer({label:String(m.label||"Attack"),expr,onRoll:()=>clientSend({type:"roll",expr,label:String(m.label||"Attack")+" critical damage"})});
   }
   if(m.type==="camera"){
     const nextScene=m.scene==="map"?"map":"verso";
@@ -384,10 +446,12 @@ function clientHandle(m){
 }
 function clientBanner(d){
   const b=$("net-banner");
-  setBannerContent(document,b,d);
+  const cls=d.crit?" crit":d.fumble?" fumble":"";
+  setBannerContent(document,b,d,cls);
   b.classList.remove("show");void b.offsetWidth;b.classList.add("show");
+  if(d.critAttack&&typeof triggerCritEffect==="function")triggerCritEffect();
   setTimeout(()=>b.classList.remove("show"),4500);
 }
 function clientSend(msg){if(clientConn)try{clientConn.send(JSON.stringify(msg));}catch(e){}}
 
-Object.assign(App.services.network,{hostTable,joinTable,netMark,netMarkFog,netMarkLevel,clientSend,trackerSet,focusRemotePlayers});
+Object.assign(App.services.network,{hostTable,joinTable,netMark,netMarkFog,netMarkLevel,clientSend,trackerSet,focusRemotePlayers,broadcastLevelTransition,rebindConnectedOwners});

@@ -21,7 +21,7 @@
   --oxblood:#8A2E25;
   --under:#7FA8B8;
   --ink:#070908;
-  --panel-w:312px;
+  --panel-w:328px;
   --rail-w:54px;
   --top-h:52px;
 }
@@ -115,6 +115,16 @@ body.editing #iso-preview{display:block}
 #panel{position:fixed;right:0;top:var(--top-h);bottom:26px;width:var(--panel-w);z-index:20;overflow-y:auto;
   background:var(--felt-900);border-left:1px solid var(--brass-faint);padding:14px 14px 28px;
   scrollbar-width:thin;scrollbar-color:var(--brass-faint) transparent}
+.panel-tabs{position:sticky;top:-14px;z-index:6;display:grid;grid-template-columns:repeat(3,1fr);
+  margin:-14px -14px 14px;background:var(--felt-900);border-bottom:1px solid var(--brass-faint);
+  box-shadow:0 6px 14px rgba(0,0,0,.2)}
+.panel-tabs button{padding:11px 4px 9px;font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.14em;
+  color:var(--vellum-dim);border-bottom:2px solid transparent}
+.panel-tabs button:hover{color:var(--vellum)}
+.panel-tabs button.on{color:var(--brass);border-bottom-color:var(--brass)}
+.panel-section-hidden{display:none!important}
+.panel-group-scene>.toklist,.panel-group-tokens>.toklist{max-height:230px;overflow:auto;
+  scrollbar-width:thin;scrollbar-color:var(--brass-faint) transparent}
 .sect{margin-bottom:20px}
 .sect h3{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:500;letter-spacing:.24em;
   color:var(--brass-dim);text-transform:uppercase;margin-bottom:9px;
@@ -149,6 +159,15 @@ body.editing #iso-preview{display:block}
   border:1px solid var(--brass-dim);border-radius:3px;color:var(--brass)}
 .rbtn:hover{background:var(--brass);color:var(--ink)}
 .rbtn.quiet{border-color:var(--brass-faint);color:var(--vellum-dim)}
+.rbtn:disabled{opacity:.42;cursor:default;background:none;color:var(--vellum-dim)}
+.check-results{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin:-2px 0 8px}
+.check-option{display:flex;align-items:center;gap:5px;min-width:0;padding:6px 7px;border:1px solid var(--brass-faint);
+  border-radius:3px;font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--vellum-dim);text-align:left}
+.check-option span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.check-option b{color:var(--under);font-weight:500}
+.check-option:hover,.check-option.on{border-color:var(--brass-dim);color:var(--brass);background:var(--felt-950)}
+.sheet-save-state{flex:1;text-align:right;font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:.08em;color:var(--under)}
+.sheet-save-state.saving{color:var(--brass)}
 
 /* tokens */
 .toklist{display:flex;flex-direction:column;gap:4px}
@@ -200,7 +219,25 @@ body.netclient #rolls-float{right:12px;bottom:120px}
 #net-banner.show{opacity:1;transform:translateX(-50%) scale(1)}
 #net-banner .rb-head{font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:.22em;color:var(--vellum-dim)}
 #net-banner .rb-total{font-family:Marcellus,serif;font-size:72px;line-height:1;color:var(--vellum)}
+#net-banner .rb-total.crit{color:var(--brass);text-shadow:0 0 24px rgba(200,161,78,.65)}
+#net-banner .rb-total.fumble{color:var(--oxblood)}
 #net-banner .rb-detail{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--under)}
+#crit-effect{position:fixed;inset:0;z-index:70;display:grid;place-items:center;pointer-events:none;opacity:0;
+  background:radial-gradient(circle,rgba(200,161,78,.3),rgba(200,161,78,0) 48%)}
+#crit-effect span{font-family:Marcellus,serif;font-size:clamp(44px,8vw,100px);letter-spacing:.12em;color:var(--brass);
+  text-shadow:0 0 18px #C8A14E,0 6px 30px #000;transform:scale(.6)}
+#crit-effect.show{animation:critFade 1.15s ease-out}
+#crit-effect.show span{animation:critStrike 1.15s cubic-bezier(.2,.8,.2,1)}
+@keyframes critFade{0%{opacity:0}14%{opacity:1}72%{opacity:.85}100%{opacity:0}}
+@keyframes critStrike{0%{transform:scale(.55) rotate(-3deg)}22%{transform:scale(1.08) rotate(1deg)}100%{transform:scale(1)}}
+#crit-prompt{position:fixed;left:50%;bottom:42px;z-index:71;display:none;align-items:center;gap:10px;
+  transform:translateX(-50%);padding:10px 12px;background:rgba(14,20,17,.97);border:1px solid var(--brass);
+  border-radius:5px;box-shadow:0 8px 30px rgba(0,0,0,.65)}
+#crit-prompt.show{display:flex}
+#crit-attack{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--vellum);white-space:nowrap}
+#crit-roll{padding:7px 10px;border-radius:3px;background:var(--brass);color:var(--ink);
+  font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;letter-spacing:.08em;white-space:nowrap}
+#crit-dismiss{padding:5px;color:var(--vellum-dim)}
 body.netclient #rail,body.netclient .tabs,
 body.netclient #btn-save,body.netclient #btn-load,body.netclient #btn-host,body.netclient #btn-pwin,body.netclient #btn-focus{display:none!important}
 body.netclient #stage{left:0}
@@ -325,6 +362,8 @@ body.netclient #stage{left:0}
 <aside id="panel"></aside>
 
 <div id="net-banner"></div>
+<div id="crit-effect"><span>CRITICAL!</span></div>
+<div id="crit-prompt"><span id="crit-attack"></span><button id="crit-roll"></button><button id="crit-dismiss" title="dismiss">✕</button></div>
 <div id="tracker-float"></div>
 <div id="rolls-float"></div>
 <button id="fit-float">⤢ FIT</button>

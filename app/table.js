@@ -147,7 +147,7 @@ function importGSheetCSV(text){
   }
   return hits>=6 ? out : null;   // too few anchors = not this template
 }
-function fillSheetForm(s){ // populate the open form for review; user still hits SAVE
+function fillSheetForm(s){ // populate the open form; the sheet editor autosaves the import
   const sign=v=>(v>=0?"+":"")+v;
   if("prof" in s) $("sh-prof").value=s.prof;
   if("init" in s) $("sh-init").value=s.init;
@@ -159,6 +159,7 @@ function fillSheetForm(s){ // populate the open form for review; user still hits
   if(s.atks.length) $("sh-atks").value=s.atks.map(a=>a.name+" "+sign(a.hit)+" "+a.dmg).join("\n");
   const sk=Object.entries(s.skills);
   if(sk.length) $("sh-skills").value=sk.map(([k,v])=>k+" "+sign(v)).join("\n");
+  const first=$("sh-prof");if(first)first.dispatchEvent(new Event("input",{bubbles:true}));
 }
 $("file-sheet").onchange=e=>{
   const f=e.target.files[0]; e.target.value="";
@@ -172,8 +173,34 @@ $("file-sheet").onchange=e=>{
   rd.readAsText(f);
 };
 let diceLog=[], diceN=1, diceMod=0, bannerTimer=null, dmHidden=false;
-function roll(d,n,mod,who,label){
-  n=Math.max(1,Math.min(10,n|0)); mod=mod|0;
+let critPromptTimer=null,critPromptRoll=null,lastCritEffect=0;
+function triggerCritEffect(){
+  if(Date.now()-lastCritEffect<600)return;
+  lastCritEffect=Date.now();
+  const effect=$("crit-effect");
+  if(!effect)return;
+  effect.classList.remove("show");void effect.offsetWidth;effect.classList.add("show");
+  setTimeout(()=>effect.classList.remove("show"),1200);
+}
+function dismissCritOffer(){
+  const prompt=$("crit-prompt");if(prompt)prompt.classList.remove("show");
+  critPromptRoll=null;if(critPromptTimer){clearTimeout(critPromptTimer);critPromptTimer=null;}
+}
+function showCritOffer({label,expr,onRoll}){
+  const prompt=$("crit-prompt"),name=$("crit-attack"),button=$("crit-roll");
+  if(!prompt||!name||!button||!parseDice(expr))return;
+  triggerCritEffect();
+  name.textContent=String(label||"Attack")+" hit critically";
+  button.textContent="ROLL "+String(expr).toUpperCase();
+  critPromptRoll=typeof onRoll==="function"?onRoll:null;
+  button.onclick=()=>{const run=critPromptRoll;dismissCritOffer();if(run)run();};
+  $("crit-dismiss").onclick=dismissCritOffer;
+  prompt.classList.add("show");
+  if(critPromptTimer)clearTimeout(critPromptTimer);
+  critPromptTimer=setTimeout(dismissCritOffer,15000);
+}
+function roll(d,n,mod,who,label,options={}){
+  n=Math.max(1,Math.min(20,n|0)); mod=mod|0;
   let results=[],mode=null;
   if(d==="adv"||d==="dis"){
     mode=d; d=20;
@@ -188,9 +215,12 @@ function roll(d,n,mod,who,label){
   }
   const hush = who==="dm" && dmHidden;   // hidden DM roll: log only, no banners, nothing broadcast
   const entry={d,n:mode?2:n,mod,results,kept,mode,total,who,label:label||null,hush,at:Date.now()};
+  entry.crit=isCriticalRoll(entry);
+  entry.critAttack=entry.crit&&!!options.attack;
+  entry.fumble=(entry.d===20&&(entry.kept==null?entry.results[0]:entry.kept)===1&&entry.n<=2);
   diceLog.unshift(entry); diceLog=diceLog.slice(0,10);
   if(!hush){
-    NET.lastDice=Object.assign(fmtRoll(entry),{stamp:++NET.diceStamp});
+    NET.lastDice=Object.assign(fmtRoll(entry),{stamp:++NET.diceStamp,crit:entry.crit,critAttack:entry.critAttack,fumble:entry.fumble});
     netMark();
   }
   renderPanel();
@@ -218,9 +248,7 @@ function pwinBanner(f,cls){
   }catch(_){/* window mid-close */}
 }
 function pushRollBanner(e){
-  const crit = (e.d===20 && (e.kept!=null?e.kept:e.results[0]))===20 && e.n<=2;
-  const fumble=(e.d===20 && (e.kept!=null?e.kept:e.results[0]))===1 && e.n<=2;
-  pwinBanner(fmtRoll(e), crit?' crit':fumble?' fumble':'');
+  pwinBanner(fmtRoll(e),e.crit?' crit':e.fumble?' fumble':'');
 }
 
 /* ---------------- player window (second screen) ---------------- */
