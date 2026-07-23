@@ -40,6 +40,7 @@ test("Level 2 ships with a room-scoped tactical vault arena",()=>{
   assert.ok(level.props.filter(prop=>prop.states?.length>1).length>=5);
   assert.equal(level.props.find(prop=>prop.id==="office-music-stand").t,"musicstand");
   assert.equal(level.rooms.find(room=>room.id==="landing2").masonry,true);
+  assert.equal(level.rooms.find(room=>room.id==="underpass2").name,"The Unfinished Passage");
   assert.equal(level.rooms.find(room=>room.id==="mirrors2").light,"torchlight");
   assert.ok(level.props.filter(prop=>prop.t==="wallsconce").length>=6);
   assert.ok(level.encounterEffects.some(effect=>effect.name==="Molten Leaf"));
