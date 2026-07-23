@@ -47,6 +47,13 @@ test("Level 2 ships with a room-scoped tactical vault arena",()=>{
   assert.equal(level.props.find(prop=>prop.id==="vault-chandelier").playerLabel,"Hanging chandelier");
   assert.ok(level.props.filter(prop=>prop.id.startsWith("count-table-")).length>=3);
   assert.equal(content.VAULT_START.tokens.filter(token=>token.pc).length,4);
-  assert.equal(content.VAULT_START.tokens.find(token=>token.name==="Don Sarlossi").phases.length,2);
+  const countingEnemies=content.VAULT_START.tokens.filter(token=>token.name.startsWith("Counting Floor"));
+  assert.equal(countingEnemies.length,4);
+  assert.ok(countingEnemies.every(token=>token.sheet&&token.sheet.hpMax>0));
+  assert.equal(countingEnemies.filter(token=>token.name.includes("Thug")).length,3);
+  const sarlossi=content.VAULT_START.tokens.find(token=>token.name==="Don Sarlossi");
+  assert.equal(sarlossi.phases.length,2);
+  assert.equal(sarlossi.sheet.atks.filter(attack=>attack.name==="Cane").length,1);
+  assert.equal(sarlossi.phases[0].sheet.atks.filter(attack=>attack.name==="Cane").length,1);
   assert.deepEqual(content.VAULT_START.tracker,{order:[],active:0,round:1});
 });

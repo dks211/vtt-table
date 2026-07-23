@@ -9,7 +9,7 @@ renderer.fitScene(); table.updZoom();
 panel.renderPanel();
 requestAnimationFrame(table.frame);
 $("start-new").onclick=editor.newBlankLevel;
-$("start-open").onclick=()=>$("file-level").click();
+$("start-open").onclick=()=>openLevelFile("edit");
 $("start-resume").onclick=editor.resumeAutosave;
 $("start-load").onclick=()=>$("file-json").click();
 $("start-verso").onclick=editor.startVerso;

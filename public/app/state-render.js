@@ -246,15 +246,17 @@ function emptyMapMessage(){
   ctx.fillStyle="#ABA38C"; ctx.font="12px 'IBM Plex Mono', monospace";
   ctx.fillText("drop an image anywhere, or use IMPORT MAP in the panel →",W/2,H/2+12);
 }
-function drawTokenFlat(t,g,s){
+function drawTokenFlat(t,g,s,options={}){
+  const concise=!!options.concise;
   const r=g*.42*t.size;
   const active=App.session.tracker.order[App.session.tracker.active]?.tok===t.id;
+  const selected=RVIEW==="dm"&&App.session.selToken===t.id;
   ctx.save();
   ctx.shadowColor="rgba(0,0,0,.55)"; ctx.shadowBlur=10/s; ctx.shadowOffsetY=3/s;
   ctx.beginPath(); ctx.arc(t.x,t.y,r,0,7); ctx.fillStyle=t.color; ctx.fill();
   ctx.shadowColor="transparent";
   ctx.lineWidth=active?Math.max(4,g*.075):Math.max(2,g*.05);
-  ctx.strokeStyle = active ? "#C8A14E" : (RVIEW==="dm"&&App.session.selToken===t.id) ? "#E9E2CE" : "rgba(7,9,8,.6)";
+  ctx.strokeStyle = active ? "#C8A14E" : selected ? "#E9E2CE" : "rgba(7,9,8,.6)";
   ctx.stroke();
   if(t.sheet&&t.sheet.hpMax>0&&(RVIEW==="dm"||t.pc)){
     const hp=Math.max(0,Math.min(t.sheet.hpMax,t.sheet.hp==null?t.sheet.hpMax:t.sheet.hp));
@@ -265,15 +267,23 @@ function drawTokenFlat(t,g,s){
   ctx.fillStyle="#070908"; ctx.textAlign="center"; ctx.textBaseline="middle";
   ctx.font=`600 ${r*.8}px 'IBM Plex Mono', monospace`;
   ctx.fillText(t.letter,t.x,t.y+r*.04);
-  ctx.font=`500 ${Math.max(10,g*.2)}px 'IBM Plex Mono', monospace`;
-  ctx.fillStyle="#E9E2CE";
-  ctx.strokeStyle="rgba(7,9,8,.8)"; ctx.lineWidth=3; ctx.lineJoin="round";
-  ctx.strokeText(t.name,t.x,t.y+r+g*.18);
-  ctx.fillText(t.name,t.x,t.y+r+g*.18);
-  if(t.z){ctx.font=`600 ${Math.max(9,g*.15)}px 'IBM Plex Mono', monospace`;ctx.fillStyle="#7FA8B8";ctx.fillText(`↑${t.z*5} FT`,t.x,t.y-r-g*.12);}
-  if(Array.isArray(t.statuses)&&t.statuses.length){
+  if(!concise||active||selected){
+    ctx.font=`500 ${Math.max(10,g*.18)}px 'IBM Plex Mono', monospace`;
+    ctx.fillStyle="#E9E2CE";
+    ctx.strokeStyle="rgba(7,9,8,.8)"; ctx.lineWidth=3; ctx.lineJoin="round";
+    ctx.strokeText(t.name,t.x,t.y+r+g*.17);
+    ctx.fillText(t.name,t.x,t.y+r+g*.17);
+  }
+  if(!concise&&t.z){ctx.font=`600 ${Math.max(9,g*.15)}px 'IBM Plex Mono', monospace`;ctx.fillStyle="#7FA8B8";ctx.fillText(`↑${t.z*5} FT`,t.x,t.y-r-g*.12);}
+  if(!concise&&Array.isArray(t.statuses)&&t.statuses.length){
     ctx.font=`600 ${Math.max(9,g*.14)}px 'IBM Plex Mono', monospace`;ctx.fillStyle="#E9E2CE";
     ctx.fillText(t.statuses.map(x=>x.slice(0,3).toUpperCase()).join(" · "),t.x,t.y+r+g*.38);
+  }else if(concise&&Array.isArray(t.statuses)&&t.statuses.length){
+    const colors={prone:"#B5443C",concentrating:"#7FA8B8",marked:"#E0B341"};
+    t.statuses.slice(0,3).forEach((status,index)=>{
+      ctx.beginPath();ctx.arc(t.x-r*.55+index*g*.15,t.y-r*.72,g*.055,0,7);
+      ctx.fillStyle=colors[status]||"#E9E2CE";ctx.fill();
+    });
   }
   ctx.restore();
 }
@@ -286,7 +296,7 @@ const TERRAIN_STYLE={
   hazard:{fill:"rgba(138,46,37,.42)",stroke:"#E07A56",label:"HAZARD"},
   overhead:{fill:"rgba(127,168,184,.08)",stroke:"#7FA8B8",label:"OVERHEAD"}
 };
-function drawTacticalTerrain(pr,c){
+function drawTacticalTerrain(pr,c,showLabel=false){
   if(!pr.terrain&&!pr.footprint)return;
   const bounds=propFootprintBounds(pr),style=TERRAIN_STYLE[pr.terrain]||TERRAIN_STYLE.feature;
   const x=bounds.x*BT,y=bounds.y*BT,w=bounds.w*BT,h=bounds.h*BT;
@@ -299,9 +309,11 @@ function drawTacticalTerrain(pr,c){
     ctx.save();ctx.clip();ctx.strokeStyle="rgba(233,226,206,.22)";ctx.lineWidth=1/c.s;ctx.beginPath();
     for(let q=-h;q<w+h;q+=BT*.45){ctx.moveTo(x+q,y+h);ctx.lineTo(x+q+h,y);}ctx.stroke();ctx.restore();
   }
-  ctx.fillStyle=style.stroke;ctx.font=`600 ${10/c.s}px 'IBM Plex Mono', monospace`;ctx.textAlign="center";ctx.textBaseline="middle";
-  const authored=RVIEW==="dm"?pr.label:pr.playerLabel;
-  ctx.fillText((authored||style.label).toUpperCase(),x+w/2,y+h/2);
+  if(showLabel){
+    ctx.fillStyle=style.stroke;ctx.font=`600 ${10/c.s}px 'IBM Plex Mono', monospace`;ctx.textAlign="center";ctx.textBaseline="middle";
+    const authored=RVIEW==="dm"?pr.label:pr.playerLabel;
+    ctx.fillText((authored||style.label).toUpperCase(),x+w/2,y+h/2);
+  }
   ctx.restore();
 }
 function clipRevealedTactical(){
@@ -340,7 +352,7 @@ function drawTactical(){
   for(const effect of(v.effects||[])){
     const pr={id:effect.id,t:"effect",x:effect.x,y:effect.y,terrain:effect.terrain,
       footprint:{w:effect.w,h:effect.h,shape:effect.shape},label:effect.label};
-    ctx.save();if(!showHidden)clipRevealedTactical();drawTacticalTerrain(pr,c);ctx.restore();
+    ctx.save();if(!showHidden)clipRevealedTactical();drawTacticalTerrain(pr,c,showHidden);ctx.restore();
   }
   for(const stair of(App.document.stairs||[])){
     ctx.save();if(!showHidden)clipRevealedTactical();ctx.fillStyle="rgba(119,113,104,.68)";ctx.fillRect(stair.x*BT,stair.y*BT,stair.w*BT,stair.h*BT);
@@ -369,17 +381,11 @@ function drawTactical(){
     ctx.strokeStyle=open?"#2B2125":"#C8A14E";ctx.lineWidth=(open?8:5)/c.s;
     if(!open)ctx.setLineDash([8/c.s,5/c.s]);ctx.stroke();ctx.restore();
   }
-  for(const r of App.document.rooms){
-    const rev=!!v.revealed[r.id];if(!rev&&!showHidden)continue;const bb=roomBBox(r);
-    ctx.save();ctx.globalAlpha=rev?1:.45;ctx.font=`600 ${11/c.s}px 'IBM Plex Mono', monospace`;ctx.textAlign="left";ctx.textBaseline="top";
-    ctx.fillStyle=(showHidden&&App.session.selRoom===r.id)?"#E9E2CE":"#C8A14E";
-    ctx.fillText(r.name.toUpperCase()+(r.battleGrid==="square"?" · 5 FT GRID":"")+(rev?"":" · HIDDEN"),bb.x0*BT+8/c.s,bb.y0*BT+8/c.s);ctx.restore();
-  }
   const partyRoomIds=new Set();for(const p of v.tokens)if(p.pc){const room=roomAtTile(p.x,p.y);if(room)partyRoomIds.add(room.id);}
   const toks=orderedLevelTokens(v.tokens,true);
   for(const t of toks){
     if(!showHidden&&!tokenVisibleToPlayers(t,App.document.rooms,v.revealed,partyRoomIds))continue;
-    drawTokenFlat({...t,x:t.x*BT,y:t.y*BT},BT,c.s);
+    drawTokenFlat({...t,x:t.x*BT,y:t.y*BT},BT,c.s,{concise:true});
   }
   drawPatrolPath();drawPings();ctx.restore();drawPropTooltip();
 }

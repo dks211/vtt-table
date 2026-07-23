@@ -73,6 +73,15 @@ function adjustHP(t,delta){
   else markDirty();
   renderPanel();
 }
+function distinctAttacks(attacks){
+  const seen=new Set(),out=[];
+  (attacks||[]).forEach((attack,index)=>{
+    const key=[attack.name,attack.hit,attack.dmg].join("\u0000").toLowerCase();
+    if(seen.has(key))return;
+    seen.add(key);out.push({attack,index});
+  });
+  return out;
+}
 function sheetRollsHTML(t){
   const sh=t.sheet;
   if(!sh) return `<div class="hint">No sheet yet — fill in (or import) the form below and the roll buttons appear here.</div>`;
@@ -98,8 +107,9 @@ function sheetRollsHTML(t){
     h+=`<div class="row"><button class="rbtn" id="sr-spellatk">SPELL ATTACK ${sign(spellAtkBonus(sh))}</button>
       <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--vellum-dim);flex:none;padding:0 6px">DC ${spellSaveDC(sh)}</span></div>`;
   }
-  if(sh.atks.length){
-    h+=`<div class="toklist">`+sh.atks.map((a,i)=>`<div class="tok" style="cursor:default">
+  const attacks=distinctAttacks(sh.atks);
+  if(attacks.length){
+    h+=`<div class="toklist">`+attacks.map(({attack:a,index:i})=>`<div class="tok" style="cursor:default">
       <span class="nm">${esc(a.name)}</span>
       <button class="rbtn" data-srhit="${i}" style="flex:none;padding:5px 7px">ATK ${sign(a.hit)}</button>
       <button class="rbtn quiet" data-sradv="${i}" style="flex:none;padding:5px 6px" title="attack with advantage">A</button>
@@ -111,8 +121,10 @@ function sheetRollsHTML(t){
   const current=recentChecks[0]||"Perception";
   const quick=[...new Set([...recentChecks,...DEFAULT_CHECKS])].slice(0,6);
   h+=`<div class="check-picker">
+    <div class="row" style="margin-top:7px"><select id="sr-skill" style="flex:1" aria-label="Check or saving throw">
+      ${checkNames().map(k=>`<option value="${esc(k)}" ${k===current?"selected":""}>${esc(k)} · ${sign(checkBonus(sh,k))}</option>`).join("")}
+    </select></div>
     <div class="row" style="margin-top:7px"><input type="search" id="sr-check-search" placeholder="Find a check or save…" autocomplete="off"></div>
-    <input type="hidden" id="sr-skill" value="${current}">
     <div class="check-results" id="sr-check-results">${quick.map(k=>`<button type="button" class="check-option ${k===current?"on":""}" data-check-pick="${k}"><span>${k}</span><b>${sign(checkBonus(sh,k))}</b></button>`).join("")}</div>
   </div>
   <div class="row"><button class="rbtn quiet" id="sr-roll">ROLL</button><button class="rbtn quiet" id="sr-adv">ADV</button><button class="rbtn quiet" id="sr-dis">DIS</button></div>`;
@@ -134,10 +146,12 @@ function wireSheetRolls(p,t){
     const current=q("#sr-skill").value;
     q("#sr-check-results").innerHTML=names.map(k=>`<button type="button" class="check-option ${k===current?"on":""}" data-check-pick="${k}"><span>${k}</span><b>${sign(checkBonus(sh,k))}</b></button>`).join("");
     q("#sr-check-results").querySelectorAll("[data-check-pick]").forEach(button=>{
-      button.onclick=()=>{q("#sr-skill").value=button.dataset.checkPick;q("#sr-check-search").value=button.dataset.checkPick;renderChecks("");};
+      button.onclick=()=>{q("#sr-skill").value=button.dataset.checkPick;q("#sr-check-search").value="";renderChecks("");};
     });
     return names;
   };
+  const checkSelect=q("#sr-skill");
+  if(checkSelect)checkSelect.onchange=()=>{q("#sr-check-search").value="";renderChecks("");};
   const checkSearch=q("#sr-check-search");
   if(checkSearch){
     renderChecks("");
@@ -321,8 +335,10 @@ function renderPanel(){
     <div class="row"><select id="run-level" style="flex:1">
       <option value="verso" ${bundledLevel==="verso"?"selected":""}>The Verso</option>
       <option value="vault" ${bundledLevel==="vault"?"selected":""}>Level 2 · The Vault</option>
+      ${bundledLevel==="custom"?`<option value="custom" selected disabled>Current · ${esc(App.document.level.name)}</option>`:""}
     </select><button class="rbtn quiet" id="run-transition" style="flex:none">TRANSITION</button></div>
-    <div class="hint">Moves the table live and preserves PC sheets and player assignments.</div></div>`;
+    <button class="rbtn quiet" id="run-import-level" style="width:100%;margin-top:6px">LOAD CUSTOM LEVEL…</button>
+    <div class="hint">Moves the hosted table live and preserves PC sheets and player assignments. Custom levels place the party in their first room.</div></div>`;
 
   if(App.session.scene==="verso"){
     const r=App.document.rooms.find(r=>r.id===App.session.selRoom);
@@ -421,8 +437,8 @@ function renderPanel(){
   html+=`<div class="sect"><h3>Initiative · Round ${App.session.tracker.round||1}</h3>`+trackerListHTML(true)+
     (App.session.tracker.order.length
       ?`<div class="row" style="margin-top:7px"><button class="rbtn" id="tr-next">NEXT TURN</button><button class="rbtn quiet" id="tr-clear">CLEAR</button></div>`
-      :`<div class="hint" style="margin-bottom:7px">Players' INITIATIVE button adds them automatically; ROLL PCS rolls for every PC token from its sheet.</div>`)+
-    `<div class="row"><button class="rbtn quiet" id="tr-pcs">ROLL PCS</button></div>
+      :`<div class="hint" style="margin-bottom:7px">Players can add themselves; the DM can roll every current PC or NPC token at once.</div>`)+
+    `<div class="row"><button class="rbtn quiet" id="tr-pcs">ROLL PCS</button><button class="rbtn quiet" id="tr-npcs">ROLL NPCS</button></div>
     <div class="row"><input type="text" id="tr-name" placeholder="name" style="flex:1"><input type="number" id="tr-total" placeholder="#" style="width:52px"><button class="rbtn quiet" id="tr-add" style="flex:none;padding:6px 10px">ADD</button></div>
     <label class="check"><input type="checkbox" id="tr-marker"> initiative marker / lair action</label>
     <label class="check"><input type="checkbox" id="tr-hide" checked> added entries hidden from players (5e style)</label>
@@ -454,8 +470,11 @@ function renderPanel(){
     </div>`;
     if(patrolRec===selT.id) html+=`<div class="hint">Click the map to drop waypoints for ${esc(selT.name)}, then STOP. PULSE (Events) walks the route.</div>`;
     if(tacticalView())html+=`<div class="row" style="margin-top:7px"><label>elevation</label><input id="tok-z" type="number" min="0" max="40" value="${selT.z||0}" style="width:56px"><span>× 5 ft</span></div>
-      <div class="row" style="margin-top:5px">${["prone","concentrating","marked"].map(status=>`<button class="rbtn quiet" data-status="${status}" style="${(selT.statuses||[]).includes(status)?"color:var(--brass);border-color:var(--brass-dim)":""}">${status.toUpperCase()}</button>`).join("")}</div>
-      ${selT.phases?.length>1?`<button class="rbtn" id="tok-phase" style="width:100%;margin-top:7px">CHANGE TO ${esc((selT.phases[((selT.phase||0)+1)%selT.phases.length].title||selT.phases[((selT.phase||0)+1)%selT.phases.length].name||"NEXT PHASE").toUpperCase())}</button>`:""}`;
+      <div class="row" style="margin-top:5px">${["prone","concentrating","marked"].map(status=>`<button class="rbtn quiet" data-status="${status}" style="${(selT.statuses||[]).includes(status)?"color:var(--brass);border-color:var(--brass-dim)":""}">${status.toUpperCase()}</button>`).join("")}</div>`;
+    if(selT.phases?.length>1){
+      const nextPhase=selT.phases[((selT.phase||0)+1)%selT.phases.length];
+      html+=`<button class="rbtn" id="tok-phase" style="width:100%;margin-top:7px">TRANSFORM → ${esc((nextPhase.title||nextPhase.name||"NEXT PHASE").toUpperCase())}</button>`;
+    }
   }
   html+=`<div class="row" style="margin-top:8px">${selT?`<button class="rbtn quiet" id="toggle-sheet-editor">${sheetEditorOpenFor===selT.id?"CLOSE SHEET EDITOR":selT.sheet?"EDIT SHEET":"ADD SHEET"}</button>`:""}<button class="rbtn quiet" id="toggle-add-token">${tokenAddOpen?"CLOSE ADD TOKEN":"+ ADD TOKEN"}</button></div>`;
   html+=`</div>`;
@@ -512,6 +531,8 @@ function renderPanel(){
     transition.disabled=true;transition.textContent="MOVING TABLE…";
     transitionBundledLevel(target);
   };
+  const importLevel=$("run-import-level");
+  if(importLevel)importLevel.onclick=()=>openLevelFile("transition");
   updateTransition();
   const sheetToggle=$("toggle-sheet-editor");
   if(sheetToggle&&selT)sheetToggle.onclick=()=>{sheetEditorOpenFor=sheetEditorOpenFor===selT.id?null:selT.id;renderPanel();};
@@ -691,6 +712,12 @@ function renderPanel(){
     for(const t of S().tokens.filter(t=>t.pc)){
       const e=roll(20,1,t.sheet?initOf(t.sheet):0,"dm",t.name+" · Initiative");
       trackerSet(t.name,e.total,t.id);
+    }
+  };
+  const trNpcs=$("tr-npcs"); if(trNpcs) trNpcs.onclick=()=>{
+    for(const t of S().tokens.filter(t=>!t.pc)){
+      const e=roll(20,1,t.sheet?initOf(t.sheet):0,"dm",t.name+" · Initiative");
+      trackerSet(t.name,e.total,t.id,true);
     }
   };
   const trAdd=$("tr-add"); if(trAdd) trAdd.onclick=()=>{
@@ -975,7 +1002,7 @@ function renderEditorPanel(){
     a.download=(App.document.level.name||"level").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")+".level.json";
     a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),5000);
   };
-  $("lv-import").onclick=()=>$("file-level").click();
+  $("lv-import").onclick=()=>openLevelFile("edit");
   $("lv-new").onclick=()=>{
     if(!confirm("Start a new blank level? The current level is replaced (export first if you want to keep it)."))return;
     edSnapshot();
@@ -1032,11 +1059,13 @@ function renderEditorPanel(){
 $("file-level").onchange=e=>{
   const f=e.target.files[0]; e.target.value="";
   if(!f) return;
+  const intent=consumeLevelImportIntent();
   const rd=new FileReader();
   rd.onload=()=>{
     try{
       const d=JSON.parse(rd.result);
       if(!d || !Array.isArray(d.rooms)) throw new Error("not a level file");
+      if(intent==="transition"){transitionCustomLevel(d);return;}
       const fromStart=$("startscreen").classList.contains("show");
       if(fromStart){edUndoStack.length=0;edRedoStack.length=0;}else edSnapshot();
       loadLevel(d);

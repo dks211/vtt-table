@@ -759,6 +759,39 @@ function transitionBundledLevel(key){
   if(key==="verso")applyBundledLevel(App.content.VERSO_LEVEL,App.content.VERSO_START,{preserveParty:true,announce:true});
   if(key==="vault")applyBundledLevel(App.content.VAULT_LEVEL,App.content.VAULT_START,{preserveParty:true,announce:true});
 }
+function levelEntryRoom(){
+  return App.document.rooms.find(room=>room.revealMode==="always")||App.document.rooms[0]||null;
+}
+function entryPosition(room,index){
+  if(!room)return{x:.5+(index%3),y:.5+Math.floor(index/3)};
+  const bb=roomBBox(room),width=Math.max(1,bb.x1-bb.x0),height=Math.max(1,bb.y1-bb.y0);
+  const columns=Math.max(1,Math.min(3,Math.floor(width))),column=index%columns,row=Math.floor(index/columns);
+  return{x:bb.x0+.5+(column%width),y:bb.y0+.5+(row%height)};
+}
+function transitionCustomLevel(level){
+  const previous=(S().tokens||[]).filter(token=>token.pc);
+  loadLevel(level);
+  const entry=levelEntryRoom(),revealed={};
+  for(const room of App.document.rooms)if(room.revealMode==="always")revealed[room.id]=true;
+  if(entry&&!Object.keys(revealed).length)revealed[entry.id]=true;
+  App.session.verso.revealed=revealed;
+  App.session.verso.doorStates={};App.session.verso.effects=[];App.session.verso.propStates={};App.session.verso.tacticalFocus=null;
+  App.session.verso.tokens=previous.map((token,index)=>mkTokFrom({...token,...entryPosition(entry,index)}));
+  App.session.tracker={order:[],active:0,round:1};
+  rebindConnectedOwners();
+  setLevelView("isometric");setScene("verso");markDirty();hideStartScreen();
+  requestAnimationFrame(()=>broadcastLevelTransition(App.document.level.name));
+}
+let levelImportIntent="edit";
+function openLevelFile(intent="edit"){
+  levelImportIntent=intent;
+  $("file-level").click();
+}
+function consumeLevelImportIntent(){
+  const intent=levelImportIntent;
+  levelImportIntent="edit";
+  return intent;
+}
 async function resumeAutosave(){
   try{
     const local=localStorage.getItem(LOCAL_SESSION_KEY);
@@ -873,4 +906,4 @@ async function autosave(){
 }
 setInterval(autosave,8000);
 
-Object.assign(App.services.editor,{setTool,setScene,setView,setLevelView,serialize,deserialize,newEntityId,renderEditorPreview,fitIsoPreview,showStartScreen,hideStartScreen,newBlankLevel,startVerso,startVault,transitionBundledLevel,resumeAutosave});
+Object.assign(App.services.editor,{setTool,setScene,setView,setLevelView,serialize,deserialize,newEntityId,renderEditorPreview,fitIsoPreview,showStartScreen,hideStartScreen,newBlankLevel,startVerso,startVault,transitionBundledLevel,transitionCustomLevel,openLevelFile,resumeAutosave});

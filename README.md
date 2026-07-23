@@ -29,9 +29,9 @@ room presets saved in the browser.
 
 During play, the DM panel is divided into persistent Scene, Combat, and Tokens
 workspaces so the map remains the primary surface instead of one long control
-column. Token checks have searchable recent actions, character-sheet fields
-autosave after a short pause, and selected-token editing stays collapsed until it
-is needed.
+column. Token checks have a full dropdown plus searchable recent actions,
+character-sheet fields autosave after a short pause, and selected-token editing
+stays collapsed until it is needed.
 
 Rooms also carry isometric-native presentation properties: stepped elevation,
 wall height, raised platform edges, front-wall cutaways, expanded lighting
@@ -50,6 +50,10 @@ durable player assignments migrate to the destination tokens; connected players
 receive the new level, camera, and reveal state in place. Assignments use a
 browser-local player identity, survive session saves, and can be cleared explicitly
 by the DM.
+
+Custom level files can also be loaded as live transitions from the Scene workspace.
+The party is placed in the imported level's first room while sheets and durable
+player assignments remain attached.
 
 Props can also carry tactical footprints for full cover, difficult terrain,
 hazards, and overhead objects. Those footprints are editable in the prop panel and
@@ -75,6 +79,7 @@ and cone templates. Tokens may also carry authored phases that change their name
 size, color, and stat block while preserving position and initiative.
 Natural 20 attack rolls now flash a critical-hit effect and offer the attacker a
 one-click damage roll with doubled damage dice and a single unchanged modifier.
+The initiative tracker can roll all current PC or NPC tokens at once.
 
 The bundled Level 2 pack lays out the stairs below the Verso, Mirror Gallery,
 Counting Floor, Sarlossi's office/stage, and the Vault of the Bella Rosa. The vault

@@ -214,6 +214,12 @@ const VAULT_DOORS=[
  {x:5,y:10,dir:"v",type:"open"},{x:8,y:10,dir:"v",type:"open"},{x:19,y:10,dir:"v",type:"door"},
  {x:27,y:10,dir:"v",type:"door"},{x:38,y:11,dir:"v",type:"door"}
 ];
+const COUNTING_THUG_SHEET={prof:2,init:0,ac:11,hp:32,hpMax:32,
+  abil:{str:2,dex:0,con:2,int:0,wis:0,cha:0},
+  atks:[{name:"Mace",hit:4,dmg:"1d6+2"},{name:"Heavy Crossbow",hit:2,dmg:"1d10"}],skills:{}};
+const COUNTING_VETERAN_SHEET={prof:3,init:1,ac:17,hp:58,hpMax:58,
+  abil:{str:3,dex:1,con:2,int:0,wis:0,cha:0},
+  atks:[{name:"Longsword",hit:5,dmg:"1d8+3"},{name:"Shortsword",hit:5,dmg:"1d6+3"},{name:"Heavy Crossbow",hit:3,dmg:"1d10+1"}],skills:{}};
 const VAULT_ROSTER=[
  {name:"Randy Meisner",letter:"R",color:"#8A6FB8",pc:true},
  {name:"Klaus Soundgarden",letter:"K",color:"#E0B341",pc:true},
@@ -222,8 +228,8 @@ const VAULT_ROSTER=[
  {name:"Trajan",letter:"T",color:"#4E8F86"},
  {name:"Don Sarlossi",letter:"S",color:"#C8A14E"},
  {name:"Vault Guardian",letter:"D",color:"#B87333"},
- {name:"Counting Floor Veteran",letter:"V",color:"#7FA8B8"},
- {name:"Counting Floor Thug",letter:"T",color:"#9AA08F"}
+ {name:"Counting Floor Veteran",letter:"V",color:"#7FA8B8",sheet:COUNTING_VETERAN_SHEET},
+ {name:"Counting Floor Thug",letter:"T",color:"#9AA08F",sheet:COUNTING_THUG_SHEET}
 ];
 const VAULT_PROPS=[
  {id:"landing-runner",t:"rug",x:2,y:11.4,label:"Paint-stiff runner",inspect:"Casino carpet ends in a ruler-straight line over the older stone.",scale:1.5},
@@ -299,10 +305,14 @@ root.VTTContent=Object.freeze({
     {name:"Clown Fart",letter:"CF",color:"#D96A9C",x:2.5,y:10.5,size:1,pc:true},
     {name:"David Byrne",letter:"D",color:"#B5443C",x:3.5,y:10.5,size:1,pc:true},
     {name:"Trajan",letter:"T",color:"#4E8F86",x:2.5,y:11.5,size:1},
+    {name:"Counting Floor Thug 1",letter:"T",color:"#9AA08F",x:20.5,y:9,size:1,sheet:COUNTING_THUG_SHEET},
+    {name:"Counting Floor Thug 2",letter:"T",color:"#9AA08F",x:23.5,y:9,size:1,sheet:COUNTING_THUG_SHEET},
+    {name:"Counting Floor Thug 3",letter:"T",color:"#9AA08F",x:24.5,y:12,size:1,sheet:COUNTING_THUG_SHEET},
+    {name:"Counting Floor Veteran",letter:"V",color:"#7FA8B8",x:22,y:11.5,size:1,sheet:COUNTING_VETERAN_SHEET},
     {name:"Don Sarlossi",letter:"S",color:"#C8A14E",x:45,y:11,size:1.2,phase:0,
-      sheet:{prof:3,init:2,ac:15,hp:60,hpMax:60,abil:{str:4,dex:2,con:3,int:1,wis:1,cha:3},atks:[{name:"Cane",hit:6,dmg:"1d8+4"},{name:"Cane",hit:6,dmg:"1d8+4"}],skills:{}},
+      sheet:{prof:3,init:2,ac:15,hp:60,hpMax:60,abil:{str:4,dex:2,con:3,int:1,wis:1,cha:3},atks:[{name:"Cane",hit:6,dmg:"1d8+4"}],skills:{}},
       phases:[
-        {title:"Don Sarlossi",name:"Don Sarlossi",letter:"S",color:"#C8A14E",size:1.2,sheet:{prof:3,init:2,ac:15,hp:60,hpMax:60,abil:{str:4,dex:2,con:3,int:1,wis:1,cha:3},atks:[{name:"Cane",hit:6,dmg:"1d8+4"},{name:"Cane",hit:6,dmg:"1d8+4"}],skills:{}}},
+        {title:"Don Sarlossi",name:"Don Sarlossi",letter:"S",color:"#C8A14E",size:1.2,sheet:{prof:3,init:2,ac:15,hp:60,hpMax:60,abil:{str:4,dex:2,con:3,int:1,wis:1,cha:3},atks:[{name:"Cane",hit:6,dmg:"1d8+4"}],skills:{}}},
         {title:"Vault Guardian",name:"Don Sarlossi · Vault Guardian",letter:"S",color:"#B87333",size:3,sheet:{prof:4,init:2,ac:17,hp:110,hpMax:110,abil:{str:5,dex:2,con:4,int:1,wis:1,cha:3},atks:[{name:"Bite",hit:7,dmg:"2d10+5"},{name:"Claw",hit:7,dmg:"2d6+5"},{name:"Molten Leaf",hit:0,dmg:"10d6"}],skills:{}}}
       ]}
   ]},
