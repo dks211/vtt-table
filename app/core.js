@@ -689,6 +689,13 @@
       ...actor.privateNotes, actorId: actor.actorId, ownerKey: actor.ownerKey,
     })) out.privateNotes = withoutVisibilityControls(actor.privateNotes);
     if (objectOrNull(actor.health)) out.health = clone(actor.health);
+    if (Array.isArray(actor.weaponIds)) out.weaponIds = clone(actor.weaponIds);
+    if (objectOrNull(actor.aim)) out.aim = clone(actor.aim);
+    if (actor.healthClassification) out.healthClassification = String(actor.healthClassification);
+    if (objectOrNull(actor.combatContext)) out.combatContext = {
+      cover: String(actor.combatContext.cover || "none"), visibility: String(actor.combatContext.visibility || "clear"),
+      coverDescription: String(actor.combatContext.coverDescription || ""),
+    };
     if (Array.isArray(actor.injuries)) out.injuries = actor.injuries.map(item => {
       const safe = clone(item);
       delete safe.recoveryRequirement;
@@ -770,6 +777,7 @@
             actionState: String(entry.actionState || "unavailable"), turnStarted: !!entry.turnStarted, turnCompleted: !!entry.turnCompleted,
           };
           const owned = safe.participantIds.some(id => participantById.get(id)?.actorId === recipient.actorId);
+          if (owned && entry.triggeredReady) safe.triggeredReady = true;
           if (entry.readyVisibility === "public" || entry.readyVisibility === "owner" && owned) {
             safe.readyTrigger = entry.readyTrigger == null ? null : String(entry.readyTrigger);
             safe.readyAction = entry.readyAction == null ? null : String(entry.readyAction);
@@ -784,6 +792,20 @@
       fireUncontrollable: !!source.adventureFlags.fireUncontrollable,
       bridgeWillBeConsumed: !!source.adventureFlags.bridgeWillBeConsumed,
     };
+    projected.attacks = (Array.isArray(source.attacks) ? source.attacks : []).slice(-100).filter(item => {
+      if (!objectOrNull(item)) return false;
+      if (item.visibility === "public") return true;
+      if (item.visibility === "owner") return item.attackerActorId === recipient.actorId;
+      return false;
+    }).map(item => { const safe=clone(item); delete safe.ownerActorId; delete safe.fumbleOptions; return safe; });
+    const attack=objectOrNull(source.pendingAttack);
+    if (attack && (attack.attackerActorId === recipient.actorId && attack.attackerOwnerKey === recipient.playerKey || attack.targetActorId === recipient.actorId && attack.targetOwnerKey === recipient.playerKey)) {
+      projected.pendingAttack = {
+        id:String(attack.id||""),sequence:Number(attack.sequence)||0,attackerActorId:String(attack.attackerActorId||""),targetActorId:String(attack.targetActorId||""),
+        weaponId:String(attack.weaponId||""),attackType:String(attack.attackType||""),status:String(attack.status||"pendingReaction"),
+        availableReactions: attack.targetActorId === recipient.actorId ? clone(attack.availableReactions||[]) : [],
+      };
+    } else projected.pendingAttack=null;
     return projected;
   }
 

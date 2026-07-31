@@ -9,7 +9,7 @@
   ].map(([id,name])=>Object.freeze({id,name})));
   const SKILL_IDS=new Set(SKILLS.map(skill=>skill.id));
   const CONDITIONS=Object.freeze(["exhausted","shaken","frightened","distracted"]);
-  const PURPOSES=new Set(["general","attack","downResolve","firstAid","extendedMedicine"]);
+  const PURPOSES=new Set(["general","attack","rangedAttack","meleeAttack","downResolve","firstAid","extendedMedicine"]);
   const VISIBILITIES=new Set(["public","owner","gm"]);
   const clone=value=>JSON.parse(JSON.stringify(value));
   const object=value=>value&&typeof value==="object"&&!Array.isArray(value);
@@ -72,7 +72,7 @@
     const netModifier=Math.max(-2,Math.min(2,balance)),dice=Array.from({length:1+Math.abs(netModifier)},()=>nextDie(options));
     const retainedDie=netModifier>0?Math.min(...dice):netModifier<0?Math.max(...dice):dice[0];
     const critical=retainedDie===1,fumble=retainedDie===20,outcome=retainedDie<=skillValue?"success":"failure";
-    const purpose=PURPOSES.has(rollPurpose)?rollPurpose:"general",canPush=outcome==="failure"&&!fumble&&purpose!=="attack"&&purpose!=="downResolve"&&pushable!==false&&!pushedFromRollId;
+    const purpose=PURPOSES.has(rollPurpose)?rollPurpose:"general",canPush=outcome==="failure"&&!fumble&&!new Set(["attack","rangedAttack","meleeAttack","downResolve"]).has(purpose)&&pushable!==false&&!pushedFromRollId;
     const record={id:`et-roll-${state.nextRollId++}`,actorId:actor.actorId,actorName:actorName(actor),skillId,skillValue,
       requestedBoons:boons,requestedBanes:banes,boonSources:cleanSources(boonSources),baneSources:cleanSources(baneSources),cancelledPairs,
       netModifier,dice,retainedDie,outcome,critical,fumble,rollPurpose:purpose,pushable:canPush,pushedFromRollId:pushedFromRollId||null,
@@ -170,7 +170,7 @@
     if(type==="gmClearAllConditions"){if(!target)return fail("unknown actor");target.conditions=defaultConditions();addLog(state,`${actorName(target)} clears all conditions${action.reason?`: ${text(action.reason,160)}`:""}.`);return finish();}
     if(type==="applySeriousHit"||type==="applyCriticalHit"){if(!target)return fail("unknown patient");transition(target,type==="applyCriticalHit"?2:1);target.injuries.push(injury(state,type==="applyCriticalHit"?"severe":"ordinary",action));addLog(state,`${actorName(target)} suffers a ${type==="applyCriticalHit"?"critical":"serious"} hit and is now ${target.health.state}.`);return finish();}
     if(type==="setImmediateDanger"){sceneOf(state).immediateDanger=!!action.active;addLog(state,`Immediate danger is now ${action.active?"active":"ended"}.`);return finish();}
-    if(type==="beginNewScene"){if(state.structuredPlay?.active)return fail("stop structured play before beginning a new scene");const old=sceneOf(state),id=text(action.sceneId,100);if(!id||id===old.id)return fail("a distinct new scene id is required");state.scene={id,immediateDanger:false,circumstanceId:1,actions:[]};state.fieldMedicineUsage={};state.pendingPush=null;addLog(state,`A new scene begins: ${id}.`);return finish();}
+    if(type==="beginNewScene"){if(state.structuredPlay?.active)return fail("stop structured play before beginning a new scene");const old=sceneOf(state),id=text(action.sceneId,100);if(!id||id===old.id)return fail("a distinct new scene id is required");state.scene={id,immediateDanger:false,circumstanceId:1,actions:[]};state.fieldMedicineUsage={};state.pendingPush=null;for(const actor of Object.values(actors))if(actor.aim)actor.aim={active:false};addLog(state,`A new scene begins: ${id}.`);return finish();}
     if(type==="advanceTreatmentCircumstance"){sceneOf(state).circumstanceId++;addLog(state,"Treatment circumstances meaningfully improve.");return finish();}
     if(type==="clearTreatmentBlock"){if(!target)return fail("unknown patient");delete target.treatmentBlock;return finish();}
     if(type==="markInjuryHealed"||type==="deleteInjury"||type==="editInjury"){if(!target)return fail("unknown patient");const index=target.injuries.findIndex(item=>item.id===action.injuryId);if(index<0)return fail("unknown injury");if(type==="deleteInjury")target.injuries.splice(index,1);else if(type==="markInjuryHealed"){target.injuries[index].healed=true;addLog(state,`${actorName(target)}'s ${target.injuries[index].description} is marked healed.`);}else for(const key of ["description","relevantBane","recoveryRequirement","recoveryNotes"]){if(action[key]!==undefined)target.injuries[index][key]=text(action[key],key.startsWith("recovery")?1000:240);}return finish();}

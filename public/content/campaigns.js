@@ -7,6 +7,7 @@
   const clone = value => JSON.parse(JSON.stringify(value));
   const etHealth = root.EastTennesseeHealth;
   const etRounds = root.EastTennesseeRounds;
+  const etCombat = root.EastTennesseeCombat;
   const eastTennesseeConditions=()=>Object.fromEntries(["exhausted","shaken","frightened","distracted"].map(id=>[id,{active:false,source:null,notes:null}]));
 
   const eastTennesseeLevel = Object.freeze({
@@ -98,7 +99,7 @@
     id: EAST_TENNESSEE_ID,
     title: "East Tennessee 1861",
     packageVersion: 1,
-    stateSchemaVersion: 4,
+    stateSchemaVersion: 5,
     assetNamespace: "campaigns/east-tennessee-1861",
     initialLevel: eastTennesseeLevel,
     initialStart: eastTennesseeStart,
@@ -119,6 +120,8 @@
           injuries: [], skills: { athletics: 9, awareness: 11, fieldcraft: 10, firearms: 10, influence: 8, mechanics: 9, medicine: 8, melee: 10, mobility: 10, resolve: 10, riding: 8, stealth: 11 },
           conditions: eastTennesseeConditions(), medicalCapability: { hasPlausibleMaterials: true, hasProperSupplies: true },
           talents: { fieldMedicine: false },
+          weaponIds: ["revolver", "knife"], healthClassification: "full", aim: { active: false },
+          combatContext: { cover: "none", visibility: "clear", unaware: false, stationary: false, coverDescription: "" },
         },
         "east-tennessee-1861:actor:jacob-sloane": {
           actorId: "east-tennessee-1861:actor:jacob-sloane", ownerKey: null,
@@ -129,6 +132,8 @@
           skills: { athletics: 8, awareness: 11, fieldcraft: 10, firearms: 9, influence: 10, mechanics: 9, medicine: 14, melee: 8, mobility: 9, resolve: 12, riding: 8, stealth: 9 },
           conditions: eastTennesseeConditions(), medicalCapability: { hasPlausibleMaterials: true, hasProperSupplies: true },
           talents: { fieldMedicine: true },
+          weaponIds: ["rifle-musket", "club"], healthClassification: "full", aim: { active: false },
+          combatContext: { cover: "none", visibility: "clear", unaware: false, stationary: false, coverDescription: "" },
         },
       },
       scenes: {
@@ -140,6 +145,7 @@
       scene: { id: "east-tennessee-1861-placeholder", immediateDanger: false, circumstanceId: 1, actions: [] },
       fieldMedicineUsage: {}, nextInjuryId: 1, nextLogId: 1,
       rolls: [], pendingPush: null, nextRollId: 1, pushSequence: 1,
+      attacks: [], pendingAttack: null, nextAttackId: 1,
       structuredPlay: { active: false, sceneId: null, roundNumber: 0, phase: "inactive", participants: [], initiativeEntries: [], currentEntryId: null, completedEntryIds: [], delayedEntryIds: [], unresolvedTieGroups: [], processedRoundNumbers: [], stateVersion: 1 },
       adventureFlags: { bridgeDisabled: false, sabotageSucceeded: false, fireUncontrollable: false, bridgeWillBeConsumed: false, missingPatrolNoticed: false, helpWarned: false, reinforcementsArrived: false },
       nextTimerId: 1,
@@ -163,6 +169,9 @@
         nextLogId: Number(source.nextLogId) || 1,
         rolls: Array.isArray(source.rolls) ? clone(source.rolls) : [],
         pendingPush: null,
+        attacks: Array.isArray(source.attacks) ? clone(source.attacks) : [],
+        pendingAttack: null,
+        nextAttackId: Number(source.nextAttackId) || 1,
         nextRollId: Number(source.nextRollId) || 1,
         pushSequence: Number(source.pushSequence) || 1,
         structuredPlay: safeObject(source.structuredPlay),
@@ -172,7 +181,8 @@
         adventure: safeObject(source.adventure),
       };
       const healthNormalized=etHealth ? etHealth.normalizeState(normalized,{cancelPending:true}) : normalized;
-      return etRounds ? etRounds.normalizeState(healthNormalized) : healthNormalized;
+      const roundsNormalized=etRounds ? etRounds.normalizeState(healthNormalized) : healthNormalized;
+      return etCombat ? etCombat.normalizeState(roundsNormalized,{cancelPending:true}) : roundsNormalized;
     },
     createSession() {
       return {
