@@ -1,5 +1,21 @@
 "use strict";
 function etActor(actorId){return App.session.campaignId==="east-tennessee-1861"&&App.session.campaignState.actors&&App.session.campaignState.actors[actorId];}
+function etSkillHTML(actor,gm=false){
+  if(!actor||!actor.skills||!globalThis.EastTennesseeHealth)return"";const state=App.session.campaignState,rolls=(state.rolls||[]).filter(r=>r.actorId===actor.actorId),last=rolls[rolls.length-1],pending=state.pendingPush;
+  const skills=EastTennesseeHealth.SKILLS.filter(s=>actor.skills[s.id]!=null);
+  const conditions=EastTennesseeHealth.CONDITIONS.map(id=>{const c=actor.conditions?.[id]||{};return `<div class="hint"><b>${esc(id.toUpperCase())}</b> · ${c.active?`ACTIVE${c.source?` · ${esc(c.source)}`:""}`:"inactive"}${gm?` <button class="rbtn quiet" data-et-condition="${id}" data-active="${c.active?1:0}">${c.active?"CLEAR":"ADD"}</button>`:""}</div>`;}).join("");
+  return `<div class="sect"><h3>East Tennessee Skills · Prototype</h3>
+    <div class="hint">${skills.map(s=>`${esc(s.name)} ${actor.skills[s.id]}`).join(" · ")}</div>
+    <div class="row"><select id="et-skill">${skills.map(s=>`<option value="${s.id}">${esc(s.name)} · ${actor.skills[s.id]}</option>`).join("")}</select><label>boons</label><input id="et-boons" type="number" min="0" max="20" value="0" style="width:45px"><label>banes</label><input id="et-banes" type="number" min="0" max="20" value="0" style="width:45px"></div>
+    <div class="row"><input id="et-boon-source" placeholder="boon sources: help, preparation" style="flex:1"><input id="et-bane-source" placeholder="bane sources: injury, condition" style="flex:1"></div>
+    ${gm?`<div class="row"><select id="et-purpose">${["general","attack","downResolve","firstAid","extendedMedicine"].map(v=>`<option value="${v}">${v}</option>`)}</select><select id="et-visibility"><option value="public">public</option><option value="owner">owner</option><option value="gm">GM only</option></select><button class="rbtn" id="et-roll">ROLL</button></div>`:`<button class="rbtn" id="et-roll" style="width:100%">REQUEST GENERAL CHECK</button>`}
+    ${last?`<div class="hint" style="margin-top:7px"><b>${esc(last.actorName)} · ${esc(last.skillId.toUpperCase())} ${last.skillValue}</b><br>[${last.dice.join(", ")}] → ${last.retainedDie} · ${last.critical?"CRITICAL SUCCESS":last.fumble?"FUMBLE":last.outcome.toUpperCase()} · ${last.netModifier>0?`${last.netModifier} boon`:last.netModifier<0?`${-last.netModifier} bane`:"normal"}${last.pushedFromRollId?" · PUSHED":""}</div>`:""}
+    <div style="margin-top:7px">${conditions}</div>
+    ${gm&&last?.pushable&&!pending?`<div class="row"><select id="et-push-condition">${EastTennesseeHealth.CONDITIONS.filter(id=>!actor.conditions?.[id]?.active).map(id=>`<option value="${id}">${id}</option>`)}</select><button class="rbtn quiet" id="et-propose-push" data-roll="${last.id}">PROPOSE PUSH</button></div>`:""}
+    ${gm&&pending&&pending.actorId===actor.actorId?`<div class="hint">Push pending: ${esc(pending.proposedConditionId)}</div><div class="row"><button class="rbtn" id="et-gm-accept-push">ACCEPT OVERRIDE</button><button class="rbtn quiet" id="et-gm-decline-push">FINALIZE FAILURE</button><button class="rbtn quiet" id="et-cancel-push">CANCEL PUSH</button></div>`:""}
+    ${!gm&&pending&&pending.actorId===actor.actorId?`<div class="hint"><b>PUSH OFFER:</b> accept ${esc(pending.proposedConditionId)} and reroll?</div><div class="row"><button class="rbtn" id="et-accept-push">ACCEPT & REROLL</button><button class="rbtn quiet" id="et-decline-push">DECLINE</button></div>`:""}
+  </div>`;
+}
 function etHealthHTML(actor,gm=false){
   if(!actor||!actor.health)return"";const h=actor.health,inj=actor.injuries||[];
   return `<div class="sect"><h3>East Tennessee Health · Prototype</h3>
@@ -8,10 +24,11 @@ function etHealthHTML(actor,gm=false){
     ${actor.treatmentBlock?`<div class="hint">Treatment blocked: ${esc(actor.treatmentBlock.transition)} (${esc(actor.treatmentBlock.reason)})</div>`:""}
     ${gm?`<div class="row"><button class="rbtn quiet" data-et-gm="applySeriousHit">SERIOUS HIT</button><button class="rbtn quiet" data-et-gm="applyCriticalHit">CRITICAL</button><button class="rbtn quiet" data-et-gm="gmSetStabilization">STABILIZE</button></div>
       <div class="row"><select id="et-gm-health">${["unhurt","wounded","down"].map(s=>`<option ${h.state===s?"selected":""}>${s}</option>`)}</select><button class="rbtn quiet" id="et-gm-set-health">SET HEALTH</button><button class="rbtn quiet" id="et-gm-death">${h.dead?"REVIVE OVERRIDE":"MARK DEAD"}</button><button class="rbtn quiet" id="et-clear-block">CLEAR BLOCK</button></div>`:""}
-    ${gm?`<div class="row"><input id="et-med-value" type="number" min="0" max="20" value="${actor.medicalCapability?.medicineValue||0}" style="width:54px"><label class="check"><input id="et-plausible" type="checkbox" ${actor.medicalCapability?.hasPlausibleMaterials?"checked":""}> plausible materials</label><label class="check"><input id="et-proper" type="checkbox" ${actor.medicalCapability?.hasProperSupplies?"checked":""}> proper supplies</label><button class="rbtn quiet" id="et-save-med">SAVE</button></div>`:""}
+    ${gm?`<div class="row"><input id="et-med-value" type="number" min="1" max="18" value="${actor.skills?.medicine||1}" style="width:54px"><label class="check"><input id="et-plausible" type="checkbox" ${actor.medicalCapability?.hasPlausibleMaterials?"checked":""}> plausible materials</label><label class="check"><input id="et-proper" type="checkbox" ${actor.medicalCapability?.hasProperSupplies?"checked":""}> proper supplies</label><button class="rbtn quiet" id="et-save-med">SAVE MEDICINE & SUPPLIES</button></div>`:""}
   </div>`;
 }
 function etHostAction(action){const result=EastTennesseeHealth.performAction(App.session.campaignState,{role:"gm",campaignId:App.session.campaignId},action,{tokens:[...App.session.map.tokens,...App.session.verso.tokens]});if(!result.ok)alert(result.reason);else{markDirty();netMark();renderPanel();}}
+function etRollAction(actorId){return{type:"requestSkillCheck",actorId,skillId:$("et-skill").value,boons:+$("et-boons").value,banes:+$("et-banes").value,boonSources:$("et-boon-source").value,baneSources:$("et-bane-source").value};}
 function wireEtGM(p,actor){if(!actor)return;p.querySelectorAll("[data-et-gm]").forEach(el=>el.onclick=()=>{const type=el.dataset.etGm;const action={type,targetActorId:actor.actorId};if(type.startsWith("apply")){action.description=prompt("Injury description",type==="applyCriticalHit"?"Severe injury":"Injury")||"Injury";action.relevantBane=prompt("When does this impose one bane?","One bane when relevant.")||"One bane when relevant.";}if(type==="gmSetStabilization")action.stable=true;etHostAction(action);});
   p.querySelectorAll("[data-et-heal]").forEach(el=>el.onclick=()=>etHostAction({type:"markInjuryHealed",targetActorId:actor.actorId,injuryId:el.dataset.etHeal}));
   p.querySelectorAll("[data-et-edit]").forEach(el=>el.onclick=()=>{const item=actor.injuries.find(i=>i.id===el.dataset.etEdit);const description=prompt("Injury description",item.description);if(description==null)return;const relevantBane=prompt("When does this impose one bane?",item.relevantBane);if(relevantBane==null)return;etHostAction({type:"editInjury",targetActorId:actor.actorId,injuryId:item.id,description,relevantBane});});
@@ -19,6 +36,10 @@ function wireEtGM(p,actor){if(!actor)return;p.querySelectorAll("[data-et-gm]").f
   const death=$("et-gm-death");if(death)death.onclick=()=>etHostAction({type:"gmReviveOrOverride",targetActorId:actor.actorId,dead:!actor.health.dead,dyingFailures:actor.health.dead?0:2,stable:actor.health.dead});
   const supplies=$("et-save-med");if(supplies)supplies.onclick=()=>etHostAction({type:"setMedicalCapability",targetActorId:actor.actorId,medicineValue:+$("et-med-value").value,hasPlausibleMaterials:$("et-plausible").checked,hasProperSupplies:$("et-proper").checked});
   const clear=$("et-clear-block");if(clear)clear.onclick=()=>etHostAction({type:"clearTreatmentBlock",targetActorId:actor.actorId});}
+function wireEtSkills(p,actor,gm=false){if(!actor)return;const roll=$("et-roll");if(roll)roll.onclick=()=>{const request=etRollAction(actor.actorId);if(gm){request.rollPurpose=$("et-purpose").value;request.visibility=$("et-visibility").value;etHostAction(request);}else clientSend({type:"eastTennesseeAction",action:request});};
+  if(gm){p.querySelectorAll("[data-et-condition]").forEach(el=>el.onclick=()=>etHostAction({type:el.dataset.active==="1"?"gmClearCondition":"gmAddCondition",targetActorId:actor.actorId,conditionId:el.dataset.etCondition,source:el.dataset.active==="1"?null:(prompt("Condition source","GM adjudication")||"GM adjudication")}));
+    const propose=$("et-propose-push");if(propose)propose.onclick=()=>etHostAction({type:"gmProposePushCondition",originalRollId:propose.dataset.roll,conditionId:$("et-push-condition").value});const cancel=$("et-cancel-push");if(cancel)cancel.onclick=()=>etHostAction({type:"gmCancelPush"});const accept=$("et-gm-accept-push"),decline=$("et-gm-decline-push"),seq=App.session.campaignState.pendingPush?.sequence;if(accept)accept.onclick=()=>etHostAction({type:"acceptPush",sequence:seq});if(decline)decline.onclick=()=>etHostAction({type:"declinePush",sequence:seq});}
+  else if(App.session.campaignState.pendingPush){const seq=App.session.campaignState.pendingPush.sequence,accept=$("et-accept-push"),decline=$("et-decline-push");if(accept)accept.onclick=()=>clientSend({type:"eastTennesseeAction",action:{type:"acceptPush",sequence:seq}});if(decline)decline.onclick=()=>clientSend({type:"eastTennesseeAction",action:{type:"declinePush",sequence:seq}});}}
 /* ---------------- right panel ---------------- */
 let addColor=SWATCH[0];
 let dmPanelTab="scene",lastPanelToken=null,lastPanelRoom=null;
@@ -506,7 +527,7 @@ function renderPanel(){
   }
   if(selT&&sheetEditorOpenFor===selT.id) html+=sheetFormHTML(selT,true);
   const etSelected=selT&&etActor(selT.actorId);
-  if(etSelected)html+=etHealthHTML(etSelected,true);
+  if(etSelected)html+=etHealthHTML(etSelected,true)+etSkillHTML(etSelected,true);
   if(App.session.campaignId==="east-tennessee-1861"){
     const danger=!!App.session.campaignState.scene?.immediateDanger;
     html+=`<div class="sect"><h3>East Tennessee Scene · Prototype</h3><button class="rbtn" id="et-danger">${danger?"END IMMEDIATE DANGER":"BEGIN IMMEDIATE DANGER"}</button><button class="rbtn quiet" id="et-new-scene" style="margin-top:6px">BEGIN GENUINELY NEW SCENE</button></div>`;
@@ -527,7 +548,7 @@ function renderPanel(){
   const panelGroup=section=>{
     const title=section.querySelector("h3")?.textContent.trim()||"";
     if(title==="Dice"||title.startsWith("Initiative"))return"combat";
-    if(title==="Tokens"||title.startsWith("Roll as ")||title.startsWith("Sheet ·")||title==="Add Token"||title.startsWith("East Tennessee Health"))return"tokens";
+    if(title==="Tokens"||title.startsWith("Roll as ")||title.startsWith("Sheet ·")||title==="Add Token"||title.startsWith("East Tennessee Health")||title.startsWith("East Tennessee Skills"))return"tokens";
     return"scene";
   };
   for(const section of [...p.children].filter(child=>child.classList.contains("sect"))){
@@ -565,6 +586,7 @@ function renderPanel(){
   const addToggle=$("toggle-add-token");
   if(addToggle)addToggle.onclick=()=>{tokenAddOpen=!tokenAddOpen;renderPanel();};
   wireEtGM(p,etSelected);
+  wireEtSkills(p,etSelected,true);
   const etDanger=$("et-danger");if(etDanger)etDanger.onclick=()=>etHostAction({type:"setImmediateDanger",active:!App.session.campaignState.scene.immediateDanger});
   const etNewScene=$("et-new-scene");if(etNewScene)etNewScene.onclick=()=>{const id=prompt("New scene instance ID",`scene-${Date.now()}`);if(id)etHostAction({type:"beginNewScene",sceneId:id});};
 
@@ -1124,7 +1146,7 @@ function renderClientPanel(){
   const mine=S().tokens.find(t=>t.id===NET.myToken);
   const mineActor=mine&&etActor(mine.actorId);
   if(mineActor){
-    html+=etHealthHTML(mineActor,false);
+    html+=etHealthHTML(mineActor,false)+etSkillHTML(mineActor,false);
     const choices=Object.values(App.session.campaignState.actors||{}).filter(a=>a.health&&!a.health.dead).map(a=>`<option value="${esc(a.actorId)}">${esc(a.identity?.name||a.actorId)}</option>`).join("");
     const medical=mineActor.medicalCapability||{},danger=!!App.session.campaignState.scene?.immediateDanger;
     html+=`<div class="sect"><h3>East Tennessee Treatment · Prototype</h3><select id="et-patient" style="width:100%">${choices}</select>
@@ -1153,6 +1175,7 @@ function renderClientPanel(){
     <div class="hint">Drag your token to move. Drag empty space to pan, pinch or scroll to zoom, ⤢ FIT to re-center. Double-tap anywhere to ping the map for the table. Rooms appear as the party discovers them.</div></div>`;
   p.innerHTML=html;
   if(mineActor){
+    wireEtSkills(p,mineActor,false);
     const send=action=>clientSend({type:"eastTennesseeAction",action});
     const resolve=$("et-resolve");if(resolve)resolve.onclick=()=>send({type:"downResolve",targetActorId:mineActor.actorId});
     p.querySelectorAll("[data-et-player]").forEach(el=>el.onclick=()=>send({type:el.dataset.etPlayer,healerActorId:mineActor.actorId,targetActorId:$("et-patient").value}));

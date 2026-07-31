@@ -696,6 +696,10 @@
       return safe;
     });
     if (objectOrNull(actor.talents)) out.talents = clone(actor.talents);
+    if (objectOrNull(actor.skills)) out.skills = clone(actor.skills);
+    if (objectOrNull(actor.conditions)) out.conditions = Object.fromEntries(Object.entries(actor.conditions).map(([id, item]) => [id, {
+      active: !!(item && item.active), source: item && item.source != null ? String(item.source) : null,
+    }]));
     if (ownsActor(recipient, actor)) {
       if (objectOrNull(actor.medicalCapability)) out.medicalCapability = clone(actor.medicalCapability);
       if (actor.resolveValue != null) out.resolveValue = actor.resolveValue;
@@ -734,6 +738,20 @@
       circumstanceId: Number(source.scene.circumstanceId) || 1,
     };
     if (objectOrNull(source.fieldMedicineUsage)) projected.fieldMedicineUsage = clone(source.fieldMedicineUsage);
+    projected.rolls = (Array.isArray(source.rolls) ? source.rolls : []).slice(-150).filter(roll => {
+      if (!objectOrNull(roll)) return false;
+      if (roll.visibility === "public") return true;
+      if (roll.visibility === "owner") return roll.actorId === recipient.actorId;
+      return false;
+    }).map(roll => {
+      const safe = clone(roll);
+      if (safe.metadata) delete safe.metadata;
+      return safe;
+    });
+    const pending = objectOrNull(source.pendingPush);
+    if (pending && pending.actorId === recipient.actorId && pending.ownerKey === recipient.playerKey)
+      projected.pendingPush = withoutVisibilityControls(pending);
+    else projected.pendingPush = null;
     return projected;
   }
 

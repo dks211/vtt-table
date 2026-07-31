@@ -6,6 +6,7 @@
   const content = root.VTTContent;
   const clone = value => JSON.parse(JSON.stringify(value));
   const etHealth = root.EastTennesseeHealth;
+  const eastTennesseeConditions=()=>Object.fromEntries(["exhausted","shaken","frightened","distracted"].map(id=>[id,{active:false,source:null,notes:null}]));
 
   const eastTennesseeLevel = Object.freeze({
     schemaVersion: 3,
@@ -96,7 +97,7 @@
     id: EAST_TENNESSEE_ID,
     title: "East Tennessee 1861",
     packageVersion: 1,
-    stateSchemaVersion: 2,
+    stateSchemaVersion: 3,
     assetNamespace: "campaigns/east-tennessee-1861",
     initialLevel: eastTennesseeLevel,
     initialStart: eastTennesseeStart,
@@ -114,8 +115,8 @@
           mechanics: { visibility: "public", data: { placeholder: true } },
           privateNotes: { visibility: "owner", data: {} },
           health: { state: "unhurt", stable: true, dyingFailures: 0, dead: false },
-          injuries: [], resolveValue: 10,
-          medicalCapability: { medicineValue: 8, hasPlausibleMaterials: true, hasProperSupplies: true },
+          injuries: [], skills: { athletics: 9, awareness: 11, fieldcraft: 10, firearms: 10, influence: 8, mechanics: 9, medicine: 8, melee: 10, mobility: 10, resolve: 10, riding: 8, stealth: 11 },
+          conditions: eastTennesseeConditions(), medicalCapability: { hasPlausibleMaterials: true, hasProperSupplies: true },
           talents: { fieldMedicine: false },
         },
         "east-tennessee-1861:actor:jacob-sloane": {
@@ -123,8 +124,9 @@
           identity: { name: "Jacob Sloane · Mechanical Placeholder" },
           mechanics: { visibility: "public", data: { placeholder: true } },
           privateNotes: { visibility: "owner", data: {} },
-          health: { state: "unhurt", stable: true, dyingFailures: 0, dead: false }, injuries: [], resolveValue: 12,
-          medicalCapability: { medicineValue: 14, hasPlausibleMaterials: true, hasProperSupplies: true },
+          health: { state: "unhurt", stable: true, dyingFailures: 0, dead: false }, injuries: [],
+          skills: { athletics: 8, awareness: 11, fieldcraft: 10, firearms: 9, influence: 10, mechanics: 9, medicine: 14, melee: 8, mobility: 9, resolve: 12, riding: 8, stealth: 9 },
+          conditions: eastTennesseeConditions(), medicalCapability: { hasPlausibleMaterials: true, hasProperSupplies: true },
           talents: { fieldMedicine: true },
         },
       },
@@ -136,6 +138,7 @@
       logs: [],
       scene: { id: "east-tennessee-1861-placeholder", immediateDanger: false, circumstanceId: 1, actions: [] },
       fieldMedicineUsage: {}, nextInjuryId: 1, nextLogId: 1,
+      rolls: [], pendingPush: null, nextRollId: 1, pushSequence: 1,
       recipientGrants: {},
       adventure: {},
     }),
@@ -154,10 +157,14 @@
         fieldMedicineUsage: safeObject(source.fieldMedicineUsage),
         nextInjuryId: Number(source.nextInjuryId) || 1,
         nextLogId: Number(source.nextLogId) || 1,
+        rolls: Array.isArray(source.rolls) ? clone(source.rolls) : [],
+        pendingPush: null,
+        nextRollId: Number(source.nextRollId) || 1,
+        pushSequence: Number(source.pushSequence) || 1,
         recipientGrants: safeObject(source.recipientGrants),
         adventure: safeObject(source.adventure),
       };
-      return etHealth ? etHealth.normalizeState(normalized) : normalized;
+      return etHealth ? etHealth.normalizeState(normalized,{cancelPending:true}) : normalized;
     },
     createSession() {
       return {
