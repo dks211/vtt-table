@@ -739,7 +739,7 @@ function setCampaign(id,state){
   App.session.campaignId=campaign.id;
   App.session.campaignPackageVersion=campaign.packageVersion;
   App.session.campaignStateSchemaVersion=campaign.stateSchemaVersion;
-  App.session.campaignState=state==null?campaign.createCampaignState():campaign.normalizeCampaignState(state);
+  App.session.campaignState=campaign.normalizeCampaignState(state==null?campaign.createCampaignState():state);
   return campaign;
 }
 function applyBundledLevel(level,start,{preserveParty=false,announce=false}={}){

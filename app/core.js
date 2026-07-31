@@ -692,6 +692,8 @@
     if (Array.isArray(actor.weaponIds)) out.weaponIds = clone(actor.weaponIds);
     if (objectOrNull(actor.aim)) out.aim = clone(actor.aim);
     if (actor.healthClassification) out.healthClassification = String(actor.healthClassification);
+    if (objectOrNull(actor.reserveAmmunition)) out.reserveAmmunition = clone(actor.reserveAmmunition);
+    if (Array.isArray(actor.weaponInstanceIds)) out.weaponInstanceIds = clone(actor.weaponInstanceIds);
     if (objectOrNull(actor.combatContext)) out.combatContext = {
       cover: String(actor.combatContext.cover || "none"), visibility: String(actor.combatContext.visibility || "clear"),
       coverDescription: String(actor.combatContext.coverDescription || ""),
@@ -806,6 +808,15 @@
         availableReactions: attack.targetActorId === recipient.actorId ? clone(attack.availableReactions||[]) : [],
       };
     } else projected.pendingAttack=null;
+    projected.weapons = Object.fromEntries(Object.entries(objectOrNull(source.weapons)||{}).filter(([,weapon]) => objectOrNull(weapon) && !weapon.gmOnly).map(([id,weapon]) => {
+      const safe=clone(weapon);delete safe.notes;return[id,safe];
+    }));
+    projected.cylinders = Object.fromEntries(Object.entries(objectOrNull(source.cylinders)||{}).filter(([,cylinder]) => objectOrNull(cylinder) && !cylinder.gmOnly).map(([id,cylinder]) => {
+      const safe=clone(cylinder);delete safe.notes;return[id,safe];
+    }));
+    const reload=objectOrNull(source.pendingExtendedReload);projected.pendingExtendedReload=reload?{
+      actorId:String(reload.actorId||""),cylinderId:String(reload.cylinderId||""),requestedChambers:Number(reload.requestedChambers)||0,status:"pending",
+    }:null;
     return projected;
   }
 

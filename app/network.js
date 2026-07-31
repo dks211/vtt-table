@@ -245,7 +245,8 @@ function hostHandle(c,m){
   }
   if(m.type==="eastTennesseeAction"&&App.session.campaignId==="east-tennessee-1861"&&globalThis.EastTennesseeHealth){
     const context=recipientContextFor(c),options={tokens:[...App.session.map.tokens,...App.session.verso.tokens]};
-    let result=globalThis.EastTennesseeCombat?EastTennesseeCombat.performAction(App.session.campaignState,context,m.action,options):{ok:false,reason:"unknown combat action"};
+    let result=globalThis.EastTennesseeEquipment?EastTennesseeEquipment.performAction(App.session.campaignState,context,m.action,options):{ok:false,reason:"unknown equipment action"};
+    if(!result.ok&&result.reason==="unknown equipment action")result=globalThis.EastTennesseeCombat?EastTennesseeCombat.performAction(App.session.campaignState,context,m.action,options):{ok:false,reason:"unknown combat action"};
     if(!result.ok&&result.reason==="unknown combat action")result=globalThis.EastTennesseeRounds?EastTennesseeRounds.performAction(App.session.campaignState,context,m.action,options):{ok:false,reason:"unknown structured-play action"};
     if(!result.ok&&result.reason==="unknown structured-play action")result=EastTennesseeHealth.performAction(App.session.campaignState,context,m.action,options);
     if(result.ok){markDirty();netMark();renderPanel();}

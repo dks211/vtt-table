@@ -8,6 +8,7 @@
   const etHealth = root.EastTennesseeHealth;
   const etRounds = root.EastTennesseeRounds;
   const etCombat = root.EastTennesseeCombat;
+  const etEquipment = root.EastTennesseeEquipment;
   const eastTennesseeConditions=()=>Object.fromEntries(["exhausted","shaken","frightened","distracted"].map(id=>[id,{active:false,source:null,notes:null}]));
 
   const eastTennesseeLevel = Object.freeze({
@@ -44,6 +45,9 @@
       actorId: "east-tennessee-1861:actor:jacob-sloane",
       name: "Jacob Sloane · Mechanical Placeholder",
       letter: "JS", color: "#546B54", pc: true,
+    },{
+      id: "east-tennessee-1861-actor-elias-rourke", actorId: "east-tennessee-1861:actor:elias-rourke",
+      name: "Elias Rourke · Mechanical Placeholder", letter: "ER", color: "#70534A", pc: true,
     }],
   });
 
@@ -63,6 +67,9 @@
       actorId: "east-tennessee-1861:actor:jacob-sloane",
       name: "Jacob Sloane · Mechanical Placeholder",
       letter: "JS", color: "#546B54", x: 4.5, y: 2.5, size: 1, pc: true,
+    },{
+      actorId: "east-tennessee-1861:actor:elias-rourke", name: "Elias Rourke · Mechanical Placeholder",
+      letter: "ER", color: "#70534A", x: 5.5, y: 2.5, size: 1, pc: true,
     }],
   });
 
@@ -89,7 +96,7 @@
         campaignId: this.id,
         campaignPackageVersion: this.packageVersion,
         campaignStateSchemaVersion: this.stateSchemaVersion,
-        campaignState: this.createCampaignState(),
+        campaignState: this.normalizeCampaignState(this.createCampaignState()),
         level: clone(this.initialLevel),
       };
     },
@@ -99,7 +106,7 @@
     id: EAST_TENNESSEE_ID,
     title: "East Tennessee 1861",
     packageVersion: 1,
-    stateSchemaVersion: 5,
+    stateSchemaVersion: 6,
     assetNamespace: "campaigns/east-tennessee-1861",
     initialLevel: eastTennesseeLevel,
     initialStart: eastTennesseeStart,
@@ -135,6 +142,14 @@
           weaponIds: ["rifle-musket", "club"], healthClassification: "full", aim: { active: false },
           combatContext: { cover: "none", visibility: "clear", unaware: false, stationary: false, coverDescription: "" },
         },
+        "east-tennessee-1861:actor:elias-rourke": {
+          actorId: "east-tennessee-1861:actor:elias-rourke", ownerKey: null,
+          identity: { name: "Elias Rourke · Mechanical Placeholder" }, mechanics: { visibility: "public", data: { placeholder: true } },
+          privateNotes: { visibility: "owner", data: {} }, health: { state: "unhurt", stable: true, dyingFailures: 0, dead: false }, injuries: [],
+          skills: { firearms: 14, melee: 10, resolve: 11 }, conditions: eastTennesseeConditions(), medicalCapability: { hasPlausibleMaterials: false, hasProperSupplies: false },
+          talents: { fieldMedicine: false }, weaponIds: ["revolver"], healthClassification: "full", aim: { active: false },
+          combatContext: { cover: "none", visibility: "clear", unaware: false, stationary: false, coverDescription: "" },
+        },
       },
       scenes: {
         "east-tennessee-1861-placeholder": { status: "placeholder" },
@@ -146,6 +161,7 @@
       fieldMedicineUsage: {}, nextInjuryId: 1, nextLogId: 1,
       rolls: [], pendingPush: null, nextRollId: 1, pushSequence: 1,
       attacks: [], pendingAttack: null, nextAttackId: 1,
+      weapons: null, cylinders: null, pendingExtendedReload: null, nextEquipmentSequence: 1,
       structuredPlay: { active: false, sceneId: null, roundNumber: 0, phase: "inactive", participants: [], initiativeEntries: [], currentEntryId: null, completedEntryIds: [], delayedEntryIds: [], unresolvedTieGroups: [], processedRoundNumbers: [], stateVersion: 1 },
       adventureFlags: { bridgeDisabled: false, sabotageSucceeded: false, fireUncontrollable: false, bridgeWillBeConsumed: false, missingPatrolNoticed: false, helpWarned: false, reinforcementsArrived: false },
       nextTimerId: 1,
@@ -172,6 +188,8 @@
         attacks: Array.isArray(source.attacks) ? clone(source.attacks) : [],
         pendingAttack: null,
         nextAttackId: Number(source.nextAttackId) || 1,
+        weapons: source.weapons == null ? null : safeObject(source.weapons), cylinders: source.cylinders == null ? null : safeObject(source.cylinders),
+        pendingExtendedReload: safeObject(source.pendingExtendedReload), nextEquipmentSequence: Number(source.nextEquipmentSequence) || 1,
         nextRollId: Number(source.nextRollId) || 1,
         pushSequence: Number(source.pushSequence) || 1,
         structuredPlay: safeObject(source.structuredPlay),
@@ -182,14 +200,15 @@
       };
       const healthNormalized=etHealth ? etHealth.normalizeState(normalized,{cancelPending:true}) : normalized;
       const roundsNormalized=etRounds ? etRounds.normalizeState(healthNormalized) : healthNormalized;
-      return etCombat ? etCombat.normalizeState(roundsNormalized,{cancelPending:true}) : roundsNormalized;
+      const equipmentNormalized=etEquipment ? etEquipment.normalizeState(roundsNormalized) : roundsNormalized;
+      return etCombat ? etCombat.normalizeState(equipmentNormalized,{cancelPending:true}) : equipmentNormalized;
     },
     createSession() {
       return {
         campaignId: this.id,
         campaignPackageVersion: this.packageVersion,
         campaignStateSchemaVersion: this.stateSchemaVersion,
-        campaignState: this.createCampaignState(),
+        campaignState: this.normalizeCampaignState(this.createCampaignState()),
         level: clone(this.initialLevel),
       };
     },
