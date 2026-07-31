@@ -722,7 +722,7 @@
       projected.handouts[id] = withoutVisibilityControls(handout);
     }
     for (const [id, timer] of Object.entries(objectOrNull(source.timers) || {}).slice(0, 500)) {
-      if (!objectOrNull(timer) || !visibilityAllowed(timer.labelVisibility, recipient, timer)) continue;
+      if (!objectOrNull(timer) || timer.state === "removed" || !visibilityAllowed(timer.labelVisibility, recipient, timer)) continue;
       const safe = { id: String(timer.id || id), label: String(timer.label || "Timer").slice(0, 120) };
       if (visibilityAllowed(timer.valueVisibility, recipient, timer)) {
         if (timer.remainingRounds != null) safe.remainingRounds = integer(timer.remainingRounds);
@@ -752,6 +752,38 @@
     if (pending && pending.actorId === recipient.actorId && pending.ownerKey === recipient.playerKey)
       projected.pendingPush = withoutVisibilityControls(pending);
     else projected.pendingPush = null;
+    if (objectOrNull(source.structuredPlay)) {
+      const structured = source.structuredPlay;
+      const participants = (Array.isArray(structured.participants) ? structured.participants : []).map(item => ({
+        id: String(item.id || ""), actorId: item.actorId == null ? null : String(item.actorId), kind: String(item.kind || "npc"),
+        displayName: String(item.displayName || "Participant"), active: item.active !== false,
+      }));
+      const participantById = new Map(participants.map(item => [item.id, item]));
+      projected.structuredPlay = {
+        active: !!structured.active, sceneId: structured.sceneId == null ? null : String(structured.sceneId),
+        roundNumber: Number(structured.roundNumber) || 0, phase: String(structured.phase || "inactive"), participants,
+        currentEntryId: structured.currentEntryId == null ? null : String(structured.currentEntryId),
+        completedEntryIds: clone(structured.completedEntryIds || []), delayedEntryIds: clone(structured.delayedEntryIds || []),
+        initiativeEntries: (Array.isArray(structured.initiativeEntries) ? structured.initiativeEntries : []).map(entry => {
+          const safe = {
+            entryId: String(entry.entryId || ""), participantIds: clone(entry.participantIds || []), initiativeRoll: Number(entry.initiativeRoll) || 0,
+            actionState: String(entry.actionState || "unavailable"), turnStarted: !!entry.turnStarted, turnCompleted: !!entry.turnCompleted,
+          };
+          const owned = safe.participantIds.some(id => participantById.get(id)?.actorId === recipient.actorId);
+          if (entry.readyVisibility === "public" || entry.readyVisibility === "owner" && owned) {
+            safe.readyTrigger = entry.readyTrigger == null ? null : String(entry.readyTrigger);
+            safe.readyAction = entry.readyAction == null ? null : String(entry.readyAction);
+          }
+          return safe;
+        }),
+      };
+    }
+    if (objectOrNull(source.adventureFlags)) projected.adventureFlags = {
+      bridgeDisabled: !!source.adventureFlags.bridgeDisabled,
+      sabotageSucceeded: !!source.adventureFlags.sabotageSucceeded,
+      fireUncontrollable: !!source.adventureFlags.fireUncontrollable,
+      bridgeWillBeConsumed: !!source.adventureFlags.bridgeWillBeConsumed,
+    };
     return projected;
   }
 

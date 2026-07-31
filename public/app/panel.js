@@ -8,6 +8,7 @@ function etSkillHTML(actor,gm=false){
     <div class="hint">${skills.map(s=>`${esc(s.name)} ${actor.skills[s.id]}`).join(" · ")}</div>
     <div class="row"><select id="et-skill">${skills.map(s=>`<option value="${s.id}">${esc(s.name)} · ${actor.skills[s.id]}</option>`).join("")}</select><label>boons</label><input id="et-boons" type="number" min="0" max="20" value="0" style="width:45px"><label>banes</label><input id="et-banes" type="number" min="0" max="20" value="0" style="width:45px"></div>
     <div class="row"><input id="et-boon-source" placeholder="boon sources: help, preparation" style="flex:1"><input id="et-bane-source" placeholder="bane sources: injury, condition" style="flex:1"></div>
+    <label class="check"><input id="et-uses-action" type="checkbox" ${!gm&&state.structuredPlay?.active?"checked disabled":""}> uses structured action${!gm&&state.structuredPlay?.active?" (host required)":""}</label>
     ${gm?`<div class="row"><select id="et-purpose">${["general","attack","downResolve","firstAid","extendedMedicine"].map(v=>`<option value="${v}">${v}</option>`)}</select><select id="et-visibility"><option value="public">public</option><option value="owner">owner</option><option value="gm">GM only</option></select><button class="rbtn" id="et-roll">ROLL</button></div>`:`<button class="rbtn" id="et-roll" style="width:100%">REQUEST GENERAL CHECK</button>`}
     ${last?`<div class="hint" style="margin-top:7px"><b>${esc(last.actorName)} · ${esc(last.skillId.toUpperCase())} ${last.skillValue}</b><br>[${last.dice.join(", ")}] → ${last.retainedDie} · ${last.critical?"CRITICAL SUCCESS":last.fumble?"FUMBLE":last.outcome.toUpperCase()} · ${last.netModifier>0?`${last.netModifier} boon`:last.netModifier<0?`${-last.netModifier} bane`:"normal"}${last.pushedFromRollId?" · PUSHED":""}</div>`:""}
     <div style="margin-top:7px">${conditions}</div>
@@ -15,6 +16,39 @@ function etSkillHTML(actor,gm=false){
     ${gm&&pending&&pending.actorId===actor.actorId?`<div class="hint">Push pending: ${esc(pending.proposedConditionId)}</div><div class="row"><button class="rbtn" id="et-gm-accept-push">ACCEPT OVERRIDE</button><button class="rbtn quiet" id="et-gm-decline-push">FINALIZE FAILURE</button><button class="rbtn quiet" id="et-cancel-push">CANCEL PUSH</button></div>`:""}
     ${!gm&&pending&&pending.actorId===actor.actorId?`<div class="hint"><b>PUSH OFFER:</b> accept ${esc(pending.proposedConditionId)} and reroll?</div><div class="row"><button class="rbtn" id="et-accept-push">ACCEPT & REROLL</button><button class="rbtn quiet" id="et-decline-push">DECLINE</button></div>`:""}
   </div>`;
+}
+function etStructuredHTML(gm=false,mineActor=null){
+  if(App.session.campaignId!=="east-tennessee-1861"||!globalThis.EastTennesseeRounds)return"";const state=App.session.campaignState,sp=state.structuredPlay||{},actors=Object.values(state.actors||{}),entries=sp.initiativeEntries||[],participants=sp.participants||[];
+  const entryName=e=>(e.participantIds||[]).map(id=>participants.find(p=>p.id===id)?.displayName||id).join(", ");
+  let html=`<div class="sect"><h3>East Tennessee Structured Play · Prototype</h3><div class="hint">${sp.active?`ROUND ${sp.roundNumber} · ${esc((sp.phase||"").toUpperCase())}`:"INACTIVE"}</div>`;
+  if(gm){
+    if(!sp.active)html+=`<button class="rbtn" id="et-sp-start">START STRUCTURED PLAY</button>`;
+    else{
+      html+=`<div class="hint">Participants</div>${sp.phase==="initiative"&&!entries.length?actors.map(actor=>`<label class="check"><input type="checkbox" data-et-participant="${esc(actor.actorId)}" ${participants.some(p=>p.actorId===actor.actorId)?"checked":""}> ${esc(actor.identity?.name||actor.actorId)}</label>`).join("")+`<button class="rbtn quiet" id="et-sp-participants">SAVE PARTICIPANTS</button>`:`<div class="hint">${participants.map(p=>esc(p.displayName)).join(" · ")||"None"}</div>`}`;
+      if(sp.phase==="initiative"&&!entries.length)html+=`<button class="rbtn" id="et-sp-roll-init">ROLL INITIATIVE</button>`;
+      if(entries.length)html+=`<div class="toklist">${entries.map(e=>`<div class="tok ${sp.currentEntryId===e.entryId?"sel":""}"><span class="nm">${e.initiativeRoll} · ${esc(entryName(e))}</span><span>${esc(e.actionState)}</span></div>`).join("")}</div>`;
+      for(const tie of sp.unresolvedTieGroups||[])html+=`<div class="hint">Resolve ${esc(tie.tieClass)} tie at ${tie.initiativeRoll}</div>${tie.entryIds.map((id,i)=>`<div class="row"><span>${esc(entryName(entries.find(e=>e.entryId===id)))}</span><select data-et-tie-order="${id}" data-tie="${tie.id}">${tie.entryIds.map((_,n)=>`<option value="${n}" ${n===i?"selected":""}>${n+1}</option>`)}</select></div>`).join("")}<button class="rbtn quiet" data-et-resolve-tie="${tie.id}">RESOLVE TIE</button>`;
+      if(sp.phase==="initiative"&&entries.length&&!(sp.unresolvedTieGroups||[]).length)html+=`<button class="rbtn" id="et-sp-first">START FIRST TURN</button>`;
+      if(sp.currentEntryId)html+=`<div class="row"><button class="rbtn quiet" id="et-sp-end">END CURRENT TURN</button><button class="rbtn quiet" id="et-sp-delay-gm">DELAY</button><button class="rbtn quiet" id="et-sp-ready-gm">READY…</button><button class="rbtn quiet" id="et-sp-force">FORCE COMPLETE</button><select id="et-sp-repair">${["unspent","spent","delayed","readied","reactionConsumed","unavailable"].map(v=>`<option value="${v}" ${entries.find(e=>e.entryId===sp.currentEntryId)?.actionState===v?"selected":""}>${v}</option>`)}</select><button class="rbtn quiet" id="et-sp-repair-go">REPAIR</button></div>`;
+      if(!sp.currentEntryId&&(sp.delayedEntryIds||[]).length)html+=`<div class="row">${sp.delayedEntryIds.map(id=>`<button class="rbtn quiet" data-et-resume="${id}">RESUME ${esc(entryName(entries.find(e=>e.entryId===id)))}</button>`).join("")}</div>`;
+      const roundProcessed=(sp.processedRoundNumbers||[]).includes(sp.roundNumber);if(sp.phase==="roundEnd"&&!roundProcessed)html+=`<button class="rbtn" id="et-sp-end-round">END ROUND · ADVANCE TIMERS</button>`;
+      if(roundProcessed)html+=`<button class="rbtn" id="et-sp-next-round">BEGIN NEXT ROUND</button>`;
+      html+=`<button class="rbtn quiet" id="et-sp-stop" style="margin-top:6px">STOP STRUCTURED PLAY</button>`;
+    }
+  }else if(sp.active){
+    html+=`<div class="toklist">${entries.map(e=>`<div class="tok ${sp.currentEntryId===e.entryId?"sel":""}"><span class="nm">${e.initiativeRoll} · ${esc(entryName(e))}</span><span>${esc(e.actionState)}</span>${e.readyTrigger?`<div class="hint">Ready: ${esc(e.readyTrigger)} → ${esc(e.readyAction||"")}</div>`:""}</div>`).join("")}</div>`;
+    const mineEntry=entries.find(e=>(e.participantIds||[]).some(id=>participants.find(p=>p.id===id)?.actorId===mineActor?.actorId)),current=mineEntry&&sp.currentEntryId===mineEntry.entryId;
+    if(current)html+=`<div class="row"><button class="rbtn" id="et-sp-player-end">END TURN</button>${mineEntry.actionState==="unspent"?`<button class="rbtn quiet" id="et-sp-delay">DELAY</button><button class="rbtn quiet" id="et-sp-ready">READY…</button>`:""}</div>`;
+    if(mineEntry?.actionState==="delayed"&&!sp.currentEntryId)html+=`<button class="rbtn" id="et-sp-player-resume">RESUME DELAYED TURN</button>`;
+    if(mineEntry?.actionState==="readied")html+=`<button class="rbtn" id="et-sp-trigger-ready">TRIGGER READY</button>`;
+  }
+  const timers=Object.values(state.timers||{}).filter(t=>t.state!=="removed"),timerHTML=t=>{
+    let row=`<div class="tok"><span class="nm">${esc(t.label)}${t.remainingRounds!=null?` · ${t.remainingRounds}`:""}</span><span>${esc(t.state||"")}</span>`;
+    if(gm)row+=`<div class="row"><button class="rbtn quiet" data-et-timer="${t.id}" data-command="${t.state==="paused"?"resume":"pause"}">${t.state==="paused"?"RESUME":"PAUSE"}</button><button class="rbtn quiet" data-et-timer="${t.id}" data-command="minus">−1</button><button class="rbtn quiet" data-et-timer="${t.id}" data-command="plus">+1</button><button class="rbtn quiet" data-et-timer="${t.id}" data-command="resolve">RESOLVE</button><button class="rbtn quiet" data-et-timer="${t.id}" data-command="remove">REMOVE</button><select data-et-timer-vis="${t.id}"><option value="public" ${t.visibility==="public"?"selected":""}>public</option><option value="public-label-private-value" ${t.visibility==="public-label-private-value"?"selected":""}>hidden value</option><option value="gm" ${t.visibility==="gm"?"selected":""}>GM only</option></select></div>`;
+    return row+`</div>`;
+  };html+=`<div class="hint" style="margin-top:8px">Round timers</div>${timers.length?timers.map(timerHTML).join(""):`<div class="hint">No visible timers.</div>`}`;
+  if(gm)html+=`<div class="row" style="flex-wrap:wrap">${Object.entries(EastTennesseeRounds.DEFINITIONS).filter(([id])=>id!=="lick-creek-fire-stage-2"&&id!=="reinforcements-arrive").map(([id,d])=>`<button class="rbtn quiet" data-et-timer-preset="${id}">${esc(d.label)}</button>`).join("")}</div><div class="row"><input id="et-timer-label" placeholder="custom timer" style="flex:1"><input id="et-timer-rounds" type="number" min="0" max="999" value="4" style="width:55px"><select id="et-timer-vis"><option value="public">public</option><option value="public-label-private-value">hidden value</option><option value="gm">GM only</option></select><button class="rbtn quiet" id="et-timer-create">CREATE</button></div><div class="hint">Flags: ${Object.entries(state.adventureFlags||{}).map(([k,v])=>`${esc(k)}=${v?"yes":"no"}`).join(" · ")}</div>`;
+  return html+`</div>`;
 }
 function etHealthHTML(actor,gm=false){
   if(!actor||!actor.health)return"";const h=actor.health,inj=actor.injuries||[];
@@ -27,8 +61,8 @@ function etHealthHTML(actor,gm=false){
     ${gm?`<div class="row"><input id="et-med-value" type="number" min="1" max="18" value="${actor.skills?.medicine||1}" style="width:54px"><label class="check"><input id="et-plausible" type="checkbox" ${actor.medicalCapability?.hasPlausibleMaterials?"checked":""}> plausible materials</label><label class="check"><input id="et-proper" type="checkbox" ${actor.medicalCapability?.hasProperSupplies?"checked":""}> proper supplies</label><button class="rbtn quiet" id="et-save-med">SAVE MEDICINE & SUPPLIES</button></div>`:""}
   </div>`;
 }
-function etHostAction(action){const result=EastTennesseeHealth.performAction(App.session.campaignState,{role:"gm",campaignId:App.session.campaignId},action,{tokens:[...App.session.map.tokens,...App.session.verso.tokens]});if(!result.ok)alert(result.reason);else{markDirty();netMark();renderPanel();}}
-function etRollAction(actorId){return{type:"requestSkillCheck",actorId,skillId:$("et-skill").value,boons:+$("et-boons").value,banes:+$("et-banes").value,boonSources:$("et-boon-source").value,baneSources:$("et-bane-source").value};}
+function etHostAction(action){const context={role:"gm",campaignId:App.session.campaignId},options={tokens:[...App.session.map.tokens,...App.session.verso.tokens]};let result=globalThis.EastTennesseeRounds?EastTennesseeRounds.performAction(App.session.campaignState,context,action,options):{ok:false,reason:"unknown structured-play action"};if(!result.ok&&result.reason==="unknown structured-play action")result=EastTennesseeHealth.performAction(App.session.campaignState,context,action,options);if(!result.ok)alert(result.reason);else{markDirty();netMark();renderPanel();}}
+function etRollAction(actorId){return{type:"requestSkillCheck",actorId,skillId:$("et-skill").value,boons:+$("et-boons").value,banes:+$("et-banes").value,boonSources:$("et-boon-source").value,baneSources:$("et-bane-source").value,usesAction:!!$("et-uses-action")?.checked};}
 function wireEtGM(p,actor){if(!actor)return;p.querySelectorAll("[data-et-gm]").forEach(el=>el.onclick=()=>{const type=el.dataset.etGm;const action={type,targetActorId:actor.actorId};if(type.startsWith("apply")){action.description=prompt("Injury description",type==="applyCriticalHit"?"Severe injury":"Injury")||"Injury";action.relevantBane=prompt("When does this impose one bane?","One bane when relevant.")||"One bane when relevant.";}if(type==="gmSetStabilization")action.stable=true;etHostAction(action);});
   p.querySelectorAll("[data-et-heal]").forEach(el=>el.onclick=()=>etHostAction({type:"markInjuryHealed",targetActorId:actor.actorId,injuryId:el.dataset.etHeal}));
   p.querySelectorAll("[data-et-edit]").forEach(el=>el.onclick=()=>{const item=actor.injuries.find(i=>i.id===el.dataset.etEdit);const description=prompt("Injury description",item.description);if(description==null)return;const relevantBane=prompt("When does this impose one bane?",item.relevantBane);if(relevantBane==null)return;etHostAction({type:"editInjury",targetActorId:actor.actorId,injuryId:item.id,description,relevantBane});});
@@ -40,6 +74,19 @@ function wireEtSkills(p,actor,gm=false){if(!actor)return;const roll=$("et-roll")
   if(gm){p.querySelectorAll("[data-et-condition]").forEach(el=>el.onclick=()=>etHostAction({type:el.dataset.active==="1"?"gmClearCondition":"gmAddCondition",targetActorId:actor.actorId,conditionId:el.dataset.etCondition,source:el.dataset.active==="1"?null:(prompt("Condition source","GM adjudication")||"GM adjudication")}));
     const propose=$("et-propose-push");if(propose)propose.onclick=()=>etHostAction({type:"gmProposePushCondition",originalRollId:propose.dataset.roll,conditionId:$("et-push-condition").value});const cancel=$("et-cancel-push");if(cancel)cancel.onclick=()=>etHostAction({type:"gmCancelPush"});const accept=$("et-gm-accept-push"),decline=$("et-gm-decline-push"),seq=App.session.campaignState.pendingPush?.sequence;if(accept)accept.onclick=()=>etHostAction({type:"acceptPush",sequence:seq});if(decline)decline.onclick=()=>etHostAction({type:"declinePush",sequence:seq});}
   else if(App.session.campaignState.pendingPush){const seq=App.session.campaignState.pendingPush.sequence,accept=$("et-accept-push"),decline=$("et-decline-push");if(accept)accept.onclick=()=>clientSend({type:"eastTennesseeAction",action:{type:"acceptPush",sequence:seq}});if(decline)decline.onclick=()=>clientSend({type:"eastTennesseeAction",action:{type:"declinePush",sequence:seq}});}}
+function wireEtStructured(p,gm=false,mineActor=null){if(App.session.campaignId!=="east-tennessee-1861")return;const sp=App.session.campaignState.structuredPlay||{},send=action=>gm?etHostAction(action):clientSend({type:"eastTennesseeAction",action:{...action,expectedRound:sp.roundNumber,expectedEntryId:sp.currentEntryId}});
+  const bind=(id,action)=>{const el=$(id);if(el)el.onclick=()=>send(action);};bind("et-sp-start",{type:"startStructuredPlay",sceneId:App.session.campaignState.scene?.id});
+  const save=$("et-sp-participants");if(save)save.onclick=()=>send({type:"setParticipants",participants:[...p.querySelectorAll("[data-et-participant]:checked")].map(el=>{const actor=etActor(el.dataset.etParticipant);return{id:`sp:${actor.actorId}`,actorId:actor.actorId,kind:"pc",active:true,controlledBy:"owner",displayName:actor.identity?.name||actor.actorId};})});
+  bind("et-sp-roll-init",{type:"rollInitiative"});bind("et-sp-first",{type:"startFirstTurn"});bind("et-sp-end",{type:"endTurn"});bind("et-sp-force",{type:"forceCompleteTurn"});bind("et-sp-end-round",{type:"endRound"});bind("et-sp-next-round",{type:"startNextRound"});
+  bind("et-sp-delay-gm",{type:"delayTurn"});const gmReady=$("et-sp-ready-gm");if(gmReady)gmReady.onclick=()=>{const trigger=prompt("Ready trigger","when…"),intendedAction=trigger&&prompt("Intended action","I will…");if(trigger&&intendedAction)send({type:"readyAction",trigger,intendedAction});};
+  const repair=$("et-sp-repair-go");if(repair)repair.onclick=()=>send({type:"gmSetActionState",entryId:sp.currentEntryId,actionState:$("et-sp-repair").value});
+  const stop=$("et-sp-stop");if(stop)stop.onclick=()=>{const active=Object.values(App.session.campaignState.timers||{}).some(t=>t.state==="active");if(!active||confirm("Active round timers will remain paused outside structured play. Stop anyway?"))send({type:"stopStructuredPlay",overrideActiveTimers:active});};
+  p.querySelectorAll("[data-et-resolve-tie]").forEach(el=>el.onclick=()=>{const selects=[...p.querySelectorAll(`[data-tie="${el.dataset.etResolveTie}"]`)];selects.sort((a,b)=>+a.value-+b.value);send({type:"resolveInitiativeTies",tieId:el.dataset.etResolveTie,entryIds:selects.map(s=>s.dataset.etTieOrder)});});
+  p.querySelectorAll("[data-et-resume]").forEach(el=>el.onclick=()=>send({type:"resumeDelayedTurn",entryId:el.dataset.etResume}));
+  if(!gm&&mineActor){bind("et-sp-player-end",{type:"endTurn"});bind("et-sp-delay",{type:"delayTurn"});const ready=$("et-sp-ready");if(ready)ready.onclick=()=>{const trigger=prompt("Ready trigger","when…"),intendedAction=trigger&&prompt("Intended action","I will…");if(trigger&&intendedAction)send({type:"readyAction",trigger,intendedAction});};const mineEntry=(sp.initiativeEntries||[]).find(e=>(e.participantIds||[]).some(id=>(sp.participants||[]).find(x=>x.id===id)?.actorId===mineActor.actorId));const resume=$("et-sp-player-resume");if(resume&&mineEntry)resume.onclick=()=>send({type:"resumeDelayedTurn",entryId:mineEntry.entryId});const trigger=$("et-sp-trigger-ready");if(trigger&&mineEntry)trigger.onclick=()=>send({type:"triggerReadiedAction",entryId:mineEntry.entryId});}
+  p.querySelectorAll("[data-et-timer-preset]").forEach(el=>el.onclick=()=>send({type:"createTimer",definitionId:el.dataset.etTimerPreset}));const create=$("et-timer-create");if(create)create.onclick=()=>send({type:"createTimer",definitionId:"custom",label:$("et-timer-label").value,initialRounds:+$("et-timer-rounds").value,visibility:$("et-timer-vis").value});
+  p.querySelectorAll("[data-et-timer]").forEach(el=>el.onclick=()=>{const command=el.dataset.command;send({type:"timerCommand",timerId:el.dataset.etTimer,command:command==="plus"||command==="minus"?"adjust":command,delta:command==="plus"?1:command==="minus"?-1:undefined});});
+  p.querySelectorAll("[data-et-timer-vis]").forEach(el=>el.onchange=()=>send({type:"timerCommand",timerId:el.dataset.etTimerVis,command:"visibility",visibility:el.value}));}
 /* ---------------- right panel ---------------- */
 let addColor=SWATCH[0];
 let dmPanelTab="scene",lastPanelToken=null,lastPanelRoom=null;
@@ -531,6 +578,7 @@ function renderPanel(){
   if(App.session.campaignId==="east-tennessee-1861"){
     const danger=!!App.session.campaignState.scene?.immediateDanger;
     html+=`<div class="sect"><h3>East Tennessee Scene · Prototype</h3><button class="rbtn" id="et-danger">${danger?"END IMMEDIATE DANGER":"BEGIN IMMEDIATE DANGER"}</button><button class="rbtn quiet" id="et-new-scene" style="margin-top:6px">BEGIN GENUINELY NEW SCENE</button></div>`;
+    html+=etStructuredHTML(true);
   }
   // add token
   if(tokenAddOpen)html+=`<div class="sect"><h3>Add Token</h3>
@@ -587,6 +635,7 @@ function renderPanel(){
   if(addToggle)addToggle.onclick=()=>{tokenAddOpen=!tokenAddOpen;renderPanel();};
   wireEtGM(p,etSelected);
   wireEtSkills(p,etSelected,true);
+  wireEtStructured(p,true);
   const etDanger=$("et-danger");if(etDanger)etDanger.onclick=()=>etHostAction({type:"setImmediateDanger",active:!App.session.campaignState.scene.immediateDanger});
   const etNewScene=$("et-new-scene");if(etNewScene)etNewScene.onclick=()=>{const id=prompt("New scene instance ID",`scene-${Date.now()}`);if(id)etHostAction({type:"beginNewScene",sceneId:id});};
 
@@ -1148,10 +1197,12 @@ function renderClientPanel(){
   if(mineActor){
     html+=etHealthHTML(mineActor,false)+etSkillHTML(mineActor,false);
     const choices=Object.values(App.session.campaignState.actors||{}).filter(a=>a.health&&!a.health.dead).map(a=>`<option value="${esc(a.actorId)}">${esc(a.identity?.name||a.actorId)}</option>`).join("");
-    const medical=mineActor.medicalCapability||{},danger=!!App.session.campaignState.scene?.immediateDanger;
+    const medical=mineActor.medicalCapability||{},medicineValue=mineActor.skills?.medicine||0,danger=!!App.session.campaignState.scene?.immediateDanger,sp=App.session.campaignState.structuredPlay||{};
+    const mineEntry=(sp.initiativeEntries||[]).find(e=>(e.participantIds||[]).some(id=>(sp.participants||[]).find(p=>p.id===id)?.actorId===mineActor.actorId)),structuredMedicalAllowed=!sp.active||mineEntry&&sp.currentEntryId===mineEntry.entryId&&mineEntry.actionState==="unspent";
     html+=`<div class="sect"><h3>East Tennessee Treatment · Prototype</h3><select id="et-patient" style="width:100%">${choices}</select>
-      <div class="row">${mineActor.health.state==="down"&&!mineActor.health.stable&&!mineActor.health.dead?`<button class="rbtn quiet" id="et-resolve">DOWN RESOLVE</button>`:""}${medical.medicineValue>0&&medical.hasPlausibleMaterials?`<button class="rbtn quiet" data-et-player="attemptFirstAid">FIRST AID</button>`:""}</div>
-      <div class="row">${medical.medicineValue>0&&medical.hasProperSupplies&&!danger?`<button class="rbtn quiet" data-et-player="attemptExtendedMedicine">EXTENDED MEDICINE</button>`:""}${mineActor.talents?.fieldMedicine&&medical.hasProperSupplies?`<button class="rbtn" data-et-player="useFieldMedicine">FIELD MEDICINE</button>`:""}</div></div>`;
+      <div class="row">${mineActor.health.state==="down"&&!mineActor.health.stable&&!mineActor.health.dead&&!sp.active?`<button class="rbtn quiet" id="et-resolve">DOWN RESOLVE</button>`:""}${medicineValue>0&&medical.hasPlausibleMaterials&&structuredMedicalAllowed?`<button class="rbtn quiet" data-et-player="attemptFirstAid">FIRST AID</button>`:""}</div>
+      <div class="row">${medicineValue>0&&medical.hasProperSupplies&&!danger?`<button class="rbtn quiet" data-et-player="attemptExtendedMedicine">EXTENDED MEDICINE</button>`:""}${mineActor.talents?.fieldMedicine&&medical.hasProperSupplies&&structuredMedicalAllowed?`<button class="rbtn" data-et-player="useFieldMedicine">FIELD MEDICINE</button>`:""}</div></div>`;
+    html+=etStructuredHTML(false,mineActor);
   }
   if(mine){
     html+=`<div class="sect"><h3>Your Rolls</h3>`+
@@ -1176,6 +1227,7 @@ function renderClientPanel(){
   p.innerHTML=html;
   if(mineActor){
     wireEtSkills(p,mineActor,false);
+    wireEtStructured(p,false,mineActor);
     const send=action=>clientSend({type:"eastTennesseeAction",action});
     const resolve=$("et-resolve");if(resolve)resolve.onclick=()=>send({type:"downResolve",targetActorId:mineActor.actorId});
     p.querySelectorAll("[data-et-player]").forEach(el=>el.onclick=()=>send({type:el.dataset.etPlayer,healerActorId:mineActor.actorId,targetActorId:$("et-patient").value}));

@@ -6,6 +6,7 @@
   const content = root.VTTContent;
   const clone = value => JSON.parse(JSON.stringify(value));
   const etHealth = root.EastTennesseeHealth;
+  const etRounds = root.EastTennesseeRounds;
   const eastTennesseeConditions=()=>Object.fromEntries(["exhausted","shaken","frightened","distracted"].map(id=>[id,{active:false,source:null,notes:null}]));
 
   const eastTennesseeLevel = Object.freeze({
@@ -97,7 +98,7 @@
     id: EAST_TENNESSEE_ID,
     title: "East Tennessee 1861",
     packageVersion: 1,
-    stateSchemaVersion: 3,
+    stateSchemaVersion: 4,
     assetNamespace: "campaigns/east-tennessee-1861",
     initialLevel: eastTennesseeLevel,
     initialStart: eastTennesseeStart,
@@ -139,6 +140,9 @@
       scene: { id: "east-tennessee-1861-placeholder", immediateDanger: false, circumstanceId: 1, actions: [] },
       fieldMedicineUsage: {}, nextInjuryId: 1, nextLogId: 1,
       rolls: [], pendingPush: null, nextRollId: 1, pushSequence: 1,
+      structuredPlay: { active: false, sceneId: null, roundNumber: 0, phase: "inactive", participants: [], initiativeEntries: [], currentEntryId: null, completedEntryIds: [], delayedEntryIds: [], unresolvedTieGroups: [], processedRoundNumbers: [], stateVersion: 1 },
+      adventureFlags: { bridgeDisabled: false, sabotageSucceeded: false, fireUncontrollable: false, bridgeWillBeConsumed: false, missingPatrolNoticed: false, helpWarned: false, reinforcementsArrived: false },
+      nextTimerId: 1,
       recipientGrants: {},
       adventure: {},
     }),
@@ -161,10 +165,14 @@
         pendingPush: null,
         nextRollId: Number(source.nextRollId) || 1,
         pushSequence: Number(source.pushSequence) || 1,
+        structuredPlay: safeObject(source.structuredPlay),
+        adventureFlags: safeObject(source.adventureFlags),
+        nextTimerId: Number(source.nextTimerId) || 1,
         recipientGrants: safeObject(source.recipientGrants),
         adventure: safeObject(source.adventure),
       };
-      return etHealth ? etHealth.normalizeState(normalized,{cancelPending:true}) : normalized;
+      const healthNormalized=etHealth ? etHealth.normalizeState(normalized,{cancelPending:true}) : normalized;
+      return etRounds ? etRounds.normalizeState(healthNormalized) : healthNormalized;
     },
     createSession() {
       return {

@@ -114,6 +114,7 @@
     if(type==="requestSkillCheck"){
       const actor=actors[text(action.actorId,120)];if(!actor||!owns(recipient,actor))return fail("actor ownership required");
       const purpose=gm&&PURPOSES.has(action.rollPurpose)?action.rollPurpose:"general",visibility=gm&&VISIBILITIES.has(action.visibility)?action.visibility:"public";
+      const usesAction=gm?!!action.usesAction:state.structuredPlay?.active?true:!!action.usesAction;if(usesAction&&root.EastTennesseeRounds){const spent=root.EastTennesseeRounds.consumeAction(state,actor.actorId,`${skillName(text(action.skillId,40))} check`);if(!spent.ok)return spent;}
       return finishRoll(resolveSkillCheck({state,actor,skillId:text(action.skillId,40),requestedBoons:action.boons,requestedBanes:action.banes,
         boonSources:action.boonSources,baneSources:action.baneSources,rollPurpose:purpose,pushable:gm?action.pushable!==false:true,
         visibility,metadata:gm&&object(action.metadata)?action.metadata:{}},options));
@@ -128,6 +129,7 @@
       if(!healer||!owns(recipient,healer))return fail("healer ownership required");if(!target||target.health.dead)return fail("patient cannot receive treatment");
       if(type==="attemptFirstAid"){
         if(target.health.state!=="down"||target.health.stable)return fail("patient cannot receive First Aid");if(!healer.medicalCapability.hasPlausibleMaterials)return fail("plausible materials required");
+        if(root.EastTennesseeRounds){const spent=root.EastTennesseeRounds.consumeAction(state,healer.actorId,"First Aid");if(!spent.ok)return spent;}
         actionUsed(state,healer.actorId,type,target.actorId);return finishRoll(startResolvedAction(state,healer,{skillId:"medicine",rollPurpose:"firstAid"},consequenceFor(action),options));
       }
       if(sceneOf(state).immediateDanger)return fail("extended Medicine is unavailable during immediate danger");if(!healer.medicalCapability.hasProperSupplies)return fail("proper supplies required");
@@ -158,6 +160,7 @@
       if(!healer||!owns(recipient,healer))return fail("healer ownership required");if(!healer.talents.fieldMedicine||!healer.medicalCapability.hasProperSupplies)return fail("Field Medicine talent and proper supplies required");
       if(!target||target.health.state!=="down"||target.health.dead)return fail("patient must be living and Down");if(!adjacent(options,healer.actorId,target.actorId))return fail("patient is not adjacent");
       const scene=sceneOf(state),key=`${scene.id}|${healer.actorId}|${target.actorId}`;if(Object.values(state.fieldMedicineUsage).some(use=>use&&use.sceneId===scene.id&&use.patientActorId===target.actorId))return fail("patient already benefited from Field Medicine in this scene");
+      if(root.EastTennesseeRounds){const spent=root.EastTennesseeRounds.consumeAction(state,healer.actorId,"Field Medicine");if(!spent.ok)return spent;}
       state.fieldMedicineUsage[key]={sceneId:scene.id,healerActorId:healer.actorId,patientActorId:target.actorId};target.health.state="wounded";target.health.stable=true;target.health.dyingFailures=0;actionUsed(state,healer.actorId,type,target.actorId);addLog(state,`${actorName(healer)} uses Field Medicine on ${actorName(target)}; the patient is stable and Wounded.`);return finish();
     }
     if(!gm)return fail("GM authorization required");
@@ -167,7 +170,7 @@
     if(type==="gmClearAllConditions"){if(!target)return fail("unknown actor");target.conditions=defaultConditions();addLog(state,`${actorName(target)} clears all conditions${action.reason?`: ${text(action.reason,160)}`:""}.`);return finish();}
     if(type==="applySeriousHit"||type==="applyCriticalHit"){if(!target)return fail("unknown patient");transition(target,type==="applyCriticalHit"?2:1);target.injuries.push(injury(state,type==="applyCriticalHit"?"severe":"ordinary",action));addLog(state,`${actorName(target)} suffers a ${type==="applyCriticalHit"?"critical":"serious"} hit and is now ${target.health.state}.`);return finish();}
     if(type==="setImmediateDanger"){sceneOf(state).immediateDanger=!!action.active;addLog(state,`Immediate danger is now ${action.active?"active":"ended"}.`);return finish();}
-    if(type==="beginNewScene"){const old=sceneOf(state),id=text(action.sceneId,100);if(!id||id===old.id)return fail("a distinct new scene id is required");state.scene={id,immediateDanger:false,circumstanceId:1,actions:[]};state.fieldMedicineUsage={};state.pendingPush=null;addLog(state,`A new scene begins: ${id}.`);return finish();}
+    if(type==="beginNewScene"){if(state.structuredPlay?.active)return fail("stop structured play before beginning a new scene");const old=sceneOf(state),id=text(action.sceneId,100);if(!id||id===old.id)return fail("a distinct new scene id is required");state.scene={id,immediateDanger:false,circumstanceId:1,actions:[]};state.fieldMedicineUsage={};state.pendingPush=null;addLog(state,`A new scene begins: ${id}.`);return finish();}
     if(type==="advanceTreatmentCircumstance"){sceneOf(state).circumstanceId++;addLog(state,"Treatment circumstances meaningfully improve.");return finish();}
     if(type==="clearTreatmentBlock"){if(!target)return fail("unknown patient");delete target.treatmentBlock;return finish();}
     if(type==="markInjuryHealed"||type==="deleteInjury"||type==="editInjury"){if(!target)return fail("unknown patient");const index=target.injuries.findIndex(item=>item.id===action.injuryId);if(index<0)return fail("unknown injury");if(type==="deleteInjury")target.injuries.splice(index,1);else if(type==="markInjuryHealed"){target.injuries[index].healed=true;addLog(state,`${actorName(target)}'s ${target.injuries[index].description} is marked healed.`);}else for(const key of ["description","relevantBane","recoveryRequirement","recoveryNotes"]){if(action[key]!==undefined)target.injuries[index][key]=text(action[key],key.startsWith("recovery")?1000:240);}return finish();}

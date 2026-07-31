@@ -12,6 +12,7 @@ const {
 
 require("../content/catalog.js");
 require("../content/east-tennessee-health.js");
+require("../content/east-tennessee-rounds.js");
 require("../content/campaigns.js");
 
 const fixture = name => JSON.parse(readFileSync(join(__dirname, "fixtures", name), "utf8"));
@@ -50,7 +51,7 @@ test("campaign registry exposes isolated Palimpsest and East Tennessee packages"
   assert.equal(palimpsest.content, globalThis.VTTContent);
   assert.equal(eastTennessee.title, "East Tennessee 1861");
   assert.equal(eastTennessee.packageVersion, 1);
-  assert.equal(eastTennessee.stateSchemaVersion, 3);
+  assert.equal(eastTennessee.stateSchemaVersion, 4);
 
   const palimpsestSession = palimpsest.createSession();
   const eastTennesseeSession = eastTennessee.createSession();
