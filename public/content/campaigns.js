@@ -9,6 +9,8 @@
   const etRounds = root.EastTennesseeRounds;
   const etCombat = root.EastTennesseeCombat;
   const etEquipment = root.EastTennesseeEquipment;
+  const etCharacters = root.EastTennesseeCharacters;
+  const etTalents = root.EastTennesseeTalents;
   const eastTennesseeConditions=()=>Object.fromEntries(["exhausted","shaken","frightened","distracted"].map(id=>[id,{active:false,source:null,notes:null}]));
 
   const eastTennesseeLevel = Object.freeze({
@@ -106,7 +108,7 @@
     id: EAST_TENNESSEE_ID,
     title: "East Tennessee 1861",
     packageVersion: 1,
-    stateSchemaVersion: 6,
+    stateSchemaVersion: 7,
     assetNamespace: "campaigns/east-tennessee-1861",
     initialLevel: eastTennesseeLevel,
     initialStart: eastTennesseeStart,
@@ -197,8 +199,16 @@
         nextTimerId: Number(source.nextTimerId) || 1,
         recipientGrants: safeObject(source.recipientGrants),
         adventure: safeObject(source.adventure),
+        characterRoster: safeObject(source.characterRoster),
+        activeRosterLimit: Number(source.activeRosterLimit) || 4,
+        characterClaimSequence: Number(source.characterClaimSequence) || 1,
+        characterContentVersion: Number(source.characterContentVersion) || 0,
+        talentUsage: safeObject(source.talentUsage),
+        nextTalentSequence: Number(source.nextTalentSequence) || 1,
       };
-      const healthNormalized=etHealth ? etHealth.normalizeState(normalized,{cancelPending:true}) : normalized;
+      const characterNormalized=etCharacters ? etCharacters.normalizeState(normalized) : normalized;
+      const talentNormalized=etTalents ? etTalents.normalizeState(characterNormalized,{cancelPending:true}) : characterNormalized;
+      const healthNormalized=etHealth ? etHealth.normalizeState(talentNormalized,{cancelPending:true}) : talentNormalized;
       const roundsNormalized=etRounds ? etRounds.normalizeState(healthNormalized) : healthNormalized;
       const equipmentNormalized=etEquipment ? etEquipment.normalizeState(roundsNormalized) : roundsNormalized;
       return etCombat ? etCombat.normalizeState(equipmentNormalized,{cancelPending:true}) : equipmentNormalized;

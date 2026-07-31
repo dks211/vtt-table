@@ -13,6 +13,10 @@ const {
 require("../content/catalog.js");
 require("../content/east-tennessee-health.js");
 require("../content/east-tennessee-rounds.js");
+require("../content/east-tennessee-characters.js");
+require("../content/east-tennessee-talents.js");
+require("../content/east-tennessee-equipment.js");
+require("../content/east-tennessee-combat.js");
 require("../content/campaigns.js");
 
 const fixture = name => JSON.parse(readFileSync(join(__dirname, "fixtures", name), "utf8"));
@@ -51,7 +55,7 @@ test("campaign registry exposes isolated Palimpsest and East Tennessee packages"
   assert.equal(palimpsest.content, globalThis.VTTContent);
   assert.equal(eastTennessee.title, "East Tennessee 1861");
   assert.equal(eastTennessee.packageVersion, 1);
-  assert.equal(eastTennessee.stateSchemaVersion, 6);
+  assert.equal(eastTennessee.stateSchemaVersion, 7);
 
   const palimpsestSession = palimpsest.createSession();
   const eastTennesseeSession = eastTennessee.createSession();
@@ -61,7 +65,8 @@ test("campaign registry exposes isolated Palimpsest and East Tennessee packages"
   assert.equal(eastTennesseeSession.level.name, "East Tennessee 1861 · Placeholder Scene");
   assert.ok(eastTennesseeSession.level.rooms[0].id.startsWith("east-tennessee-1861-"));
   assert.equal(eastTennesseeSession.campaignState.namespace, "east-tennessee-1861");
-  assert.equal(eastTennesseeSession.campaignState.actors["east-tennessee-1861:actor:placeholder-operative"].health.state, "unhurt");
+  assert.equal(Object.keys(eastTennesseeSession.campaignState.actors).length, 5);
+  assert.equal(eastTennesseeSession.campaignState.actors["east-tennessee-1861:actor:clara-webb"].health.state, "unhurt");
   assert.equal(eastTennesseeSession.campaignState.actors["east-tennessee-1861:actor:jacob-sloane"].talents.fieldMedicine, true);
   assert.equal(eastTennesseeSession.campaignState.scene.immediateDanger, false);
   assert.equal(JSON.stringify(palimpsestSession).includes("east-tennessee"), false);
@@ -76,7 +81,8 @@ test("campaign registry exposes isolated Palimpsest and East Tennessee packages"
     legacyPalimpsestState: { leaked: true },
   });
   assert.equal(normalized.namespace,"east-tennessee-1861");
-  assert.deepEqual(normalized.actors,{});
+  assert.equal(Object.keys(normalized.actors).length,5);
+  assert.equal("leaked" in normalized.actors,false);
   assert.equal("legacyPalimpsestState" in normalized,false);
 });
 

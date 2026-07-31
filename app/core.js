@@ -706,10 +706,13 @@
     });
     if (objectOrNull(actor.talents)) out.talents = clone(actor.talents);
     if (objectOrNull(actor.skills)) out.skills = clone(actor.skills);
+    if (Array.isArray(actor.ordinaryEquipment)) out.ordinaryEquipment = clone(actor.ordinaryEquipment);
     if (objectOrNull(actor.conditions)) out.conditions = Object.fromEntries(Object.entries(actor.conditions).map(([id, item]) => [id, {
       active: !!(item && item.active), source: item && item.source != null ? String(item.source) : null,
     }]));
     if (ownsActor(recipient, actor)) {
+      if (Array.isArray(actor.backgroundBoonExamples)) out.backgroundBoonExamples = clone(actor.backgroundBoonExamples);
+      if (actor.talentId) out.talentId = String(actor.talentId);
       if (objectOrNull(actor.medicalCapability)) out.medicalCapability = clone(actor.medicalCapability);
       if (actor.resolveValue != null) out.resolveValue = actor.resolveValue;
       if (objectOrNull(actor.treatmentBlock)) out.treatmentBlock = clone(actor.treatmentBlock);
@@ -724,7 +727,11 @@
     const projected = { namespace: recipient.campaignId, actors: {}, handouts: {}, timers: {}, logs: [] };
     for (const [id, actor] of Object.entries(objectOrNull(source.actors) || {}).slice(0, 500)) {
       const safe = projectActor(actor, recipient);
-      if (safe) projected.actors[id] = safe;
+      if (safe) {
+        const characterId=actor.definitionId,slot=objectOrNull(source.characterRoster)?.[characterId];
+        if(slot&&!['active','claimed'].includes(slot.status)){for(const key of ['health','weaponIds','aim','healthClassification','reserveAmmunition','weaponInstanceIds','combatContext','injuries','talents','skills','conditions','ordinaryEquipment'])delete safe[key];}
+        projected.actors[id] = safe;
+      }
     }
     for (const [id, handout] of Object.entries(objectOrNull(source.handouts) || {}).slice(0, 500)) {
       if (!objectOrNull(handout) || handout.withdrawn || !visibilityAllowed(handout.visibility, recipient, handout)) continue;
@@ -747,6 +754,13 @@
       circumstanceId: Number(source.scene.circumstanceId) || 1,
     };
     if (objectOrNull(source.fieldMedicineUsage)) projected.fieldMedicineUsage = clone(source.fieldMedicineUsage);
+    if (objectOrNull(source.characterRoster)) projected.characterRoster = clone(source.characterRoster);
+    if (source.characterClaimSequence != null) projected.characterClaimSequence = integer(source.characterClaimSequence,1);
+    if (objectOrNull(source.talentUsage)) {
+      projected.talentUsage={scene:clone(source.talentUsage.scene||{}),round:clone(source.talentUsage.round||{}),pending:null};
+      const tp=objectOrNull(source.talentUsage.pending);
+      if(tp&&(Array.isArray(tp.involvedOwnerKeys)&&tp.involvedOwnerKeys.includes(recipient.playerKey)||tp.tomOwnerKey===recipient.playerKey||tp.targetOwnerKey===recipient.playerKey))projected.talentUsage.pending=withoutVisibilityControls(tp);
+    }
     projected.rolls = (Array.isArray(source.rolls) ? source.rolls : []).slice(-150).filter(roll => {
       if (!objectOrNull(roll)) return false;
       if (roll.visibility === "public") return true;

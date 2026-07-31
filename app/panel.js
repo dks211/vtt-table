@@ -50,6 +50,11 @@ function etStructuredHTML(gm=false,mineActor=null){
   if(gm)html+=`<div class="row" style="flex-wrap:wrap">${Object.entries(EastTennesseeRounds.DEFINITIONS).filter(([id])=>id!=="lick-creek-fire-stage-2"&&id!=="reinforcements-arrive").map(([id,d])=>`<button class="rbtn quiet" data-et-timer-preset="${id}">${esc(d.label)}</button>`).join("")}</div><div class="row"><input id="et-timer-label" placeholder="custom timer" style="flex:1"><input id="et-timer-rounds" type="number" min="0" max="999" value="4" style="width:55px"><select id="et-timer-vis"><option value="public">public</option><option value="public-label-private-value">hidden value</option><option value="gm">GM only</option></select><button class="rbtn quiet" id="et-timer-create">CREATE</button></div><div class="hint">Flags: ${Object.entries(state.adventureFlags||{}).map(([k,v])=>`${esc(k)}=${v?"yes":"no"}`).join(" · ")}</div>`;
   return html+`</div>`;
 }
+function etCharactersHTML(gm=false){if(App.session.campaignId!=="east-tennessee-1861"||!globalThis.EastTennesseeCharacters)return"";const s=App.session.campaignState;return`<div class="sect"><h3>East Tennessee Characters</h3>${Object.values(EastTennesseeCharacters.DEFINITIONS).map(d=>{const a=s.actors[d.actorId],slot=s.characterRoster?.[d.id]||{status:"available"},owned=!!(gm||a?.ownerKey&&a.ownerKey===App.playerKey);return`<div class="tok"><span class="nm">${esc(d.name)} · ${d.age}</span><span>${esc(d.role)} · ${esc(slot.status)}</span><div class="hint">${esc(d.bio)}<br><b>Temperament:</b> ${esc(d.temperament)}<br><b>Strengths:</b> ${esc(d.strengths)}<br><b>Play:</b> ${esc(d.playStyle)}</div>${owned?`<div class="hint"><b>Private history:</b> ${esc(d.owner.history)}<br><b>Will not risk:</b> ${esc(d.owner.risk)}<br><b>Complication:</b> ${esc(d.owner.complication)}<br><b>Relationships:</b> ${esc(d.owner.relationships)}<br><b>Why Parsons selected them:</b> ${esc(d.owner.parsons)}</div>`:""}${gm?`<div class="hint"><b>GM:</b> ${d.gm.map(esc).join(" ")}</div><select data-et-roster="${d.id}">${["available","claimed","active","reserve"].map(x=>`<option ${slot.status===x?"selected":""}>${x}</option>`)}</select>`:slot.status==="available"?`<button class="rbtn" data-et-claim="${d.id}">SELECT</button>`:owned?`<button class="rbtn quiet" data-et-release="${d.id}">RELEASE</button>`:""}</div>`;}).join("")}</div>`;}
+function wireEtCharacters(p,gm=false){const s=App.session.campaignState,send=a=>{if(!gm)return clientSend({type:"eastTennesseeAction",action:a});const result=EastTennesseeCharacters.performAction(s,{role:"gm",campaignId:App.session.campaignId},a);if(!result.ok)alert(result.reason);else{markDirty();netMark();renderPanel();}};p.querySelectorAll("[data-et-claim]").forEach(el=>el.onclick=()=>send({type:"claimCharacter",characterId:el.dataset.etClaim,expectedSequence:s.characterClaimSequence}));p.querySelectorAll("[data-et-release]").forEach(el=>el.onclick=()=>send({type:"releaseCharacter",characterId:el.dataset.etRelease}));p.querySelectorAll("[data-et-roster]").forEach(el=>el.onchange=()=>send({type:"gmSetCharacterStatus",characterId:el.dataset.etRoster,status:el.value}));}
+function etTalentControlsHTML(actor,gm=false){if(!globalThis.EastTennesseeTalents||App.session.campaignId!=="east-tennessee-1861")return"";const s=App.session.campaignState,p=s.talentUsage?.pending,attack=s.pendingAttack,firearm=attack&&EastTennesseeCombat.WEAPONS[attack.weaponId]?.tags?.includes("firearm"),eliasId="east-tennessee-1861:actor:elias-rourke",claraId="east-tennessee-1861:actor:clara-webb",involved=actor&&(actor.actorId===eliasId||actor.actorId===attack?.targetActorId);if(gm)return`<div class="sect"><h3>Talent Adjudication</h3>${firearm?`<div class="hint">Get Down may be applied after verbal confirmation.</div><div class="row"><select id="et-gd-cover"><option value="partial">partial cover</option><option value="strong">strong cover</option></select><input id="et-gd-position" placeholder="approved covered position" style="flex:1"></div><label class="check"><input id="et-gd-los" type="checkbox" checked> line of sight remains</label><button class="rbtn" id="et-gd-apply">APPLY GET DOWN</button>${p?.type==="get-down"?`<button class="rbtn quiet" id="et-gd-clear">CLEAR FLAG</button>`:""}`:""}${p?.type==="sharp-eye"?`<div class="hint">Unresolved Clara Awareness check: ${esc(p.purpose)}</div><button class="rbtn" id="et-se-apply">APPLY SHARP EYE</button><button class="rbtn quiet" id="et-se-clear">USE NORMAL ROLL</button>`:`<button class="rbtn quiet" id="et-se-create">OPEN CLARA AWARENESS CHECK</button>`}</div>`;return`<div class="sect"><h3>Talent</h3>${firearm&&involved?`<button class="rbtn" id="et-gd-flag">USE GET DOWN</button>`:""}${actor?.actorId===claraId&&p?.type==="sharp-eye"?`<button class="rbtn" id="et-se-flag">SHARP EYE</button>`:""}</div>`;}
+function etTalentHostAction(action){const result=EastTennesseeTalents.performAction(App.session.campaignState,{role:"gm",campaignId:App.session.campaignId},action);if(!result.ok)alert(result.reason);else{markDirty();netMark();renderPanel();}}
+function wireEtTalentControls(p,actor,gm=false){const s=App.session.campaignState,pending=s.talentUsage?.pending;if(gm){const apply=$("et-gd-apply");if(apply)apply.onclick=()=>etTalentHostAction({type:"gmApplyGetDown",adjacent:true,coverExists:true,cover:$("et-gd-cover").value,positionDescription:$("et-gd-position").value||"GM-approved nearby cover",lineOfSightRemains:$("et-gd-los").checked});const clear=$("et-gd-clear");if(clear)clear.onclick=()=>etTalentHostAction({type:"gmClearGetDownFlag"});const create=$("et-se-create");if(create)create.onclick=()=>{const purpose=prompt("Awareness check purpose","");if(purpose)etTalentHostAction({type:"gmProposeAwarenessCheck",skillId:"awareness",purpose,usesAction:true,visibility:"owner"});};const sharp=$("et-se-apply");if(sharp)sharp.onclick=()=>etTalentHostAction({type:"gmApplySharpEye",sequence:pending.sequence,awarenessAppropriate:true,physicallyObservable:true,possibleKnowledge:true});const reject=$("et-se-clear");if(reject)reject.onclick=()=>etTalentHostAction({type:"gmClearSharpEye",sequence:pending.sequence});return;}const send=action=>clientSend({type:"eastTennesseeAction",action}),gd=$("et-gd-flag"),se=$("et-se-flag");if(gd)gd.onclick=()=>send({type:"flagGetDown"});if(se)se.onclick=()=>send({type:"flagSharpEye",sequence:pending.sequence,checkId:pending.checkId});}
 function etHealthHTML(actor,gm=false){
   if(!actor||!actor.health)return"";const h=actor.health,inj=actor.injuries||[];
   return `<div class="sect"><h3>East Tennessee Health · Prototype</h3>
@@ -593,6 +598,8 @@ function renderPanel(){
   const etSelected=selT&&etActor(selT.actorId);
   if(etSelected)html+=etHealthHTML(etSelected,true)+etSkillHTML(etSelected,true)+`<label class="check"><input id="eq-waive-action" type="checkbox"> Equipment override: waive structured action cost</label>`+etEquipmentHTML(etSelected,true)+etCombatHTML(etSelected,true);
   if(App.session.campaignId==="east-tennessee-1861"){
+    html+=etCharactersHTML(true);
+    html+=etTalentControlsHTML(etSelected,true);
     const danger=!!App.session.campaignState.scene?.immediateDanger;
     html+=`<div class="sect"><h3>East Tennessee Scene · Prototype</h3><button class="rbtn" id="et-danger">${danger?"END IMMEDIATE DANGER":"BEGIN IMMEDIATE DANGER"}</button><button class="rbtn quiet" id="et-new-scene" style="margin-top:6px">BEGIN GENUINELY NEW SCENE</button></div>`;
     html+=etStructuredHTML(true);
@@ -651,6 +658,8 @@ function renderPanel(){
   const addToggle=$("toggle-add-token");
   if(addToggle)addToggle.onclick=()=>{tokenAddOpen=!tokenAddOpen;renderPanel();};
   wireEtGM(p,etSelected);
+  wireEtCharacters(p,true);
+  wireEtTalentControls(p,etSelected,true);
   wireEtSkills(p,etSelected,true);
   wireEtEquipment(p,etSelected,true);
   wireEtCombat(p,etSelected,true);
@@ -1043,7 +1052,6 @@ function renderEditorPanel(){
   if(rosEntry) html+=sheetFormHTML(rosEntry);
   html+=`<div class="sect"><h3>How this works</h3><div class="hint">The editor is a top-down view of the same level players see in isometric. Switch back to the ${esc(App.document.level.name)} tab to play it; reveal rooms from there as usual. Levels travel with SAVE/LOAD, or share them with EXPORT.</div></div>`;
   p.innerHTML=html;
-
   let snapped=false;
   const snap1=()=>{if(!snapped){edSnapshot();snapped=true;}};   // one undo step per slider/picker interaction
   $("ed-undo").onclick=()=>edUndoPop();
@@ -1213,8 +1221,9 @@ function renderClientPanel(){
     </div>`;}).join("")+`</div></div>`;
   const mine=S().tokens.find(t=>t.id===NET.myToken);
   const mineActor=mine&&etActor(mine.actorId);
+  if(App.session.campaignId==="east-tennessee-1861"&&!mineActor)html+=etCharactersHTML(false);
   if(mineActor){
-    html+=etHealthHTML(mineActor,false)+etSkillHTML(mineActor,false)+etEquipmentHTML(mineActor,false)+etCombatHTML(mineActor,false);
+    html+=etCharactersHTML(false)+etTalentControlsHTML(mineActor,false)+etHealthHTML(mineActor,false)+etSkillHTML(mineActor,false)+etEquipmentHTML(mineActor,false)+etCombatHTML(mineActor,false);
     const choices=Object.values(App.session.campaignState.actors||{}).filter(a=>a.health&&!a.health.dead).map(a=>`<option value="${esc(a.actorId)}">${esc(a.identity?.name||a.actorId)}</option>`).join("");
     const medical=mineActor.medicalCapability||{},medicineValue=mineActor.skills?.medicine||0,danger=!!App.session.campaignState.scene?.immediateDanger,sp=App.session.campaignState.structuredPlay||{};
     const mineEntry=(sp.initiativeEntries||[]).find(e=>(e.participantIds||[]).some(id=>(sp.participants||[]).find(p=>p.id===id)?.actorId===mineActor.actorId)),structuredMedicalAllowed=!sp.active||mineEntry&&sp.currentEntryId===mineEntry.entryId&&mineEntry.actionState==="unspent";
@@ -1244,6 +1253,8 @@ function renderClientPanel(){
   html+=`<div class="sect"><h3>Table</h3>
     <div class="hint">Drag your token to move. Drag empty space to pan, pinch or scroll to zoom, ⤢ FIT to re-center. Double-tap anywhere to ping the map for the table. Rooms appear as the party discovers them.</div></div>`;
   p.innerHTML=html;
+  wireEtCharacters(p,false);
+  wireEtTalentControls(p,mineActor,false);
   if(mineActor){
     wireEtSkills(p,mineActor,false);
     wireEtEquipment(p,mineActor,false);
