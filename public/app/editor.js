@@ -853,8 +853,10 @@ function deserialize(d){
     if(session.campaignPackageVersion>campaign.packageVersion)throw new Error(`Campaign package "${campaign.id}" requires a newer application.`);
     if(session.campaignStateSchemaVersion>campaign.stateSchemaVersion)throw new Error(`Campaign state for "${campaign.id}" requires a newer application.`);
     setCampaign(session.campaignId,session.campaignState);
-    App.session.campaignPackageVersion=session.campaignPackageVersion;
-    App.session.campaignStateSchemaVersion=session.campaignStateSchemaVersion;
+    // normalizeCampaignState performs additive package migrations; subsequent saves
+    // advertise the schema that now owns the normalized canonical state.
+    App.session.campaignPackageVersion=campaign.packageVersion;
+    App.session.campaignStateSchemaVersion=campaign.stateSchemaVersion;
     loadLevel(session.level);
     App.session.verso.revealed=session.verso.revealed;
     App.session.verso.view=session.verso.view;

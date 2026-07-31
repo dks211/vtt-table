@@ -688,6 +688,19 @@
     if (objectOrNull(actor.privateNotes) && visibilityAllowed(actor.privateNotes.visibility, recipient, {
       ...actor.privateNotes, actorId: actor.actorId, ownerKey: actor.ownerKey,
     })) out.privateNotes = withoutVisibilityControls(actor.privateNotes);
+    if (objectOrNull(actor.health)) out.health = clone(actor.health);
+    if (Array.isArray(actor.injuries)) out.injuries = actor.injuries.map(item => {
+      const safe = clone(item);
+      delete safe.recoveryRequirement;
+      delete safe.recoveryNotes;
+      return safe;
+    });
+    if (objectOrNull(actor.talents)) out.talents = clone(actor.talents);
+    if (ownsActor(recipient, actor)) {
+      if (objectOrNull(actor.medicalCapability)) out.medicalCapability = clone(actor.medicalCapability);
+      if (actor.resolveValue != null) out.resolveValue = actor.resolveValue;
+      if (objectOrNull(actor.treatmentBlock)) out.treatmentBlock = clone(actor.treatmentBlock);
+    }
     return out;
   }
 
@@ -716,6 +729,11 @@
     projected.logs = (Array.isArray(source.logs) ? source.logs : []).slice(0, 500)
       .filter(entry => objectOrNull(entry) && visibilityAllowed(entry.visibility, recipient, entry))
       .map(withoutVisibilityControls);
+    if (objectOrNull(source.scene)) projected.scene = {
+      id: String(source.scene.id || ""), immediateDanger: !!source.scene.immediateDanger,
+      circumstanceId: Number(source.scene.circumstanceId) || 1,
+    };
+    if (objectOrNull(source.fieldMedicineUsage)) projected.fieldMedicineUsage = clone(source.fieldMedicineUsage);
     return projected;
   }
 

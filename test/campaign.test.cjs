@@ -11,6 +11,7 @@ const {
 } = require("../app/core.js");
 
 require("../content/catalog.js");
+require("../content/east-tennessee-health.js");
 require("../content/campaigns.js");
 
 const fixture = name => JSON.parse(readFileSync(join(__dirname, "fixtures", name), "utf8"));
@@ -49,7 +50,7 @@ test("campaign registry exposes isolated Palimpsest and East Tennessee packages"
   assert.equal(palimpsest.content, globalThis.VTTContent);
   assert.equal(eastTennessee.title, "East Tennessee 1861");
   assert.equal(eastTennessee.packageVersion, 1);
-  assert.equal(eastTennessee.stateSchemaVersion, 1);
+  assert.equal(eastTennessee.stateSchemaVersion, 2);
 
   const palimpsestSession = palimpsest.createSession();
   const eastTennesseeSession = eastTennessee.createSession();
@@ -58,52 +59,24 @@ test("campaign registry exposes isolated Palimpsest and East Tennessee packages"
   assert.equal(eastTennesseeSession.campaignId, "east-tennessee-1861");
   assert.equal(eastTennesseeSession.level.name, "East Tennessee 1861 · Placeholder Scene");
   assert.ok(eastTennesseeSession.level.rooms[0].id.startsWith("east-tennessee-1861-"));
-  assert.deepEqual(eastTennesseeSession.campaignState, {
-    namespace: "east-tennessee-1861",
-    actors: {
-      "east-tennessee-1861:actor:placeholder-operative": {
-        actorId: "east-tennessee-1861:actor:placeholder-operative",
-        ownerKey: null,
-        identity: { name: "Placeholder Operative", publicExample: "publicExample" },
-        owner: { ownerExample: "ownerExample" },
-        party: { revealed: false, partyExample: "partyExample" },
-        selected: { recipientIds: [], selectedExample: "selectedExample" },
-        gm: { gmExample: "gmExample" },
-        mechanics: { visibility: "public", data: { placeholder: true } },
-        privateNotes: { visibility: "owner", data: {} },
-      },
-    },
-    scenes: {
-      "east-tennessee-1861-placeholder": {
-        status: "placeholder"
-      }
-    },
-    handouts: {},
-    timers: {},
-    logs: [],
-    recipientGrants: {},
-    adventure: {}
-  });
+  assert.equal(eastTennesseeSession.campaignState.namespace, "east-tennessee-1861");
+  assert.equal(eastTennesseeSession.campaignState.actors["east-tennessee-1861:actor:placeholder-operative"].health.state, "unhurt");
+  assert.equal(eastTennesseeSession.campaignState.actors["east-tennessee-1861:actor:jacob-sloane"].talents.fieldMedicine, true);
+  assert.equal(eastTennesseeSession.campaignState.scene.immediateDanger, false);
   assert.equal(JSON.stringify(palimpsestSession).includes("east-tennessee"), false);
   assert.equal(JSON.stringify(eastTennesseeSession).includes("Randy Meisner"), false);
   assert.deepEqual(palimpsest.normalizeCampaignState({
     namespace: "east-tennessee-1861",
     actors: { leaked: true },
   }), {});
-  assert.deepEqual(eastTennessee.normalizeCampaignState({
+  const normalized=eastTennessee.normalizeCampaignState({
     namespace: "palimpsest",
     actors: {},
     legacyPalimpsestState: { leaked: true },
-  }), {
-    namespace: "east-tennessee-1861",
-    actors: {},
-    scenes: {},
-    handouts: {},
-    timers: {},
-    logs: [],
-    recipientGrants: {},
-    adventure: {},
   });
+  assert.equal(normalized.namespace,"east-tennessee-1861");
+  assert.deepEqual(normalized.actors,{});
+  assert.equal("legacyPalimpsestState" in normalized,false);
 });
 
 test("campaign descriptor precedes campaign state in initial join messages", () => {

@@ -1,4 +1,24 @@
 "use strict";
+function etActor(actorId){return App.session.campaignId==="east-tennessee-1861"&&App.session.campaignState.actors&&App.session.campaignState.actors[actorId];}
+function etHealthHTML(actor,gm=false){
+  if(!actor||!actor.health)return"";const h=actor.health,inj=actor.injuries||[];
+  return `<div class="sect"><h3>East Tennessee Health · Prototype</h3>
+    <div class="hint"><b>${esc(actor.identity?.name||actor.actorId)}</b> · ${esc(h.state.toUpperCase())} · ${h.dead?"DEAD":h.state==="down"?(h.stable?"STABLE":`DYING ${h.dyingFailures}/2`):"ACTIVE"}</div>
+    ${inj.length?inj.map(i=>`<div class="hint" style="margin-top:6px"><b>${esc(i.description)}</b> · ${esc(i.severity)} · ${i.healed?"healed":esc(i.treatmentState)}<br>${esc(i.relevantBane)}${gm&&i.recoveryRequirement?`<br>GM recovery: ${esc(i.recoveryRequirement)} ${esc(i.recoveryNotes||"")}`:""}${gm?` <button class="rbtn quiet" data-et-edit="${i.id}">EDIT</button>${!i.healed?` <button class="rbtn quiet" data-et-heal="${i.id}">HEAL</button>`:""}`:""}</div>`).join(""):`<div class="hint">No injuries.</div>`}
+    ${actor.treatmentBlock?`<div class="hint">Treatment blocked: ${esc(actor.treatmentBlock.transition)} (${esc(actor.treatmentBlock.reason)})</div>`:""}
+    ${gm?`<div class="row"><button class="rbtn quiet" data-et-gm="applySeriousHit">SERIOUS HIT</button><button class="rbtn quiet" data-et-gm="applyCriticalHit">CRITICAL</button><button class="rbtn quiet" data-et-gm="gmSetStabilization">STABILIZE</button></div>
+      <div class="row"><select id="et-gm-health">${["unhurt","wounded","down"].map(s=>`<option ${h.state===s?"selected":""}>${s}</option>`)}</select><button class="rbtn quiet" id="et-gm-set-health">SET HEALTH</button><button class="rbtn quiet" id="et-gm-death">${h.dead?"REVIVE OVERRIDE":"MARK DEAD"}</button><button class="rbtn quiet" id="et-clear-block">CLEAR BLOCK</button></div>`:""}
+    ${gm?`<div class="row"><input id="et-med-value" type="number" min="0" max="20" value="${actor.medicalCapability?.medicineValue||0}" style="width:54px"><label class="check"><input id="et-plausible" type="checkbox" ${actor.medicalCapability?.hasPlausibleMaterials?"checked":""}> plausible materials</label><label class="check"><input id="et-proper" type="checkbox" ${actor.medicalCapability?.hasProperSupplies?"checked":""}> proper supplies</label><button class="rbtn quiet" id="et-save-med">SAVE</button></div>`:""}
+  </div>`;
+}
+function etHostAction(action){const result=EastTennesseeHealth.performAction(App.session.campaignState,{role:"gm",campaignId:App.session.campaignId},action,{tokens:[...App.session.map.tokens,...App.session.verso.tokens]});if(!result.ok)alert(result.reason);else{markDirty();netMark();renderPanel();}}
+function wireEtGM(p,actor){if(!actor)return;p.querySelectorAll("[data-et-gm]").forEach(el=>el.onclick=()=>{const type=el.dataset.etGm;const action={type,targetActorId:actor.actorId};if(type.startsWith("apply")){action.description=prompt("Injury description",type==="applyCriticalHit"?"Severe injury":"Injury")||"Injury";action.relevantBane=prompt("When does this impose one bane?","One bane when relevant.")||"One bane when relevant.";}if(type==="gmSetStabilization")action.stable=true;etHostAction(action);});
+  p.querySelectorAll("[data-et-heal]").forEach(el=>el.onclick=()=>etHostAction({type:"markInjuryHealed",targetActorId:actor.actorId,injuryId:el.dataset.etHeal}));
+  p.querySelectorAll("[data-et-edit]").forEach(el=>el.onclick=()=>{const item=actor.injuries.find(i=>i.id===el.dataset.etEdit);const description=prompt("Injury description",item.description);if(description==null)return;const relevantBane=prompt("When does this impose one bane?",item.relevantBane);if(relevantBane==null)return;etHostAction({type:"editInjury",targetActorId:actor.actorId,injuryId:item.id,description,relevantBane});});
+  const set=$("et-gm-set-health");if(set)set.onclick=()=>etHostAction({type:"gmSetHealth",targetActorId:actor.actorId,state:$("et-gm-health").value});
+  const death=$("et-gm-death");if(death)death.onclick=()=>etHostAction({type:"gmReviveOrOverride",targetActorId:actor.actorId,dead:!actor.health.dead,dyingFailures:actor.health.dead?0:2,stable:actor.health.dead});
+  const supplies=$("et-save-med");if(supplies)supplies.onclick=()=>etHostAction({type:"setMedicalCapability",targetActorId:actor.actorId,medicineValue:+$("et-med-value").value,hasPlausibleMaterials:$("et-plausible").checked,hasProperSupplies:$("et-proper").checked});
+  const clear=$("et-clear-block");if(clear)clear.onclick=()=>etHostAction({type:"clearTreatmentBlock",targetActorId:actor.actorId});}
 /* ---------------- right panel ---------------- */
 let addColor=SWATCH[0];
 let dmPanelTab="scene",lastPanelToken=null,lastPanelRoom=null;
@@ -485,6 +505,12 @@ function renderPanel(){
       `</div>`;
   }
   if(selT&&sheetEditorOpenFor===selT.id) html+=sheetFormHTML(selT,true);
+  const etSelected=selT&&etActor(selT.actorId);
+  if(etSelected)html+=etHealthHTML(etSelected,true);
+  if(App.session.campaignId==="east-tennessee-1861"){
+    const danger=!!App.session.campaignState.scene?.immediateDanger;
+    html+=`<div class="sect"><h3>East Tennessee Scene · Prototype</h3><button class="rbtn" id="et-danger">${danger?"END IMMEDIATE DANGER":"BEGIN IMMEDIATE DANGER"}</button><button class="rbtn quiet" id="et-new-scene" style="margin-top:6px">BEGIN GENUINELY NEW SCENE</button></div>`;
+  }
   // add token
   if(tokenAddOpen)html+=`<div class="sect"><h3>Add Token</h3>
     <div class="row"><input type="text" id="at-name" placeholder="name" style="flex:1"></div>
@@ -501,7 +527,7 @@ function renderPanel(){
   const panelGroup=section=>{
     const title=section.querySelector("h3")?.textContent.trim()||"";
     if(title==="Dice"||title.startsWith("Initiative"))return"combat";
-    if(title==="Tokens"||title.startsWith("Roll as ")||title.startsWith("Sheet ·")||title==="Add Token")return"tokens";
+    if(title==="Tokens"||title.startsWith("Roll as ")||title.startsWith("Sheet ·")||title==="Add Token"||title.startsWith("East Tennessee Health"))return"tokens";
     return"scene";
   };
   for(const section of [...p.children].filter(child=>child.classList.contains("sect"))){
@@ -538,6 +564,9 @@ function renderPanel(){
   if(sheetToggle&&selT)sheetToggle.onclick=()=>{sheetEditorOpenFor=sheetEditorOpenFor===selT.id?null:selT.id;renderPanel();};
   const addToggle=$("toggle-add-token");
   if(addToggle)addToggle.onclick=()=>{tokenAddOpen=!tokenAddOpen;renderPanel();};
+  wireEtGM(p,etSelected);
+  const etDanger=$("et-danger");if(etDanger)etDanger.onclick=()=>etHostAction({type:"setImmediateDanger",active:!App.session.campaignState.scene.immediateDanger});
+  const etNewScene=$("et-new-scene");if(etNewScene)etNewScene.onclick=()=>{const id=prompt("New scene instance ID",`scene-${Date.now()}`);if(id)etHostAction({type:"beginNewScene",sceneId:id});};
 
   /* wire panel events */
   if(App.session.scene==="verso"){
@@ -1093,6 +1122,15 @@ function renderClientPanel(){
       <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.1em;color:${mine?"var(--brass)":"var(--vellum-dim)"}">${mine?"YOURS":taken?"TAKEN":"CLAIM"}</span>
     </div>`;}).join("")+`</div></div>`;
   const mine=S().tokens.find(t=>t.id===NET.myToken);
+  const mineActor=mine&&etActor(mine.actorId);
+  if(mineActor){
+    html+=etHealthHTML(mineActor,false);
+    const choices=Object.values(App.session.campaignState.actors||{}).filter(a=>a.health&&!a.health.dead).map(a=>`<option value="${esc(a.actorId)}">${esc(a.identity?.name||a.actorId)}</option>`).join("");
+    const medical=mineActor.medicalCapability||{},danger=!!App.session.campaignState.scene?.immediateDanger;
+    html+=`<div class="sect"><h3>East Tennessee Treatment · Prototype</h3><select id="et-patient" style="width:100%">${choices}</select>
+      <div class="row">${mineActor.health.state==="down"&&!mineActor.health.stable&&!mineActor.health.dead?`<button class="rbtn quiet" id="et-resolve">DOWN RESOLVE</button>`:""}${medical.medicineValue>0&&medical.hasPlausibleMaterials?`<button class="rbtn quiet" data-et-player="attemptFirstAid">FIRST AID</button>`:""}</div>
+      <div class="row">${medical.medicineValue>0&&medical.hasProperSupplies&&!danger?`<button class="rbtn quiet" data-et-player="attemptExtendedMedicine">EXTENDED MEDICINE</button>`:""}${mineActor.talents?.fieldMedicine&&medical.hasProperSupplies?`<button class="rbtn" data-et-player="useFieldMedicine">FIELD MEDICINE</button>`:""}</div></div>`;
+  }
   if(mine){
     html+=`<div class="sect"><h3>Your Rolls</h3>`+
       ((rollsFloatOpen&&mine.sheet)?`<div class="hint">Popped out — floating over the map.</div>`
@@ -1114,6 +1152,11 @@ function renderClientPanel(){
   html+=`<div class="sect"><h3>Table</h3>
     <div class="hint">Drag your token to move. Drag empty space to pan, pinch or scroll to zoom, ⤢ FIT to re-center. Double-tap anywhere to ping the map for the table. Rooms appear as the party discovers them.</div></div>`;
   p.innerHTML=html;
+  if(mineActor){
+    const send=action=>clientSend({type:"eastTennesseeAction",action});
+    const resolve=$("et-resolve");if(resolve)resolve.onclick=()=>send({type:"downResolve",targetActorId:mineActor.actorId});
+    p.querySelectorAll("[data-et-player]").forEach(el=>el.onclick=()=>send({type:el.dataset.etPlayer,healerActorId:mineActor.actorId,targetActorId:$("et-patient").value}));
+  }
   p.querySelectorAll("[data-claim]").forEach(el=>{
     el.onclick=()=>{
       const id=+el.dataset.claim;

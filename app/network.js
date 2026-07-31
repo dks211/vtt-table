@@ -243,6 +243,10 @@ function hostHandle(c,m){
       markDirty();netMark();renderPanel();
     }
   }
+  if(m.type==="eastTennesseeAction"&&App.session.campaignId==="east-tennessee-1861"&&globalThis.EastTennesseeHealth){
+    const result=EastTennesseeHealth.performAction(App.session.campaignState,recipientContextFor(c),m.action,{tokens:[...App.session.map.tokens,...App.session.verso.tokens]});
+    if(result.ok){markDirty();netMark();renderPanel();}
+  }
   if(m.type==="ping"){
     const wx=+m.x, wy=+m.y;
     if(!isFinite(wx)||!isFinite(wy)) return;

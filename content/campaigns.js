@@ -5,6 +5,7 @@
   const EAST_TENNESSEE_ID = "east-tennessee-1861";
   const content = root.VTTContent;
   const clone = value => JSON.parse(JSON.stringify(value));
+  const etHealth = root.EastTennesseeHealth;
 
   const eastTennesseeLevel = Object.freeze({
     schemaVersion: 3,
@@ -35,6 +36,11 @@
       letter: "ET",
       color: "#8A6E36",
       pc: true,
+    },{
+      id: "east-tennessee-1861-actor-jacob-sloane",
+      actorId: "east-tennessee-1861:actor:jacob-sloane",
+      name: "Jacob Sloane · Mechanical Placeholder",
+      letter: "JS", color: "#546B54", pc: true,
     }],
   });
 
@@ -50,6 +56,10 @@
       y: 2.5,
       size: 1,
       pc: true,
+    },{
+      actorId: "east-tennessee-1861:actor:jacob-sloane",
+      name: "Jacob Sloane · Mechanical Placeholder",
+      letter: "JS", color: "#546B54", x: 4.5, y: 2.5, size: 1, pc: true,
     }],
   });
 
@@ -86,7 +96,7 @@
     id: EAST_TENNESSEE_ID,
     title: "East Tennessee 1861",
     packageVersion: 1,
-    stateSchemaVersion: 1,
+    stateSchemaVersion: 2,
     assetNamespace: "campaigns/east-tennessee-1861",
     initialLevel: eastTennesseeLevel,
     initialStart: eastTennesseeStart,
@@ -103,6 +113,19 @@
           gm: { gmExample: "gmExample" },
           mechanics: { visibility: "public", data: { placeholder: true } },
           privateNotes: { visibility: "owner", data: {} },
+          health: { state: "unhurt", stable: true, dyingFailures: 0, dead: false },
+          injuries: [], resolveValue: 10,
+          medicalCapability: { medicineValue: 8, hasPlausibleMaterials: true, hasProperSupplies: true },
+          talents: { fieldMedicine: false },
+        },
+        "east-tennessee-1861:actor:jacob-sloane": {
+          actorId: "east-tennessee-1861:actor:jacob-sloane", ownerKey: null,
+          identity: { name: "Jacob Sloane · Mechanical Placeholder" },
+          mechanics: { visibility: "public", data: { placeholder: true } },
+          privateNotes: { visibility: "owner", data: {} },
+          health: { state: "unhurt", stable: true, dyingFailures: 0, dead: false }, injuries: [], resolveValue: 12,
+          medicalCapability: { medicineValue: 14, hasPlausibleMaterials: true, hasProperSupplies: true },
+          talents: { fieldMedicine: true },
         },
       },
       scenes: {
@@ -111,6 +134,8 @@
       handouts: {},
       timers: {},
       logs: [],
+      scene: { id: "east-tennessee-1861-placeholder", immediateDanger: false, circumstanceId: 1, actions: [] },
+      fieldMedicineUsage: {}, nextInjuryId: 1, nextLogId: 1,
       recipientGrants: {},
       adventure: {},
     }),
@@ -118,16 +143,21 @@
       const source = state && typeof state === "object" && !Array.isArray(state) ? state : {};
       const safeObject = value => value && typeof value === "object" && !Array.isArray(value)
         ? clone(value) : {};
-      return {
+      const normalized = {
         namespace: EAST_TENNESSEE_ID,
         actors: safeObject(source.actors),
         scenes: safeObject(source.scenes),
         handouts: safeObject(source.handouts),
         timers: safeObject(source.timers),
         logs: Array.isArray(source.logs) ? clone(source.logs) : [],
+        scene: safeObject(source.scene),
+        fieldMedicineUsage: safeObject(source.fieldMedicineUsage),
+        nextInjuryId: Number(source.nextInjuryId) || 1,
+        nextLogId: Number(source.nextLogId) || 1,
         recipientGrants: safeObject(source.recipientGrants),
         adventure: safeObject(source.adventure),
       };
+      return etHealth ? etHealth.normalizeState(normalized) : normalized;
     },
     createSession() {
       return {

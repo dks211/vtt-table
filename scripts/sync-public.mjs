@@ -6,6 +6,7 @@ const files = [
   "index.html",
   "app/core.js",
   "content/catalog.js",
+  "content/east-tennessee-health.js",
   "content/campaigns.js",
   "app/runtime.js",
   "app/state-render.js",
