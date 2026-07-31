@@ -5,6 +5,13 @@ const NET={mode:null,peer:null,conns:new Map(),code:null,myToken:null,myId:null,
 function netMark(){NET.dirty=true;}
 function netMarkFog(){NET.fogDirty=true;}
 function netMarkLevel(){NET.levelDirty=true;}
+function syncCampaignOwnership(token){
+  if(!token||!token.actorId)return;
+  const actors=App.session.campaignState&&App.session.campaignState.actors;
+  const actor=actors&&actors[token.actorId];
+  if(!actor)return;
+  if(token.ownerKey)actor.ownerKey=token.ownerKey;else delete actor.ownerKey;
+}
 function cleanPlayerKey(value){return String(value||"").replace(/[^A-Za-z0-9_-]/g,"").slice(0,80);}
 function localPlayerKey(){
   if(NET.playerKey) return NET.playerKey;
@@ -64,32 +71,28 @@ function revealRoomOnPcEntry(t,x,y){
   return true;
 }
 
-function clientToken(t){
-  // NPC stat blocks (AC/HP/attacks/skills) are DM-only; patrol routes are always
-  // DM staging info. Clone only when there's actually something to strip.
-  const c={...t};
-  if(!t.pc) delete c.sheet;
-  if(!t.pc) delete c.phases;
-  delete c.patrol; delete c.pi;
-  return c;
+function recipientContextFor(c){
+  return App.core.recipientContextForConnection(App.session,c);
 }
-function lightSnapshot(){
-  return {type:"sync",scene:App.session.scene,levelView:App.session.verso.view,revealed:App.session.verso.revealed,
-    campaignState:App.session.campaignState,
-    doorStates:App.session.verso.doorStates,effects:App.session.verso.effects,propStates:App.session.verso.propStates,tacticalFocus:App.session.verso.tacticalFocus,
-    grid:App.session.map.grid,fogOn:App.session.map.fogOn,
-    tokens:{map:App.session.map.tokens.map(clientToken),verso:App.session.verso.tokens.map(clientToken)},
-    // hidden initiative entries: players get the position, never the number
-    tracker:{order:App.session.tracker.order.map(e=>e.h?{name:e.name,h:1,marker:!!e.marker}:e), active:App.session.tracker.active,round:App.session.tracker.round||1},
-    imgStamp:NET.imgStamp,dice:NET.lastDice};
+function projectionFor(c){
+  const projected=App.core.projectSessionForRecipient(App.session,recipientContextFor(c),{level:levelData()});
+  projected.sync.imgStamp=NET.imgStamp;
+  projected.sync.dice=NET.lastDice;
+  return projected;
 }
 function netBroadcast(msg){
   const s=JSON.stringify(msg);
   for(const c of NET.conns.values()){try{c.send(s);}catch(e){}}
 }
+function broadcastSnapshots(){
+  for(const c of NET.conns.values()){
+    if(!c.playerKey)continue;
+    try{c.send(JSON.stringify(projectionFor(c).sync));}catch(e){}
+  }
+}
 function focusRemotePlayers(focus){
   if(NET.mode!=="host") return;
-  netBroadcast(lightSnapshot());
+  broadcastSnapshots();
   netBroadcast({type:"camera",...focus});
 }
 function broadcastLevelTransition(name){
@@ -98,9 +101,12 @@ function broadcastLevelTransition(name){
   NET.lastDice=banner;
   if(NET.mode==="host"){
     NET.levelDirty=false;NET.dirty=false;
-    netBroadcast({type:"level",data:clientLevelData(),transition:true});
-    netBroadcast(lightSnapshot());
-    focusRemotePlayers(cameraFocusFromViewport(cam(),W,H,App.session.scene,App.session.verso.view));
+    for(const c of NET.conns.values()){
+      if(!c.playerKey)continue;
+      try{const projected=projectionFor(c);projected.level.transition=true;
+        c.send(JSON.stringify(projected.level));c.send(JSON.stringify(projected.sync));}catch(e){}
+    }
+    netBroadcast({type:"camera",...cameraFocusFromViewport(cam(),W,H,App.session.scene,App.session.verso.view)});
   }
   clientBanner(banner);
   if(typeof pwinBanner==="function")pwinBanner(banner,"");
@@ -117,8 +123,10 @@ function rebindConnectedOwners(){
 }
 function sendFullTo(c){
   try{
+    if(!c.playerKey)return;
+    const projected=projectionFor(c);
     const messages=App.campaigns.initialJoinMessages(App.session,
-      {type:"level",data:clientLevelData()},lightSnapshot());
+      projected.level,projected.sync);
     for(const message of messages)c.send(JSON.stringify(message));
     if(App.session.map.imgURL) c.send(JSON.stringify({type:"img",data:App.session.map.imgURL,stamp:NET.imgStamp}));
     if(App.session.map.fog) c.send(JSON.stringify({type:"fog",data:App.session.map.fog.toDataURL("image/png")}));
@@ -147,7 +155,7 @@ function startHost(){
     $("btn-host").textContent="HOSTING";
   });
   NET.peer.on("connection",c=>{
-    c.on("open",()=>{NET.conns.set(c.peer,c);updNetStatus();sendFullTo(c);});
+    c.on("open",()=>{NET.conns.set(c.peer,c);updNetStatus();});
     c.on("close",()=>{
       NET.conns.delete(c.peer);
       // Release only the transient connection. ownerKey keeps the assignment so
@@ -175,9 +183,13 @@ function hostHandle(c,m){
   if(m.type==="hello"){
     const key=cleanPlayerKey(m.playerKey);
     if(!key) return;
+    for(const [peer,other] of NET.conns){
+      if(other!==c&&other.playerKey===key){NET.conns.delete(peer);try{other.close();}catch(e){}}
+    }
     c.playerKey=key;
     const mine=[...App.session.map.tokens,...App.session.verso.tokens].find(t=>t.ownerKey===key);
     if(mine){mine.owner=c.peer;netMark();renderPanel();}
+    sendFullTo(c);
     return;
   }
   if(m.type==="claim"){
@@ -188,9 +200,9 @@ function hostHandle(c,m){
     if(!t || !t.pc) return;                                 // only designated player tokens
     if(t.ownerKey && t.ownerKey!==key) return;               // durably assigned to someone else
     for(const o of [...App.session.map.tokens,...App.session.verso.tokens]){
-      if(o.ownerKey===key){delete o.ownerKey;delete o.owner;}
+      if(o.ownerKey===key){delete o.ownerKey;delete o.owner;syncCampaignOwnership(o);}
     }
-    t.ownerKey=key;t.owner=c.peer;netMark();markDirty();renderPanel();
+    t.ownerKey=key;t.owner=c.peer;syncCampaignOwnership(t);netMark();markDirty();renderPanel();
   }
   if(m.type==="move"){
     const t=S().tokens.find(t=>t.id===m.id);
@@ -224,6 +236,12 @@ function hostHandle(c,m){
     if(!t || t.owner!==c.peer) return;                      // players edit only their own
     const sh=sanitizeSheet(m.sheet);
     if(sh){t.sheet=sh; netMark(); renderPanel();}
+  }
+  if(m.type==="campaignMutation"){
+    const authorized=App.core.authorizePlayerCampaignMutation(App.session,recipientContextFor(c),m.mutation);
+    if(authorized&&App.core.applyAuthorizedCampaignMutation(App.session,authorized)){
+      markDirty();netMark();renderPanel();
+    }
   }
   if(m.type==="ping"){
     const wx=+m.x, wy=+m.y;
@@ -267,7 +285,7 @@ function trackerAnnounce(){
 /* host loops: light sync + fog */
 setInterval(()=>{
   if(NET.mode!=="host") return;
-  if(NET.dirty){NET.dirty=false; netBroadcast(lightSnapshot());}
+  if(NET.dirty){NET.dirty=false; broadcastSnapshots();}
 },350);
 setInterval(()=>{
   if(NET.mode!=="host"||!NET.fogDirty||!App.session.map.fog) return;
@@ -280,7 +298,10 @@ setInterval(()=>{if(NET.mode==="host")netBroadcast({type:"hb"});},5000);
 setInterval(()=>{
   if(NET.mode!=="host"||!NET.levelDirty) return;
   NET.levelDirty=false;
-  netBroadcast({type:"level",data:clientLevelData()});
+  for(const c of NET.conns.values()){
+    if(!c.playerKey)continue;
+    try{c.send(JSON.stringify(projectionFor(c).level));}catch(e){}
+  }
 },1000);
 $("btn-host").onclick=hostTable;
 

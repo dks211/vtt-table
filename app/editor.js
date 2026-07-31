@@ -879,6 +879,7 @@ function deserialize(d){
     App.session.map.brush=session.map.brush;
     App.session.map.tokens=session.map.tokens;
     uid=Math.max(uid,...App.session.map.tokens.map(t=>t.id+1),uid);
+    for(const token of [...App.session.map.tokens,...App.session.verso.tokens])syncCampaignOwnership(token);
     rebindConnectedOwners();
     // saves from before the PC/claimable flag existed have no `pc` on any token —
     // without a backfill that makes every character look like an NPC to the newer

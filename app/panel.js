@@ -42,7 +42,7 @@ function toggleRoomReveal(room){
     room.revealMode="manual";
     netMarkLevel();
   }
-  markDirty(); renderPanel();
+  netMarkLevel();markDirty(); renderPanel();
 }
 
 
@@ -658,7 +658,7 @@ function renderPanel(){
       e.stopPropagation();
       const t=S().tokens.find(t=>t.id===+el.dataset.pc);
       if(!t) return;
-      if(t.pc){delete t.pc;delete t.owner;delete t.ownerKey;}    // demoting clears any assignment
+      if(t.pc){delete t.pc;delete t.owner;delete t.ownerKey;syncCampaignOwnership(t);}    // demoting clears any assignment
       else t.pc=true;
       markDirty(); renderPanel();
     };
@@ -682,7 +682,7 @@ function renderPanel(){
       e.stopPropagation();
       const t=S().tokens.find(token=>token.id===+el.dataset.unclaim);
       if(!t)return;
-      delete t.owner;delete t.ownerKey;markDirty();renderPanel();
+      delete t.owner;delete t.ownerKey;syncCampaignOwnership(t);markDirty();renderPanel();
     };
   });
   p.querySelectorAll("[data-del]").forEach(el=>{

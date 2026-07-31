@@ -27,9 +27,9 @@ const unIso = (x,y)=> [ (x/(TW/2)+y/(TH/2))/2, (y/(TH/2)-x/(TW/2))/2 ];
    default. Levels round-trip as JSON via the editor's export/import. */
 function levelData(){return {schemaVersion:LEVEL_SCHEMA_VERSION,name:App.document.level.name,bg:App.document.level.bg,rooms:App.document.rooms,doors:App.document.doors,stairs:App.document.stairs,roster:App.document.level.roster,props:App.document.level.props,encounterEffects:App.document.level.encounterEffects};}
 function clientLevelData(){
-  // the Token Library can hold NPC sheets (stat blocks) — never ship those to players,
-  // even though placed tokens are already sanitized separately in lightSnapshot()
-  return sanitizeLevelForClient(levelData());
+  // Compatibility helper for callers that need the current generic player view.
+  // Network delivery uses the stricter per-recipient projection boundary.
+  return sanitizeLevelForClient(levelData(),{revealed:App.session.verso.revealed});
 }
 function enforceAlwaysRoomReveal(){
   for(const room of App.document.rooms) if(room.revealMode==="always") App.session.verso.revealed[room.id]=true;

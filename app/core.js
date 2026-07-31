@@ -566,13 +566,28 @@
     return tactical ? [...tokens] : [...tokens].sort((a, b) => (a.x + a.y) - (b.x + b.y));
   }
 
-  function sanitizeLevelForClient(level) {
+  function sanitizeLevelForClient(level, options = {}) {
+    const revealed = objectOrNull(options.revealed) || {};
+    const rooms = (level.rooms || []).map(room => {
+      const copy = clone(room);
+      delete copy.dm;
+      delete copy.clues;
+      if (!revealed[room.id] && room.revealMode !== "always") {
+        copy.name = "Unrevealed Area";
+        delete copy.sub;
+        delete copy.read;
+      }
+      return copy;
+    });
     const roster = (level.roster || []).map(entry => {
       const copy = { ...entry };
       if (!entry.pc) { delete copy.sheet; delete copy.phases; }
       return copy;
     });
-    const props = (level.props || []).map(prop => {
+    const props = (level.props || []).filter(prop => {
+      const room = findRoomAt(level.rooms || [], prop.x, prop.y);
+      return !room || revealed[room.id] || room.revealMode === "always";
+    }).map(prop => {
       const copy = clone(prop);
       delete copy.label;
       delete copy.inspect;
@@ -585,7 +600,219 @@
       });
       return copy;
     });
-    return { ...level, roster, props, encounterEffects: [] };
+    return { ...level, rooms, roster, props, encounterEffects: [] };
+  }
+
+  const VISIBILITY_VALUES = Object.freeze(["public", "owner", "party", "selected", "gm", "hidden"]);
+
+  function normalizeRecipientContext(input = {}) {
+    const source = objectOrNull(input) || {};
+    const role = source.role === "gm" ? "gm" : "player";
+    const cleanId = value => value == null ? null
+      : String(value).replace(/[^A-Za-z0-9:_-]/g, "").slice(0, 120) || null;
+    return Object.freeze({
+      role,
+      connectionId: cleanId(source.connectionId),
+      playerKey: cleanId(source.playerKey),
+      actorId: cleanId(source.actorId),
+      campaignId: normalizeCampaignId(source.campaignId),
+      partyMember: role === "gm" || !!source.partyMember,
+      selectedRecipientIds: Object.freeze((Array.isArray(source.selectedRecipientIds)
+        ? source.selectedRecipientIds : []).map(cleanId).filter(Boolean).slice(0, 100)),
+    });
+  }
+
+  function recipientContextForConnection(session, connection = {}) {
+    const cleanKey = String(connection.playerKey || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 80);
+    const peer = String(connection.peer || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 120);
+    const tokens = [
+      ...(session.map && Array.isArray(session.map.tokens) ? session.map.tokens : []),
+      ...(session.verso && Array.isArray(session.verso.tokens) ? session.verso.tokens : []),
+    ];
+    const assigned = tokens.find(token => token.ownerKey === cleanKey && token.owner === peer);
+    const grants = session.campaignState && objectOrNull(session.campaignState.recipientGrants);
+    return normalizeRecipientContext({
+      role: "player",
+      connectionId: peer,
+      playerKey: cleanKey,
+      actorId: assigned && (assigned.actorId || String(assigned.id)),
+      campaignId: session.campaignId,
+      partyMember: !!cleanKey,
+      selectedRecipientIds: grants && grants[cleanKey],
+    });
+  }
+
+  function ownsActor(recipient, actor) {
+    return recipient.role === "gm" || !!(
+      recipient.playerKey && recipient.actorId && actor &&
+      actor.actorId === recipient.actorId && actor.ownerKey === recipient.playerKey
+    );
+  }
+
+  function visibilityAllowed(visibility, recipient, record = {}) {
+    if (recipient.role === "gm") return true;
+    if (!VISIBILITY_VALUES.includes(visibility)) return false;
+    if (visibility === "public") return true;
+    if (visibility === "owner")
+      return !!((record.ownerActorId && record.ownerActorId === recipient.actorId) || ownsActor(recipient, record));
+    if (visibility === "party") return recipient.partyMember && (record.revealed === true || record.shared === true);
+    if (visibility === "selected") {
+      const ids = Array.isArray(record.recipientIds) ? record.recipientIds : [];
+      return ids.includes(recipient.actorId) || ids.includes(recipient.playerKey) ||
+        recipient.selectedRecipientIds.some(id => ids.includes(id));
+    }
+    return false;
+  }
+
+  function withoutVisibilityControls(value) {
+    const out = clone(value);
+    for (const key of ["visibility", "recipientIds", "ownerActorId", "ownerKey", "revealed", "shared"])
+      delete out[key];
+    return out;
+  }
+
+  function projectActor(actor, recipient) {
+    if (!objectOrNull(actor) || !actor.actorId) return null;
+    if (recipient.role === "gm") return clone(actor);
+    const out = { actorId: String(actor.actorId) };
+    if (objectOrNull(actor.identity)) out.identity = clone(actor.identity);
+    if (objectOrNull(actor.public)) out.public = clone(actor.public);
+    if (objectOrNull(actor.owner) && ownsActor(recipient, actor)) out.owner = clone(actor.owner);
+    if (objectOrNull(actor.party) && visibilityAllowed("party", recipient, actor.party))
+      out.party = withoutVisibilityControls(actor.party);
+    if (objectOrNull(actor.selected) && visibilityAllowed("selected", recipient, actor.selected))
+      out.selected = withoutVisibilityControls(actor.selected);
+    if (objectOrNull(actor.mechanics) && visibilityAllowed(actor.mechanics.visibility, recipient, {
+      ...actor.mechanics, actorId: actor.actorId, ownerKey: actor.ownerKey,
+    })) out.mechanics = withoutVisibilityControls(actor.mechanics);
+    if (objectOrNull(actor.privateNotes) && visibilityAllowed(actor.privateNotes.visibility, recipient, {
+      ...actor.privateNotes, actorId: actor.actorId, ownerKey: actor.ownerKey,
+    })) out.privateNotes = withoutVisibilityControls(actor.privateNotes);
+    return out;
+  }
+
+  function projectCampaignStateForRecipient(state, recipient) {
+    const source = objectOrNull(state) || {};
+    if (recipient.role === "gm") return clone(source);
+    if (recipient.campaignId === DEFAULT_CAMPAIGN_ID) return {};
+    const projected = { namespace: recipient.campaignId, actors: {}, handouts: {}, timers: {}, logs: [] };
+    for (const [id, actor] of Object.entries(objectOrNull(source.actors) || {}).slice(0, 500)) {
+      const safe = projectActor(actor, recipient);
+      if (safe) projected.actors[id] = safe;
+    }
+    for (const [id, handout] of Object.entries(objectOrNull(source.handouts) || {}).slice(0, 500)) {
+      if (!objectOrNull(handout) || handout.withdrawn || !visibilityAllowed(handout.visibility, recipient, handout)) continue;
+      projected.handouts[id] = withoutVisibilityControls(handout);
+    }
+    for (const [id, timer] of Object.entries(objectOrNull(source.timers) || {}).slice(0, 500)) {
+      if (!objectOrNull(timer) || !visibilityAllowed(timer.labelVisibility, recipient, timer)) continue;
+      const safe = { id: String(timer.id || id), label: String(timer.label || "Timer").slice(0, 120) };
+      if (visibilityAllowed(timer.valueVisibility, recipient, timer)) {
+        if (timer.remainingRounds != null) safe.remainingRounds = integer(timer.remainingRounds);
+        if (timer.value != null) safe.value = clone(timer.value);
+      }
+      projected.timers[id] = safe;
+    }
+    projected.logs = (Array.isArray(source.logs) ? source.logs : []).slice(0, 500)
+      .filter(entry => objectOrNull(entry) && visibilityAllowed(entry.visibility, recipient, entry))
+      .map(withoutVisibilityControls);
+    return projected;
+  }
+
+  function projectTokenForRecipient(token, recipient) {
+    if (recipient.role === "gm") return clone(token);
+    const safe = { ...token };
+    if (!token.pc) { delete safe.sheet; delete safe.phases; }
+    delete safe.patrol;
+    delete safe.pi;
+    return safe;
+  }
+
+  function projectSessionForRecipient(session, recipientInput, options = {}) {
+    const recipient = normalizeRecipientContext(recipientInput);
+    if (!session || session.campaignId !== recipient.campaignId)
+      throw new Error(`Campaign mismatch for recipient projection.`);
+    const level = options.level || session.level || { rooms: [] };
+    const player = recipient.role !== "gm";
+    const tracker = clone(session.tracker || { order: [], active: 0, round: 1 });
+    if (player) tracker.order = tracker.order.map(entry => entry.h
+      ? { name: entry.name, h: 1, marker: !!entry.marker }
+      : entry);
+    const levelTokens = session.verso && session.verso.tokens || [];
+    const partyRooms = new Set(levelTokens.filter(token => token.pc).map(token => {
+      const room = findRoomAt(level.rooms || [], token.x, token.y);
+      return room && room.id;
+    }).filter(Boolean));
+    const projectedLevelTokens = player ? levelTokens.filter(token => tokenVisibleToPlayers(
+      token, level.rooms || [], session.verso && session.verso.revealed || {}, partyRooms,
+    )) : levelTokens;
+    return {
+      level: { type: "level", data: player ? sanitizeLevelForClient(level, {
+        revealed: session.verso && session.verso.revealed,
+      }) : clone(level) },
+      sync: {
+        type: "sync",
+        scene: session.scene,
+        levelView: session.verso && session.verso.view,
+        revealed: clone(session.verso && session.verso.revealed || {}),
+        doorStates: clone(session.verso && session.verso.doorStates || {}),
+        effects: clone(session.verso && session.verso.effects || []),
+        propStates: clone(session.verso && session.verso.propStates || {}),
+        tacticalFocus: session.verso && session.verso.tacticalFocus || null,
+        grid: clone(session.map && session.map.grid || {}),
+        fogOn: !session.map || session.map.fogOn !== false,
+        tokens: {
+          map: (session.map && session.map.tokens || []).map(token => projectTokenForRecipient(token, recipient)),
+          verso: projectedLevelTokens.map(token => projectTokenForRecipient(token, recipient)),
+        },
+        tracker,
+        campaignState: projectCampaignStateForRecipient(session.campaignState, recipient),
+      },
+    };
+  }
+
+  function sanitizePlayerValue(value, depth = 0) {
+    if (depth > 4) return undefined;
+    if (value == null || typeof value === "boolean") return value;
+    if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
+    if (typeof value === "string") return value.slice(0, 1000);
+    if (Array.isArray(value)) return value.slice(0, 50).map(item => sanitizePlayerValue(item, depth + 1))
+      .filter(item => item !== undefined);
+    if (!objectOrNull(value)) return undefined;
+    const out = {};
+    for (const [key, item] of Object.entries(value).slice(0, 50)) {
+      if (!/^[A-Za-z0-9_-]{1,64}$/.test(key)) continue;
+      const safe = sanitizePlayerValue(item, depth + 1);
+      if (safe !== undefined) out[key] = safe;
+    }
+    return out;
+  }
+
+  function authorizePlayerCampaignMutation(session, recipientInput, mutation) {
+    const recipient = normalizeRecipientContext(recipientInput);
+    if (recipient.role !== "player" || recipient.campaignId !== session.campaignId || !recipient.actorId) return null;
+    if (!objectOrNull(mutation) || mutation.type !== "actor.update") return null;
+    const actors = objectOrNull(session.campaignState && session.campaignState.actors) || {};
+    const actor = actors[mutation.actorId];
+    if (!actor || mutation.actorId !== recipient.actorId || !ownsActor(recipient, actor)) return null;
+    const changes = {};
+    const requested = objectOrNull(mutation.changes) || {};
+    for (const key of ["mechanics", "privateNotes"]) {
+      const safe = sanitizePlayerValue(requested[key]);
+      if (safe !== undefined) changes[key] = safe;
+    }
+    return Object.keys(changes).length ? { type: "actor.update", actorId: recipient.actorId, changes } : null;
+  }
+
+  function applyAuthorizedCampaignMutation(session, mutation) {
+    if (!mutation || mutation.type !== "actor.update") return false;
+    const actor = session.campaignState && session.campaignState.actors && session.campaignState.actors[mutation.actorId];
+    if (!actor) return false;
+    if (mutation.changes.mechanics !== undefined)
+      actor.mechanics = { visibility: actor.mechanics && actor.mechanics.visibility || "owner", data: clone(mutation.changes.mechanics) };
+    if (mutation.changes.privateNotes !== undefined)
+      actor.privateNotes = { visibility: "owner", data: clone(mutation.changes.privateNotes) };
+    return true;
   }
 
   function setBannerContent(doc, banner, data, totalClass) {
@@ -631,6 +858,14 @@
     tokenVisibleToPlayers,
     orderedLevelTokens,
     sanitizeLevelForClient,
+    VISIBILITY_VALUES,
+    normalizeRecipientContext,
+    recipientContextForConnection,
+    visibilityAllowed,
+    projectCampaignStateForRecipient,
+    projectSessionForRecipient,
+    authorizePlayerCampaignMutation,
+    applyAuthorizedCampaignMutation,
     setBannerContent,
     normalizeLevel,
     normalizeSession,

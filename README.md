@@ -126,6 +126,17 @@ is rejected instead of falling back to Palimpsest.
 This is a trusted home-table application. Its visibility controls prevent
 ordinary accidental disclosure in the interface and synchronized table state;
 they are not intended to conceal authenticated static assets from a technically
-motivated player. Recipient-specific network projections are required before
-owner-only or GM-only East Tennessee content is added. The current placeholder
-package intentionally contains no sensitive campaign material.
+motivated player. The current placeholder package intentionally contains no
+sensitive campaign material.
+
+Player synchronization constructs a fresh projection for each validated
+connection after its durable player key has been matched to a host-owned token.
+The generic visibility vocabulary is `public`, `owner`, `party`, `selected`,
+`gm`, and `hidden`; malformed or unknown visibility is player-hidden. Actor
+sections, handouts, timers, minimal log entries, campaign state, levels, props,
+tokens, and initiative are filtered before serialization. The host accepts only
+allowlisted owner edits to placeholder actor mechanics and private notes;
+campaign identity, handout reveal, timer, ownership, and visibility changes
+remain host-only. Existing Palimpsest PC sheets remain table-visible by design,
+while NPC sheets and phases, patrols, GM room prose, GM prop text, hidden
+initiative totals, encounter presets, and unrevealed room prose are excluded.

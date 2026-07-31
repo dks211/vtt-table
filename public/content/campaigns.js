@@ -92,12 +92,26 @@
     initialStart: eastTennesseeStart,
     createCampaignState: () => ({
       namespace: EAST_TENNESSEE_ID,
-      actors: {},
+      actors: {
+        "east-tennessee-1861:actor:placeholder-operative": {
+          actorId: "east-tennessee-1861:actor:placeholder-operative",
+          ownerKey: null,
+          identity: { name: "Placeholder Operative", publicExample: "publicExample" },
+          owner: { ownerExample: "ownerExample" },
+          party: { revealed: false, partyExample: "partyExample" },
+          selected: { recipientIds: [], selectedExample: "selectedExample" },
+          gm: { gmExample: "gmExample" },
+          mechanics: { visibility: "public", data: { placeholder: true } },
+          privateNotes: { visibility: "owner", data: {} },
+        },
+      },
       scenes: {
         "east-tennessee-1861-placeholder": { status: "placeholder" },
       },
       handouts: {},
       timers: {},
+      logs: [],
+      recipientGrants: {},
       adventure: {},
     }),
     normalizeCampaignState(state) {
@@ -110,6 +124,8 @@
         scenes: safeObject(source.scenes),
         handouts: safeObject(source.handouts),
         timers: safeObject(source.timers),
+        logs: Array.isArray(source.logs) ? clone(source.logs) : [],
+        recipientGrants: safeObject(source.recipientGrants),
         adventure: safeObject(source.adventure),
       };
     },

@@ -60,7 +60,19 @@ test("campaign registry exposes isolated Palimpsest and East Tennessee packages"
   assert.ok(eastTennesseeSession.level.rooms[0].id.startsWith("east-tennessee-1861-"));
   assert.deepEqual(eastTennesseeSession.campaignState, {
     namespace: "east-tennessee-1861",
-    actors: {},
+    actors: {
+      "east-tennessee-1861:actor:placeholder-operative": {
+        actorId: "east-tennessee-1861:actor:placeholder-operative",
+        ownerKey: null,
+        identity: { name: "Placeholder Operative", publicExample: "publicExample" },
+        owner: { ownerExample: "ownerExample" },
+        party: { revealed: false, partyExample: "partyExample" },
+        selected: { recipientIds: [], selectedExample: "selectedExample" },
+        gm: { gmExample: "gmExample" },
+        mechanics: { visibility: "public", data: { placeholder: true } },
+        privateNotes: { visibility: "owner", data: {} },
+      },
+    },
     scenes: {
       "east-tennessee-1861-placeholder": {
         status: "placeholder"
@@ -68,6 +80,8 @@ test("campaign registry exposes isolated Palimpsest and East Tennessee packages"
     },
     handouts: {},
     timers: {},
+    logs: [],
+    recipientGrants: {},
     adventure: {}
   });
   assert.equal(JSON.stringify(palimpsestSession).includes("east-tennessee"), false);
@@ -86,6 +100,8 @@ test("campaign registry exposes isolated Palimpsest and East Tennessee packages"
     scenes: {},
     handouts: {},
     timers: {},
+    logs: [],
+    recipientGrants: {},
     adventure: {},
   });
 });
