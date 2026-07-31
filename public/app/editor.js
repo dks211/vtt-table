@@ -713,6 +713,11 @@ stage.addEventListener("drop",e=>{
 /* ---------------- save / load ---------------- */
 const LOCAL_SESSION_KEY="palimpsest-session-v2";
 function hideStartScreen(){$("startscreen").classList.remove("show");}
+function confirmSessionReplacement(){
+  let hasLocal=false;
+  try{hasLocal=!!localStorage.getItem(LOCAL_SESSION_KEY);}catch(e){}
+  return !hasLocal || window.confirm("Starting a new session will replace the current browser autosave. Continue?");
+}
 function showStartScreen(){
   let hasLocal=false;
   try{hasLocal=!!localStorage.getItem(LOCAL_SESSION_KEY);}catch(e){}
@@ -721,10 +726,21 @@ function showStartScreen(){
   $("startscreen").classList.add("show");
 }
 function newBlankLevel(){
+  if(!confirmSessionReplacement())return;
+  setCampaign(App.campaigns.defaultId);
   edUndoStack.length=0;edRedoStack.length=0;edClipboard=[];
   loadLevel({name:"Untitled Level",bg:"#0A0F0C",rooms:[],doors:[],roster:[]});
   App.session.verso.revealed={};App.session.verso.tokens=[];App.session.verso.doorStates={};App.session.verso.effects=[];App.session.verso.propStates={};App.session.verso.tacticalFocus=null;App.session.tracker={order:[],active:0,round:1};
   setEdSelection([]);edSetTool("draw");setMode("edit");edFit();levelTouched();hideStartScreen();
+}
+function setCampaign(id,state){
+  const campaign=App.campaigns.get(id);
+  App.campaign=campaign;
+  App.session.campaignId=campaign.id;
+  App.session.campaignPackageVersion=campaign.packageVersion;
+  App.session.campaignStateSchemaVersion=campaign.stateSchemaVersion;
+  App.session.campaignState=state==null?campaign.createCampaignState():campaign.normalizeCampaignState(state);
+  return campaign;
 }
 function applyBundledLevel(level,start,{preserveParty=false,announce=false}={}){
   const previous=App.session.verso.tokens;
@@ -750,10 +766,19 @@ function applyBundledLevel(level,start,{preserveParty=false,announce=false}={}){
   if(announce)requestAnimationFrame(()=>broadcastLevelTransition(level.name));
 }
 function startVerso(){
+  if(!confirmSessionReplacement())return;
+  setCampaign("palimpsest");
   applyBundledLevel(App.content.VERSO_LEVEL,App.content.VERSO_START);
 }
 function startVault(){
+  if(!confirmSessionReplacement())return;
+  setCampaign("palimpsest");
   applyBundledLevel(App.content.VAULT_LEVEL,App.content.VAULT_START);
+}
+function startCampaign(id){
+  if(!confirmSessionReplacement())return;
+  const campaign=setCampaign(id);
+  applyBundledLevel(campaign.initialLevel,campaign.initialStart);
 }
 function transitionBundledLevel(key){
   if(key==="verso")applyBundledLevel(App.content.VERSO_LEVEL,App.content.VERSO_START,{preserveParty:true,announce:true});
@@ -797,13 +822,18 @@ async function resumeAutosave(){
     const local=localStorage.getItem(LOCAL_SESSION_KEY);
     if(local){deserialize(JSON.parse(local));hideStartScreen();return true;}
     if(window.storage&&window.storage.get){const remote=await window.storage.get("verso-session");if(remote&&remote.value){deserialize(JSON.parse(remote.value));hideStartScreen();return true;}}
-  }catch(e){alert("The autosave could not be restored.");}
+  }catch(e){alert("The autosave could not be restored: "+e.message);}
   return false;
 }
 function serialize(){
   const persistedTokens=tokens=>tokens.map(token=>{const copy=JSON.parse(JSON.stringify(token));delete copy.owner;return copy;});
   return {
-    schemaVersion:SESSION_SCHEMA_VERSION, scene:App.session.scene,
+    schemaVersion:SESSION_SCHEMA_VERSION,
+    campaignId:App.session.campaignId,
+    campaignPackageVersion:App.session.campaignPackageVersion,
+    campaignStateSchemaVersion:App.session.campaignStateSchemaVersion,
+    campaignState:JSON.parse(JSON.stringify(App.session.campaignState)),
+    scene:App.session.scene,
     map:{
       name:App.session.map.name, imgURL:App.session.map.imgURL,
       grid:App.session.map.grid, fogOn:App.session.map.fogOn, brush:App.session.map.brush,
@@ -817,7 +847,14 @@ function serialize(){
   };
 }
 function deserialize(d){
-    const session=normalizeSession(d,{fallbackRoster:PARTY,fallbackLevel:App.content.VERSO_LEVEL});
+    const requestedId=d&&d.campaignId!=null?d.campaignId:App.campaigns.defaultId;
+    const campaign=App.campaigns.get(requestedId);
+    const session=normalizeSession(d,{fallbackRoster:campaign.initialLevel.roster||PARTY,fallbackLevel:campaign.initialLevel});
+    if(session.campaignPackageVersion>campaign.packageVersion)throw new Error(`Campaign package "${campaign.id}" requires a newer application.`);
+    if(session.campaignStateSchemaVersion>campaign.stateSchemaVersion)throw new Error(`Campaign state for "${campaign.id}" requires a newer application.`);
+    setCampaign(session.campaignId,session.campaignState);
+    App.session.campaignPackageVersion=session.campaignPackageVersion;
+    App.session.campaignStateSchemaVersion=session.campaignStateSchemaVersion;
     loadLevel(session.level);
     App.session.verso.revealed=session.verso.revealed;
     App.session.verso.view=session.verso.view;
@@ -877,14 +914,14 @@ $("btn-save").onclick=()=>{
   const blob=new Blob([JSON.stringify(serialize())],{type:"application/json"});
   const a=document.createElement("a");
   a.href=URL.createObjectURL(blob);
-  a.download="palimpsest-session.json";
+  a.download=App.session.campaignId==="palimpsest"?"palimpsest-session.json":App.session.campaignId+"-session.json";
   a.click(); URL.revokeObjectURL(a.href);
 };
 $("btn-load").onclick=()=>$("file-json").click();
 $("file-json").onchange=e=>{
   const f=e.target.files[0]; if(!f) return;
   const rd=new FileReader();
-  rd.onload=()=>{try{deserialize(JSON.parse(rd.result));hideStartScreen();}catch(err){alert("That file didn't parse as a saved session.");}};
+  rd.onload=()=>{try{deserialize(JSON.parse(rd.result));hideStartScreen();}catch(err){alert("That session could not be loaded: "+err.message);}};
   rd.readAsText(f); e.target.value="";
 };
 
@@ -906,4 +943,4 @@ async function autosave(){
 }
 setInterval(autosave,8000);
 
-Object.assign(App.services.editor,{setTool,setScene,setView,setLevelView,serialize,deserialize,newEntityId,renderEditorPreview,fitIsoPreview,showStartScreen,hideStartScreen,newBlankLevel,startVerso,startVault,transitionBundledLevel,transitionCustomLevel,openLevelFile,resumeAutosave});
+Object.assign(App.services.editor,{setTool,setScene,setView,setLevelView,serialize,deserialize,newEntityId,renderEditorPreview,fitIsoPreview,showStartScreen,hideStartScreen,newBlankLevel,startCampaign,startVerso,startVault,transitionBundledLevel,transitionCustomLevel,openLevelFile,resumeAutosave});

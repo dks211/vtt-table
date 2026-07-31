@@ -1,0 +1,21 @@
+{
+  "v": 1,
+  "scene": "verso",
+  "map": {
+    "grid": {
+      "size": 50
+    },
+    "tokens": []
+  },
+  "verso": {
+    "revealed": {
+      "white": true
+    },
+    "tokens": [
+      {
+        "id": 1,
+        "name": "Randy Meisner"
+      }
+    ]
+  }
+}

@@ -13,6 +13,8 @@
   root.App = {
     core: root.AppCore,
     content: root.VTTContent,
+    campaigns: root.VTTCampaigns,
+    campaign: root.VTTCampaigns.get(root.VTTCampaigns.defaultId),
     document: {
       level: {
         schemaVersion: root.AppCore.LEVEL_SCHEMA_VERSION,

@@ -6,12 +6,20 @@
   "use strict";
 
   const LEVEL_SCHEMA_VERSION = 3;
-  const SESSION_SCHEMA_VERSION = 6;
+  const SESSION_SCHEMA_VERSION = 7;
+  const DEFAULT_CAMPAIGN_ID = "palimpsest";
+  const CAMPAIGN_IDS = Object.freeze(["palimpsest", "east-tennessee-1861"]);
 
   const clone = value => JSON.parse(JSON.stringify(value));
   const objectOrNull = value => value && typeof value === "object" && !Array.isArray(value) ? value : null;
   const finite = (value, fallback = 0) => Number.isFinite(+value) ? +value : fallback;
   const integer = (value, fallback = 0) => Math.trunc(finite(value, fallback));
+
+  function normalizeCampaignId(value) {
+    const id = value == null || value === "" ? DEFAULT_CAMPAIGN_ID : String(value);
+    if (!CAMPAIGN_IDS.includes(id)) throw new Error(`Unknown campaign "${id}".`);
+    return id;
+  }
 
   function uniqueId(value, prefix, used, index) {
     let id = String(value || "").trim().replace(/[^A-Za-z0-9_-]/g, "-").slice(0, 64);
@@ -200,6 +208,10 @@
     const version = session.schemaVersion == null ? integer(session.v, 1) : integer(session.schemaVersion, -1);
     if (version < 1 || version > SESSION_SCHEMA_VERSION)
       throw new Error(`Unsupported session schema version: ${session.schemaVersion ?? session.v}.`);
+    const campaignId = normalizeCampaignId(session.campaignId);
+    const campaignPackageVersion = Math.max(1, integer(session.campaignPackageVersion, 1));
+    const campaignStateSchemaVersion = Math.max(1, integer(session.campaignStateSchemaVersion, 1));
+    const campaignState = objectOrNull(session.campaignState) ? clone(session.campaignState) : {};
     const map = objectOrNull(session.map) || {};
     const verso = objectOrNull(session.verso) || {};
     const doorStates = {};
@@ -256,6 +268,10 @@
     if (tracker.active >= tracker.order.length) tracker.active = 0;
     return {
       schemaVersion: SESSION_SCHEMA_VERSION,
+      campaignId,
+      campaignPackageVersion,
+      campaignStateSchemaVersion,
+      campaignState,
       scene: session.scene === "map" ? "map" : "verso",
       map: {
         name: map.name == null ? null : String(map.name).slice(0, 200),
@@ -588,6 +604,9 @@
   return Object.freeze({
     LEVEL_SCHEMA_VERSION,
     SESSION_SCHEMA_VERSION,
+    DEFAULT_CAMPAIGN_ID,
+    CAMPAIGN_IDS,
+    normalizeCampaignId,
     escapeHTML,
     parseDice,
     doubleDiceExpression,

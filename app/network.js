@@ -75,6 +75,7 @@ function clientToken(t){
 }
 function lightSnapshot(){
   return {type:"sync",scene:App.session.scene,levelView:App.session.verso.view,revealed:App.session.verso.revealed,
+    campaignState:App.session.campaignState,
     doorStates:App.session.verso.doorStates,effects:App.session.verso.effects,propStates:App.session.verso.propStates,tacticalFocus:App.session.verso.tacticalFocus,
     grid:App.session.map.grid,fogOn:App.session.map.fogOn,
     tokens:{map:App.session.map.tokens.map(clientToken),verso:App.session.verso.tokens.map(clientToken)},
@@ -116,8 +117,9 @@ function rebindConnectedOwners(){
 }
 function sendFullTo(c){
   try{
-    c.send(JSON.stringify({type:"level",data:clientLevelData()}));
-    c.send(JSON.stringify(lightSnapshot()));
+    const messages=App.campaigns.initialJoinMessages(App.session,
+      {type:"level",data:clientLevelData()},lightSnapshot());
+    for(const message of messages)c.send(JSON.stringify(message));
     if(App.session.map.imgURL) c.send(JSON.stringify({type:"img",data:App.session.map.imgURL,stamp:NET.imgStamp}));
     if(App.session.map.fog) c.send(JSON.stringify({type:"fog",data:App.session.map.fog.toDataURL("image/png")}));
   }catch(e){}
@@ -284,7 +286,7 @@ $("btn-host").onclick=hostTable;
 
 /* ----- client ----- */
 let clientConn=null, clientDragging=false, cliOX=0, cliOY=0;
-let cliWantTok=null, cliLastMsg=0, cliRetry=null, cliOpened=false, cliLevelFit=false;
+let cliWantTok=null, cliLastMsg=0, cliRetry=null, cliOpened=false, cliLevelFit=false,cliCampaignReady=false;
 let cliTransitionFit=false;
 function netStatus(t){const el=$("net-status");el.style.display="inline";el.textContent=t;}
 function joinTable(code){
@@ -310,6 +312,7 @@ function joinTable(code){
 function clientConnect(re){
   if(cliRetry){clearTimeout(cliRetry);cliRetry=null;}
   cliOpened=false;
+  cliCampaignReady=false;
   try{if(NET.peer)NET.peer.destroy();}catch(e){}
   clientConn=null;
   netStatus(re?"RECONNECTING…":"CONNECTING…");
@@ -354,6 +357,25 @@ function cliRescue(delay){
 }
 let firstSync=true;
 function clientHandle(m){
+  if(m.type==="campaign"){
+    try{
+      const campaign=App.campaigns.get(m.campaignId);
+      if((+m.campaignPackageVersion||1)>campaign.packageVersion||
+        (+m.campaignStateSchemaVersion||1)>campaign.stateSchemaVersion)
+        throw new Error("campaign package version mismatch");
+      App.campaign=campaign;
+      App.session.campaignId=campaign.id;
+      App.session.campaignPackageVersion=+m.campaignPackageVersion||1;
+      App.session.campaignStateSchemaVersion=+m.campaignStateSchemaVersion||1;
+      App.session.campaignState=campaign.createCampaignState();
+      cliCampaignReady=true;
+    }catch(e){
+      netStatus("CAMPAIGN NOT AVAILABLE — UPDATE THE APPLICATION");
+      try{if(clientConn)clientConn.close();}catch(_){}
+    }
+    return;
+  }
+  if((m.type==="level"||m.type==="sync")&&!cliCampaignReady)return;
   if(m.type==="sync"){
     let refit=false;
     if(m.scene!==App.session.scene){App.session.scene=m.scene;document.body.classList.toggle("mapscene",m.scene==="map");refit=true;}
@@ -367,6 +389,7 @@ function clientHandle(m){
     App.session.verso.effects=m.effects||[];
     App.session.verso.propStates=m.propStates||{};
     App.session.verso.tacticalFocus=m.tacticalFocus||null;
+    App.session.campaignState=m.campaignState&&typeof m.campaignState==="object"?m.campaignState:{};
     Object.assign(App.session.map.grid,m.grid||{});
     App.session.map.fogOn=m.fogOn!==false;
     if(refit){fitScene();updZoom();}

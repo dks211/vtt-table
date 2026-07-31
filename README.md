@@ -114,3 +114,18 @@ The in-browser DM word is a convenience screen lock for keeping the console out
 of casual view. It is shipped to the browser and is not an authorization
 boundary. Deployed access is enforced by HTTP Basic Auth in `src/worker.js`,
 using the `PALIMPSEST_USER` and `PALIMPSEST_PASSWORD` Worker secrets.
+
+## Campaign and privacy boundary
+
+Sessions carry a campaign identifier, campaign package version, campaign-state
+schema version, and campaign-owned state. Saves without a campaign identifier
+remain Palimpsest sessions. New sessions may explicitly select the bundled
+East Tennessee 1861 placeholder package; an unknown explicit campaign identifier
+is rejected instead of falling back to Palimpsest.
+
+This is a trusted home-table application. Its visibility controls prevent
+ordinary accidental disclosure in the interface and synchronized table state;
+they are not intended to conceal authenticated static assets from a technically
+motivated player. Recipient-specific network projections are required before
+owner-only or GM-only East Tennessee content is added. The current placeholder
+package intentionally contains no sensitive campaign material.

@@ -279,6 +279,7 @@ body.netclient #stage{left:0}
 #startscreen h1{font-family:Marcellus,serif;font-size:24px;color:var(--brass);margin-bottom:4px}
 #startscreen .startsub{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.18em;color:var(--vellum-dim);margin-bottom:20px}
 #startscreen .startactions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#startscreen .startactions select{grid-column:1/-1;width:100%;padding:10px}
 #startscreen button{padding:10px;border:1px solid var(--brass-faint);border-radius:3px;color:var(--vellum-dim);font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.06em;text-align:left}
 #startscreen button:hover{border-color:var(--brass-dim);color:var(--brass);background:var(--felt-800)}
 #startscreen button.primary{grid-column:1/-1;border-color:var(--brass-dim);color:var(--brass)}
@@ -302,6 +303,11 @@ body.netclient #stage{left:0}
     <h1>PALIMPSEST VTT</h1>
     <div class="startsub">QUICK ISOMETRIC TABLES</div>
     <div class="startactions">
+      <select id="start-campaign" aria-label="Campaign">
+        <option value="palimpsest">Palimpsest</option>
+        <option value="east-tennessee-1861">East Tennessee 1861</option>
+      </select>
+      <button class="primary" id="start-campaign-go">START SELECTED CAMPAIGN</button>
       <button class="primary" id="start-new">NEW BLANK LEVEL</button>
       <button id="start-open">OPEN LEVEL</button>
       <button id="start-resume">RESUME AUTOSAVE</button>
@@ -389,6 +395,7 @@ body.netclient #stage{left:0}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
 <script src="app/core.js"></script>
 <script src="content/catalog.js"></script>
+<script src="content/campaigns.js"></script>
 <script src="app/runtime.js"></script>
 <script src="app/state-render.js"></script>
 <script src="app/network.js"></script>

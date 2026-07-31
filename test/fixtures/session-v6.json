@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 6,
+  "scene": "verso",
+  "map": {
+    "grid": {
+      "show": true,
+      "size": 70,
+      "ox": 0,
+      "oy": 0,
+      "snap": true
+    },
+    "tokens": []
+  },
+  "verso": {
+    "view": "isometric",
+    "revealed": {
+      "white": true
+    },
+    "tokens": [
+      {
+        "id": 1,
+        "name": "Randy Meisner",
+        "pc": true,
+        "ownerKey": "player-legacy"
+      }
+    ],
+    "doorStates": {},
+    "effects": [],
+    "propStates": {}
+  },
+  "tracker": {
+    "order": [],
+    "active": 0,
+    "round": 1
+  },
+  "level": {
+    "schemaVersion": 3,
+    "name": "Legacy Palimpsest Fixture",
+    "rooms": []
+  }
+}

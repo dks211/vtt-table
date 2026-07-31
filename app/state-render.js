@@ -73,6 +73,10 @@ const mkTokFrom = source=>{
 };
 
 App.session = {
+  campaignId:App.campaign.id,
+  campaignPackageVersion:App.campaign.packageVersion,
+  campaignStateSchemaVersion:App.campaign.stateSchemaVersion,
+  campaignState:App.campaign.createCampaignState(),
   view:"dm",
   scene:"verso",
   mode:"play",     // "play" | "edit" (edit = top-down level editor, DM only)
