@@ -285,6 +285,11 @@ body.netclient #stage{left:0}
 #startscreen button.primary{grid-column:1/-1;border-color:var(--brass-dim);color:var(--brass)}
 #startscreen button[disabled]{opacity:.35;pointer-events:none}
 @media(max-width:520px){#startscreen .startactions{grid-template-columns:1fr}}
+#handout-modal{position:fixed;inset:0;z-index:90;display:none;padding:3vh;background:rgba(8,11,9,.84)}
+#handout-modal.open{display:block}.handout-shell{height:94vh;display:flex;flex-direction:column;max-width:1100px;margin:auto;background:#252824;border:1px solid var(--brass-dim);box-shadow:0 18px 60px #000}
+.handout-tools{display:flex;align-items:center;gap:7px;padding:8px 10px;background:var(--felt-900);color:var(--vellum)}.handout-tools strong{flex:1}.handout-tools button{padding:5px 9px;color:var(--brass);border:1px solid var(--brass-faint);border-radius:3px}
+.handout-viewport{flex:1;overflow:auto;padding:28px;cursor:grab;touch-action:none}.handout-viewport:active{cursor:grabbing}.handout-paper{width:min(720px,82vw);min-height:780px;margin:auto;padding:58px 64px;transform-origin:top center;background:#e5dec9;color:#26251f;box-shadow:0 8px 32px #000;box-sizing:border-box;background-image:linear-gradient(105deg,rgba(30,30,25,.025),transparent 24%,rgba(255,255,255,.08) 70%,rgba(30,30,25,.02))}
+.handout-paper pre{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font:16px/1.58 Georgia,serif;color:inherit}.handout-official{background-color:#deded5;border-top:8px solid #77776e}.handout-personal{background-color:#e8dfc8}.handout-telegram{background-color:#dedbd0}.handout-telegram pre,.handout-annotation pre{font-family:'IBM Plex Mono',monospace}.handout-rules{background-color:#e2e0d5}.handout-rules pre{font-family:Georgia,serif;font-size:15px}.handout-case{background-color:#e3ddcc}
 </style>
 </head>
 <body>
@@ -400,6 +405,7 @@ body.netclient #stage{left:0}
 <script src="content/east-tennessee-characters.js"></script>
 <script src="content/east-tennessee-talents.js"></script>
 <script src="content/east-tennessee-npcs.js"></script>
+<script src="content/east-tennessee-handouts.js"></script>
 <script src="content/east-tennessee-finchs-nest.js"></script>
 <script src="content/east-tennessee-lick-creek.js"></script>
 <script src="content/east-tennessee-equipment.js"></script>

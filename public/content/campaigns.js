@@ -12,6 +12,7 @@
   const etCharacters = root.EastTennesseeCharacters;
   const etTalents = root.EastTennesseeTalents;
   const etNpcs = root.EastTennesseeNPCs;
+  const etHandouts = root.EastTennesseeHandouts;
   const etFinchsNest = root.EastTennesseeFinchsNest;
   const etLickCreek = root.EastTennesseeLickCreek;
   const eastTennesseeConditions=()=>Object.fromEntries(["exhausted","shaken","frightened","distracted"].map(id=>[id,{active:false,source:null,notes:null}]));
@@ -48,7 +49,7 @@
     },{
       id: "east-tennessee-1861-actor-jacob-sloane",
       actorId: "east-tennessee-1861:actor:jacob-sloane",
-      name: "Jacob Sloane · Mechanical Placeholder",
+      name: "Jacob Hatcher · Mechanical Placeholder",
       letter: "JS", color: "#546B54", pc: true,
     },{
       id: "east-tennessee-1861-actor-elias-rourke", actorId: "east-tennessee-1861:actor:elias-rourke",
@@ -70,7 +71,7 @@
       pc: true,
     },{
       actorId: "east-tennessee-1861:actor:jacob-sloane",
-      name: "Jacob Sloane · Mechanical Placeholder",
+      name: "Jacob Hatcher · Mechanical Placeholder",
       letter: "JS", color: "#546B54", x: 4.5, y: 2.5, size: 1, pc: true,
     },{
       actorId: "east-tennessee-1861:actor:elias-rourke", name: "Elias Rourke · Mechanical Placeholder",
@@ -111,7 +112,7 @@
     id: EAST_TENNESSEE_ID,
     title: "East Tennessee 1861",
     packageVersion: 1,
-    stateSchemaVersion: 10,
+    stateSchemaVersion: 11,
     assetNamespace: "campaigns/east-tennessee-1861",
     initialLevel: eastTennesseeLevel,
     initialStart: eastTennesseeStart,
@@ -137,7 +138,7 @@
         },
         "east-tennessee-1861:actor:jacob-sloane": {
           actorId: "east-tennessee-1861:actor:jacob-sloane", ownerKey: null,
-          identity: { name: "Jacob Sloane · Mechanical Placeholder" },
+          identity: { name: "Jacob Hatcher · Mechanical Placeholder" },
           mechanics: { visibility: "public", data: { placeholder: true } },
           privateNotes: { visibility: "owner", data: {} },
           health: { state: "unhurt", stable: true, dyingFailures: 0, dead: false }, injuries: [],
@@ -216,7 +217,8 @@
       const characterNormalized=etCharacters ? etCharacters.normalizeState(normalized) : normalized;
       const talentNormalized=etTalents ? etTalents.normalizeState(characterNormalized,{cancelPending:true}) : characterNormalized;
       const npcNormalized=etNpcs ? etNpcs.normalizeState(talentNormalized) : talentNormalized;
-      const finchsNormalized=etFinchsNest ? etFinchsNest.normalizeState(npcNormalized) : npcNormalized;
+      const handoutNormalized=etHandouts ? etHandouts.normalizeState(npcNormalized) : npcNormalized;
+      const finchsNormalized=etFinchsNest ? etFinchsNest.normalizeState(handoutNormalized) : handoutNormalized;
       const lickCreekNormalized=etLickCreek ? etLickCreek.normalizeState(finchsNormalized) : finchsNormalized;
       const healthNormalized=etHealth ? etHealth.normalizeState(lickCreekNormalized,{cancelPending:true}) : lickCreekNormalized;
       const roundsNormalized=etRounds ? etRounds.normalizeState(healthNormalized) : healthNormalized;

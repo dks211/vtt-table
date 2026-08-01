@@ -16,6 +16,7 @@ require("../content/east-tennessee-rounds.js");
 require("../content/east-tennessee-characters.js");
 require("../content/east-tennessee-talents.js");
 require("../content/east-tennessee-npcs.js");
+require("../content/east-tennessee-handouts.js");
 require("../content/east-tennessee-finchs-nest.js");
 require("../content/east-tennessee-lick-creek.js");
 require("../content/east-tennessee-equipment.js");
@@ -58,7 +59,7 @@ test("campaign registry exposes isolated Palimpsest and East Tennessee packages"
   assert.equal(palimpsest.content, globalThis.VTTContent);
   assert.equal(eastTennessee.title, "East Tennessee 1861");
   assert.equal(eastTennessee.packageVersion, 1);
-  assert.equal(eastTennessee.stateSchemaVersion, 10);
+  assert.equal(eastTennessee.stateSchemaVersion, 11);
 
   const palimpsestSession = palimpsest.createSession();
   const eastTennesseeSession = eastTennessee.createSession();
