@@ -12,6 +12,8 @@ const files = [
   "content/east-tennessee-talents.js",
   "content/east-tennessee-npcs.js",
   "content/east-tennessee-finchs-nest.js",
+  "content/east-tennessee-lick-creek.js",
+  "assets/campaigns/east-tennessee-1861/lick-creek/player-map.svg",
   "assets/campaigns/east-tennessee-1861/finchs-nest/exterior.svg",
   "assets/campaigns/east-tennessee-1861/finchs-nest/ground-floor.svg",
   "assets/campaigns/east-tennessee-1861/finchs-nest/upper-floor.svg",

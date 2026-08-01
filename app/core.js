@@ -773,6 +773,12 @@
       for(const id of projected.finchsNest.revealedObjects){const item=definition?.inspectableObjects?.[id];if(item)projected.finchsNest.objects[id]={id,label:item.label,publicSummary:item.publicSummary};}
       if(scene.courierOutcomeRevealed)projected.finchsNest.courierOutcome=String(scene.courierOutcome||"undetermined");
     }
+    if (objectOrNull(source.lickCreek)) {
+      const scene=source.lickCreek,definition=globalThis.EastTennesseeLickCreek?.DEFINITION;
+      projected.lickCreek={initialized:!!scene.initialized,variant:String(scene.variant||"undetermined"),scenePhase:String(scene.scenePhase||"reconnaissance"),bridgeState:String(scene.bridgeState||"intact"),facts:[],objects:{}};
+      for(const fact of definition?.reconnaissanceFacts||[]){const grant=scene.revealedFacts?.[fact.id];if(globalThis.EastTennesseeLickCreek?.revealAllowed(grant,recipient))projected.lickCreek.facts.push({id:fact.id,label:fact.label,text:String(fact[scene.variant]||fact.text||"")});}
+      for(const id of scene.revealedObjects||[]){const item=definition?.inspectableObjects?.[id];if(item)projected.lickCreek.objects[id]={id,label:item.label,publicSummary:item.publicSummary};}
+    }
     if (source.characterClaimSequence != null) projected.characterClaimSequence = integer(source.characterClaimSequence,1);
     if (objectOrNull(source.talentUsage)) {
       projected.talentUsage={scene:clone(source.talentUsage.scene||{}),round:clone(source.talentUsage.round||{}),pending:null};

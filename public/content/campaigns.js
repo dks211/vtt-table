@@ -13,6 +13,7 @@
   const etTalents = root.EastTennesseeTalents;
   const etNpcs = root.EastTennesseeNPCs;
   const etFinchsNest = root.EastTennesseeFinchsNest;
+  const etLickCreek = root.EastTennesseeLickCreek;
   const eastTennesseeConditions=()=>Object.fromEntries(["exhausted","shaken","frightened","distracted"].map(id=>[id,{active:false,source:null,notes:null}]));
 
   const eastTennesseeLevel = Object.freeze({
@@ -110,7 +111,7 @@
     id: EAST_TENNESSEE_ID,
     title: "East Tennessee 1861",
     packageVersion: 1,
-    stateSchemaVersion: 9,
+    stateSchemaVersion: 10,
     assetNamespace: "campaigns/east-tennessee-1861",
     initialLevel: eastTennesseeLevel,
     initialStart: eastTennesseeStart,
@@ -210,12 +211,14 @@
         npcs: safeObject(source.npcs),
         nextNpcSequence: Number(source.nextNpcSequence) || 1,
         finchsNest: safeObject(source.finchsNest),
+        lickCreek: safeObject(source.lickCreek),
       };
       const characterNormalized=etCharacters ? etCharacters.normalizeState(normalized) : normalized;
       const talentNormalized=etTalents ? etTalents.normalizeState(characterNormalized,{cancelPending:true}) : characterNormalized;
       const npcNormalized=etNpcs ? etNpcs.normalizeState(talentNormalized) : talentNormalized;
       const finchsNormalized=etFinchsNest ? etFinchsNest.normalizeState(npcNormalized) : npcNormalized;
-      const healthNormalized=etHealth ? etHealth.normalizeState(finchsNormalized,{cancelPending:true}) : finchsNormalized;
+      const lickCreekNormalized=etLickCreek ? etLickCreek.normalizeState(finchsNormalized) : finchsNormalized;
+      const healthNormalized=etHealth ? etHealth.normalizeState(lickCreekNormalized,{cancelPending:true}) : lickCreekNormalized;
       const roundsNormalized=etRounds ? etRounds.normalizeState(healthNormalized) : healthNormalized;
       const equipmentNormalized=etEquipment ? etEquipment.normalizeState(roundsNormalized) : roundsNormalized;
       return etCombat ? etCombat.normalizeState(equipmentNormalized,{cancelPending:true}) : equipmentNormalized;
