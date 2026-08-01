@@ -1,14 +1,43 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000">
- <defs><pattern id="grid" width="50" height="50" patternUnits="userSpaceOnUse"><path d="M50 0H0V50" fill="none" stroke="#d8d0b5" stroke-opacity=".12"/></pattern><pattern id="field" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M0 24L32 8M-8 32L8 16M24 40L40 24" stroke="#667153" stroke-opacity=".25"/></pattern><filter id="rough"><feTurbulence baseFrequency=".035" numOctaves="2" result="n"/><feBlend in="SourceGraphic" in2="n" mode="multiply"/></filter></defs>
- <rect width="1600" height="1000" fill="#394436"/><path d="M0 0H650Q710 130 655 260T680 520Q720 720 570 1000H0Z" fill="#303b2f"/><path d="M0 0H650Q710 130 655 260T680 520Q720 720 570 1000H0Z" fill="url(#field)"/>
- <path d="M720-30Q650 160 735 300T720 575Q650 750 730 1030H970Q1030 790 935 600T950 300Q1010 120 930-30Z" fill="#526d68"/><path d="M765-30Q710 170 785 310T765 590Q710 760 785 1030" fill="none" stroke="#8da09a" stroke-opacity=".3" stroke-width="18"/>
- <path d="M0 405L1600 405L1600 535L0 535Z" fill="#665b45"/><path d="M0 430H1600M0 510H1600" stroke="#2a2822" stroke-width="12"/><g stroke="#27241f" stroke-width="8"> <path d="M0 445H1600M0 495H1600"/><path d="M30 415v110M95 415v110M160 415v110M225 415v110M290 415v110M355 415v110M420 415v110M485 415v110M550 415v110M615 415v110M680 415v110M745 415v110M810 415v110M875 415v110M940 415v110M1005 415v110M1070 415v110M1135 415v110M1200 415v110M1265 415v110M1330 415v110M1395 415v110M1460 415v110M1525 415v110"/></g>
- <g fill="#4c3e2e" stroke="#211f1a" stroke-width="8"><rect x="690" y="370" width="55" height="230"/><rect x="790" y="370" width="55" height="230"/><rect x="890" y="370" width="55" height="230"/></g><g stroke="#8a7453" stroke-width="14"><path d="M700 555l35-150M735 555l-35-150M800 555l35-150M835 555l-35-150M900 555l35-150M935 555l-35-150"/></g>
- <g fill="#574a37" stroke="#25231d" stroke-width="7"><rect x="510" y="330" width="110" height="75" rx="4"/><rect x="1015" y="330" width="110" height="75" rx="4"/></g><g fill="#b49a64" opacity=".65"><circle cx="540" cy="365" r="8"/><circle cx="1050" cy="365" r="8"/></g>
- <path d="M1030 570Q1220 600 1600 900" fill="none" stroke="#796d51" stroke-width="55"/><path d="M1030 570Q1220 600 1600 900" fill="none" stroke="#9a8c68" stroke-opacity=".35" stroke-width="8"/>
- <g transform="translate(1110 620)" stroke="#29251e" stroke-width="7"><rect width="360" height="250" rx="15" fill="#584d3c"/><path d="M30 65h120v75H30zM190 40h135v90H190zM45 175h90v55H45zM180 170h150v60H180z" fill="#716248"/><path d="M65 65l25-35 35 35M220 40l35-38 40 38" fill="#494334"/><rect x="145" y="145" width="70" height="38" fill="#6b5637"/><circle cx="280" cy="160" r="18" fill="#8a734a"/></g>
- <g fill="#766348" stroke="#322c23" stroke-width="6"><rect x="1250" y="885" width="130" height="55"/><circle cx="1270" cy="947" r="22"/><circle cx="1360" cy="947" r="22"/></g>
- <g fill="#273629" opacity=".9"><circle cx="190" cy="180" r="95"/><circle cx="340" cy="120" r="110"/><circle cx="480" cy="210" r="100"/><circle cx="250" cy="320" r="105"/><circle cx="480" cy="40" r="85"/></g><g fill="#596248" opacity=".75"><circle cx="180" cy="720" r="30"/><circle cx="360" cy="610" r="24"/><circle cx="1050" cy="830" r="26"/><circle cx="1450" cy="310" r="34"/><circle cx="1230" cy="240" r="28"/></g>
- <path d="M1050 0H1600V360H1050Z" fill="#5b6449" opacity=".45"/><path d="M1050 0H1600V360H1050Z" fill="url(#field)"/>
- <rect width="1600" height="1000" fill="url(#grid)"/><g transform="translate(72 72)" fill="none" stroke="#d1c49a" stroke-width="5"><path d="M0 48V0l-12 22M0 0l12 22"/><path d="M45 48h100M45 38v20M95 38v20M145 38v20"/></g>
+<defs>
+ <pattern id="grid" width="50" height="50" patternUnits="userSpaceOnUse"><path d="M50 0H0V50" fill="none" stroke="#d8d0b5" stroke-opacity=".08"/></pattern>
+ <pattern id="field" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M0 24L32 8M-8 32L8 16M24 40L40 24" stroke="#667153" stroke-opacity=".22"/></pattern>
+ <pattern id="bridgewood" width="38" height="38" patternUnits="userSpaceOnUse"><rect width="38" height="38" fill="#65513d"/><path d="M0 8h38M0 28h38" stroke="#44372c" stroke-width="5"/></pattern>
+ <pattern id="shingles" width="36" height="22" patternUnits="userSpaceOnUse"><rect width="36" height="22" fill="#554333"/><path d="M0 2h36M0 20h36M18 2v18" stroke="#362c24" stroke-width="3"/></pattern>
+</defs>
+<rect width="1600" height="1000" fill="#394436"/><rect width="1600" height="1000" fill="url(#field)" opacity=".7"/>
+<!-- wooded ridge and open farmland frame the creek -->
+<path d="M0 0H480C535 95 470 210 500 310S490 520 435 640S450 850 390 1000H0Z" fill="#303b2f"/>
+<g fill="#273629" opacity=".9"><circle cx="135" cy="120" r="100"/><circle cx="285" cy="190" r="120"/><circle cx="395" cy="95" r="90"/><circle cx="190" cy="365" r="115"/><circle cx="350" cy="500" r="100"/><circle cx="195" cy="760" r="125"/></g>
+<path d="M1120 0H1600V1000H1180C1135 850 1200 710 1140 580S1190 300 1120 0Z" fill="#596248" opacity=".72"/>
+<path d="M1180 70C1320 35 1460 85 1600 55M1195 145C1330 110 1460 160 1600 125M1210 220C1350 190 1470 225 1600 205" fill="none" stroke="#71805f" stroke-width="10" opacity=".45"/>
+<!-- broad creek and muddy banks: the playable space under the bridge is the center of the map -->
+<path d="M570 -40C455 90 540 205 505 320C450 465 535 565 475 700C425 820 515 930 480 1040H1140C1080 920 1180 805 1115 675C1060 555 1140 450 1085 315C1045 195 1155 80 1075 -40Z" fill="#4c7070"/>
+<path d="M620 -20C530 105 610 220 565 335C515 460 600 565 540 705C500 820 575 915 555 1015M1025 -20C950 105 1030 220 980 340C930 460 1020 570 955 710C920 820 1000 930 980 1015" fill="none" stroke="#9bb1a7" stroke-opacity=".35" stroke-width="18"/>
+<path d="M455 355C545 380 600 350 690 370S875 380 945 360S1070 370 1150 350V760C1045 735 970 780 880 755S685 735 605 765S500 740 430 770Z" fill="#786d52" opacity=".86"/>
+<path d="M480 420C575 400 635 425 710 415S860 405 930 425S1040 410 1125 430M465 665C560 645 640 675 720 660S875 650 950 675S1055 650 1135 670" fill="none" stroke="#a4936a" stroke-width="8" opacity=".55"/>
+<g fill="#68795f" opacity=".75"><circle cx="430" cy="840" r="28"/><circle cx="540" cy="865" r="20"/><circle cx="1090" cy="820" r="24"/><circle cx="1170" cy="560" r="26"/></g>
+<!-- railroad embankments and rails -->
+<path d="M0 205H450L500 235H1120L1170 205H1600V385H1170L1120 355H500L450 385H0Z" fill="#665b45"/>
+<path d="M0 235H450L500 265H1120L1170 235H1600M0 345H450L500 315H1120L1170 345H1600" fill="none" stroke="#292721" stroke-width="14"/>
+<g stroke="#2a2822" stroke-width="12"><path d="M60 218v154M140 218v154M220 218v154M300 218v154M380 218v154M470 235v130M550 250v100M650 250v100M750 250v100M850 250v100M950 250v100M1050 250v100M1130 235v130M1220 218v154M1300 218v154M1380 218v154M1460 218v154M1540 218v154"/></g>
+<!-- bridge deck and trestles -->
+<rect x="470" y="235" width="680" height="125" fill="url(#bridgewood)" stroke="#2c241d" stroke-width="12"/>
+<path d="M470 252h680M470 342h680" stroke="#8a6b48" stroke-width="9"/>
+<g fill="#4a382b" stroke="#29221c" stroke-width="8"><rect x="540" y="325" width="58" height="375"/><rect x="755" y="325" width="58" height="375"/><rect x="970" y="325" width="58" height="375"/></g>
+<g fill="#765d42" stroke="#30271f" stroke-width="7"><rect x="530" y="680" width="78" height="30"/><rect x="745" y="680" width="78" height="30"/><rect x="960" y="680" width="78" height="30"/></g>
+<g fill="none" stroke="#a27d51" stroke-width="10"><path d="M548 625v-86M763 625v-86M978 625v-86"/></g>
+<!-- two small guard shanties sit at the bridge ends -->
+<g stroke="#2f271f" stroke-width="9"><rect x="480" y="365" width="100" height="70" fill="#5a4937"/><path d="M468 365l62-48 62 48z" fill="url(#shingles)"/><rect x="1020" y="365" width="100" height="70" fill="#5a4937"/><path d="M1008 365l62-48 62 48z" fill="url(#shingles)"/></g>
+<g fill="#ae9564" stroke="#3b3026" stroke-width="5"><rect x="500" y="388" width="26" height="28"/><rect x="1050" y="388" width="26" height="28"/></g>
+<!-- readable under-bridge cover: rocks, wet shelves, timbers, and a maintenance ladder -->
+<g fill="#4d5144" stroke="#35352e" stroke-width="6"><ellipse cx="665" cy="470" rx="35" ry="20"/><ellipse cx="880" cy="450" rx="38" ry="21"/><ellipse cx="1080" cy="500" rx="32" ry="18"/><ellipse cx="720" cy="700" rx="42" ry="22"/></g>
+<g fill="#6f5b42" stroke="#3a3026" stroke-width="7"><rect x="625" y="590" width="92" height="25"/><rect x="870" y="585" width="105" height="25"/><rect x="690" y="740" width="75" height="28"/></g>
+<g fill="none" stroke="#b29261" stroke-width="7"><path d="M1120 620L1065 420M1140 620L1085 420"/><path d="M1080 490h42M1090 530h42M1100 570h42M1110 610h42"/></g>
+<!-- work camp on the dry southeast bank -->
+<path d="M1130 650Q1180 615 1240 630H1500V890H1140Z" fill="#5a4b38" stroke="#342b22" stroke-width="10"/>
+<g stroke="#2e2922" stroke-width="8"><path d="M1170 720h300v110h-300z" fill="#6e5940"/><path d="M1200 720V830M1320 720V830M1410 720V830"/><path d="M1190 710l65-65 65 65z" fill="url(#shingles)"/><path d="M1370 710l55-55 55 55z" fill="url(#shingles)"/></g>
+<g fill="#8d7049" stroke="#332b23" stroke-width="6"><rect x="1150" y="850" width="90" height="35"/><rect x="1250" y="850" width="65" height="35"/><rect x="1360" y="850" width="95" height="35"/></g>
+<g fill="none" stroke="#2d2922" stroke-width="8"><circle cx="1175" cy="915" r="25"/><circle cx="1435" cy="915" r="25"/><path d="M1175 890v50M1150 915h50M1435 890v50M1410 915h50"/></g>
+<rect width="1600" height="1000" fill="url(#grid)"/>
 </svg>
