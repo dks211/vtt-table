@@ -12,6 +12,7 @@
   const etCharacters = root.EastTennesseeCharacters;
   const etTalents = root.EastTennesseeTalents;
   const etNpcs = root.EastTennesseeNPCs;
+  const etFinchsNest = root.EastTennesseeFinchsNest;
   const eastTennesseeConditions=()=>Object.fromEntries(["exhausted","shaken","frightened","distracted"].map(id=>[id,{active:false,source:null,notes:null}]));
 
   const eastTennesseeLevel = Object.freeze({
@@ -109,7 +110,7 @@
     id: EAST_TENNESSEE_ID,
     title: "East Tennessee 1861",
     packageVersion: 1,
-    stateSchemaVersion: 8,
+    stateSchemaVersion: 9,
     assetNamespace: "campaigns/east-tennessee-1861",
     initialLevel: eastTennesseeLevel,
     initialStart: eastTennesseeStart,
@@ -208,11 +209,13 @@
         nextTalentSequence: Number(source.nextTalentSequence) || 1,
         npcs: safeObject(source.npcs),
         nextNpcSequence: Number(source.nextNpcSequence) || 1,
+        finchsNest: safeObject(source.finchsNest),
       };
       const characterNormalized=etCharacters ? etCharacters.normalizeState(normalized) : normalized;
       const talentNormalized=etTalents ? etTalents.normalizeState(characterNormalized,{cancelPending:true}) : characterNormalized;
       const npcNormalized=etNpcs ? etNpcs.normalizeState(talentNormalized) : talentNormalized;
-      const healthNormalized=etHealth ? etHealth.normalizeState(npcNormalized,{cancelPending:true}) : npcNormalized;
+      const finchsNormalized=etFinchsNest ? etFinchsNest.normalizeState(npcNormalized) : npcNormalized;
+      const healthNormalized=etHealth ? etHealth.normalizeState(finchsNormalized,{cancelPending:true}) : finchsNormalized;
       const roundsNormalized=etRounds ? etRounds.normalizeState(healthNormalized) : healthNormalized;
       const equipmentNormalized=etEquipment ? etEquipment.normalizeState(roundsNormalized) : roundsNormalized;
       return etCombat ? etCombat.normalizeState(equipmentNormalized,{cancelPending:true}) : equipmentNormalized;

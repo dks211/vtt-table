@@ -766,6 +766,13 @@
       if(delegated)safe.mechanicalControl=true;
       return[id,safe];
     }));
+    if (objectOrNull(source.finchsNest)) {
+      const scene=source.finchsNest,definition=globalThis.EastTennesseeFinchsNest?.DEFINITION;
+      projected.finchsNest={initialized:!!scene.initialized,phaseId:String(scene.phaseId||"arrival"),activeFloor:String(scene.activeFloor||"ground"),revealedRegions:clone(scene.revealedRegions||[]),revealedObjects:clone(scene.revealedObjects||[]),regions:[],objects:{}};
+      for(const floor of Object.keys(definition?.regions||{}))for(const region of definition.regions[floor]||[])if(projected.finchsNest.revealedRegions.includes(region.id))projected.finchsNest.regions.push({id:region.id,floor,label:region.label,public:region.public});
+      for(const id of projected.finchsNest.revealedObjects){const item=definition?.inspectableObjects?.[id];if(item)projected.finchsNest.objects[id]={id,label:item.label,publicSummary:item.publicSummary};}
+      if(scene.courierOutcomeRevealed)projected.finchsNest.courierOutcome=String(scene.courierOutcome||"undetermined");
+    }
     if (source.characterClaimSequence != null) projected.characterClaimSequence = integer(source.characterClaimSequence,1);
     if (objectOrNull(source.talentUsage)) {
       projected.talentUsage={scene:clone(source.talentUsage.scene||{}),round:clone(source.talentUsage.round||{}),pending:null};
