@@ -117,7 +117,7 @@ body.editing #iso-preview{display:block}
 #panel{position:fixed;right:0;top:var(--top-h);bottom:26px;width:var(--panel-w);z-index:20;overflow-y:auto;
   background:var(--felt-900);border-left:1px solid var(--brass-faint);padding:14px 14px 28px;
   scrollbar-width:thin;scrollbar-color:var(--brass-faint) transparent}
-.panel-tabs{position:sticky;top:-14px;z-index:6;display:grid;grid-template-columns:repeat(3,1fr);
+.panel-tabs{position:sticky;top:-14px;z-index:6;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;
   margin:-14px -14px 14px;background:var(--felt-900);border-bottom:1px solid var(--brass-faint);
   box-shadow:0 6px 14px rgba(0,0,0,.2)}
 .panel-tabs button{padding:11px 4px 9px;font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.14em;
@@ -125,6 +125,35 @@ body.editing #iso-preview{display:block}
 .panel-tabs button:hover{color:var(--vellum)}
 .panel-tabs button.on{color:var(--brass);border-bottom-color:var(--brass)}
 .panel-section-hidden{display:none!important}
+.et-card{margin:0 0 7px;border:1px solid var(--brass-faint);border-radius:4px;background:rgba(0,0,0,.12);overflow:hidden}
+.et-card>summary{display:flex;align-items:center;gap:8px;padding:9px 10px;cursor:pointer;list-style:none}
+.et-card>summary::-webkit-details-marker{display:none}
+.et-card>summary::before{content:"›";font-family:'IBM Plex Mono',monospace;color:var(--brass-dim);transition:transform .12s}
+.et-card[open]>summary::before{transform:rotate(90deg)}
+.et-card>summary span{flex:1;min-width:0;color:var(--vellum);font-size:13px}
+.et-card>summary b,.et-audience{font-family:'IBM Plex Mono',monospace;font-size:8px;font-weight:500;letter-spacing:.08em;color:var(--under);text-align:right}
+.et-card-body{padding:10px;border-top:1px solid var(--brass-faint);font-size:13px;line-height:1.5}
+.et-card-body p{margin:0 0 8px}.et-card-body label:not(.check){display:block;margin:8px 0 3px;color:var(--vellum-dim)}
+.et-card-body label select{display:block;width:100%;margin-top:3px}
+.et-role{color:var(--under);margin-bottom:8px}.et-private,.et-gm-note{margin-top:10px;padding:9px;border-left:2px solid var(--brass-dim);background:rgba(0,0,0,.15)}
+
+/* East Tennessee is a restrained historical table, distinct from Palimpsest's green-and-brass dungeon console. */
+body.campaign-east-tennessee{
+  --felt-950:#111313;--felt-900:#191C1C;--felt-800:#222625;--baize:#282E2B;--baize-line:#37403B;
+  --brass:#D0B77A;--brass-dim:#907A4F;--brass-faint:#4C4537;--vellum:#ECE7DB;--vellum-dim:#B7B0A1;
+  --oxblood:#8D453B;--under:#9CB0A8;--panel-w:390px;
+}
+body.campaign-east-tennessee #topbar{background:linear-gradient(180deg,#272A29,#171919);border-bottom-color:#65583F}
+body.campaign-east-tennessee #wordmark{letter-spacing:.08em;color:#E1CF9E}
+body.campaign-east-tennessee #panel{background:linear-gradient(180deg,#202322,#181A1A);box-shadow:-12px 0 30px rgba(0,0,0,.22)}
+body.campaign-east-tennessee #stage{background:radial-gradient(circle at 48% 42%,#242927,#111313 72%)}
+body.campaign-east-tennessee .level-view{display:none!important}
+body.campaign-east-tennessee #stage-view-toggle{display:none!important}
+body.campaign-east-tennessee #iso-preview{display:none!important}
+body.campaign-east-tennessee .panel-tabs{grid-auto-columns:minmax(68px,1fr)}
+body.campaign-east-tennessee .panel-tabs button{font-size:8px;letter-spacing:.1em}
+body.campaign-east-tennessee .sect h3{letter-spacing:.17em;color:#BCA36B}
+body.campaign-east-tennessee .rbtn{border-radius:2px}
 .panel-group-scene>.toklist,.panel-group-tokens>.toklist{max-height:230px;overflow:auto;
   scrollbar-width:thin;scrollbar-color:var(--brass-faint) transparent}
 .sect{margin-bottom:20px}

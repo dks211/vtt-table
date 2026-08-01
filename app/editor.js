@@ -740,7 +740,17 @@ function setCampaign(id,state){
   App.session.campaignPackageVersion=campaign.packageVersion;
   App.session.campaignStateSchemaVersion=campaign.stateSchemaVersion;
   App.session.campaignState=campaign.normalizeCampaignState(state==null?campaign.createCampaignState():state);
+  applyCampaignChrome(campaign.id);
   return campaign;
+}
+function applyCampaignChrome(id){
+  const east=id==="east-tennessee-1861";
+  document.body.classList.toggle("campaign-east-tennessee",east);
+  $("wordmark").innerHTML=east?'EAST TENNESSEE 1861<small>VERSO CAMPAIGN TABLE</small>':'THE VERSO<small>TABLE CONSOLE</small>';
+  $("tab-map").textContent=east?"SCENE MAP":"YOUR MAP";
+  $("tab-verso").textContent=east?"CAMPAIGN TABLE":"THE VERSO · BACK OF HOUSE";
+  $("tab-edit").textContent=east?"LAYOUT EDITOR":"EDITOR";
+  $("st-hint").textContent=east?"Top-down campaign view · rulings remain GM-authoritative":"";
 }
 function applyBundledLevel(level,start,{preserveParty=false,announce=false}={}){
   const previous=App.session.verso.tokens;
@@ -762,7 +772,7 @@ function applyBundledLevel(level,start,{preserveParty=false,announce=false}={}){
   }else App.session.verso.tokens=destination;
   App.session.tracker=JSON.parse(JSON.stringify(start.tracker||{order:[],active:0,round:1}));
   rebindConnectedOwners();
-  setLevelView("isometric");setScene("verso");markDirty();hideStartScreen();
+  setLevelView(App.session.campaignId==="east-tennessee-1861"?"tactical":"isometric");setScene("verso");markDirty();hideStartScreen();
   if(announce)requestAnimationFrame(()=>broadcastLevelTransition(level.name));
 }
 function startVerso(){
@@ -859,7 +869,7 @@ function deserialize(d){
     App.session.campaignStateSchemaVersion=campaign.stateSchemaVersion;
     loadLevel(session.level);
     App.session.verso.revealed=session.verso.revealed;
-    App.session.verso.view=session.verso.view;
+    App.session.verso.view=session.campaignId==="east-tennessee-1861"?"tactical":session.verso.view;
     document.body.classList.toggle("tacticalscene",App.session.verso.view==="tactical");
     $("view-iso").classList.toggle("on",App.session.verso.view==="isometric");
     $("view-tactical").classList.toggle("on",App.session.verso.view==="tactical");
@@ -946,4 +956,4 @@ async function autosave(){
 }
 setInterval(autosave,8000);
 
-Object.assign(App.services.editor,{setTool,setScene,setView,setLevelView,serialize,deserialize,newEntityId,renderEditorPreview,fitIsoPreview,showStartScreen,hideStartScreen,newBlankLevel,startCampaign,startVerso,startVault,transitionBundledLevel,transitionCustomLevel,openLevelFile,resumeAutosave});
+Object.assign(App.services.editor,{setTool,setScene,setView,setLevelView,serialize,deserialize,newEntityId,renderEditorPreview,fitIsoPreview,showStartScreen,hideStartScreen,newBlankLevel,startCampaign,startVerso,startVault,transitionBundledLevel,transitionCustomLevel,openLevelFile,resumeAutosave,applyCampaignChrome});

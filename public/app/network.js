@@ -404,6 +404,7 @@ function clientHandle(m){
       App.session.campaignPackageVersion=+m.campaignPackageVersion||1;
       App.session.campaignStateSchemaVersion=+m.campaignStateSchemaVersion||1;
       App.session.campaignState=campaign.createCampaignState();
+      App.services.editor.applyCampaignChrome?.(campaign.id);
       cliCampaignReady=true;
     }catch(e){
       netStatus("CAMPAIGN NOT AVAILABLE — UPDATE THE APPLICATION");

@@ -119,3 +119,13 @@ test("campaign descriptor precedes campaign state in initial join messages", () 
   assert.deepEqual(messages.map(message => message.type), ["campaign", "level", "sync"]);
   assert.equal(messages[0].campaignId, "east-tennessee-1861");
 });
+
+test("East Tennessee presents campaign workspaces and plain-language controls", () => {
+  const panel = readFileSync(join(__dirname, "..", "app", "panel.js"), "utf8");
+  const editor = readFileSync(join(__dirname, "..", "app", "editor.js"), "utf8");
+  for (const label of ["SCENE", "CAST", "ENCOUNTER", "DOCUMENTS", "TABLE", "START ENCOUNTER", "Who is in this encounter?", "Add someone to the scene…", "SHARE WITH SELECTED AUDIENCE"])
+    assert.ok(panel.includes(label), `missing East Tennessee UI label: ${label}`);
+  assert.equal(panel.includes("OPEN CLARA AWARENESS CHECK"), false);
+  assert.equal(panel.includes("BEGIN IMMEDIATE DANGER"), false);
+  assert.match(editor, /campaignId==="east-tennessee-1861"\?"tactical":"isometric"/);
+});
