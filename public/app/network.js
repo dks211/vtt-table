@@ -11,6 +11,8 @@ function syncCampaignOwnership(token){
   const actor=actors&&actors[token.actorId];
   if(!actor)return;
   if(token.ownerKey)actor.ownerKey=token.ownerKey;else delete actor.ownerKey;
+  const slot=actor.definitionId&&App.session.campaignState.characterRoster?.[actor.definitionId];
+  if(slot)slot.status=token.ownerKey?"active":"available";
 }
 function cleanPlayerKey(value){return String(value||"").replace(/[^A-Za-z0-9_-]/g,"").slice(0,80);}
 function localPlayerKey(){

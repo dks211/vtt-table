@@ -19,14 +19,14 @@
 
   const eastTennesseeLevel = Object.freeze({
     schemaVersion: 3,
-    name: "East Tennessee 1861 · Placeholder Scene",
+    name: "East Tennessee 1861 · Opening Adventure",
     bg: "#182019",
     rooms: [{
       id: "east-tennessee-1861-placeholder-room",
-      name: "East Tennessee 1861 · Placeholder Scene",
-      sub: "Campaign package isolation test",
-      read: "This placeholder scene confirms that the East Tennessee campaign can load without importing unfinished adventure content.",
-      dm: "Placeholder only. No final map, encounter, or hidden campaign material is included in this vertical slice.",
+      name: "East Tennessee 1861 · Campaign Table",
+      sub: "Opening adventure staging area",
+      read: "The East Tennessee campaign table is ready. Use the Scene controls to begin the opening investigation and initialize locations when the party reaches them.",
+      dm: "The campaign state, character roster, handouts, Finch’s Nest, and Lick Creek remain available from the Scene workspace.",
       rects: [{ x: 0, y: 0, w: 8, h: 6 }],
       floorA: "#4B4434",
       floorB: "#403A2E",
@@ -40,20 +40,22 @@
     props: [],
     encounterEffects: [],
     roster: [{
-      id: "east-tennessee-1861-actor-placeholder-operative",
-      actorId: "east-tennessee-1861:actor:placeholder-operative",
-      name: "Placeholder Operative",
-      letter: "ET",
-      color: "#8A6E36",
-      pc: true,
-    },{
       id: "east-tennessee-1861-actor-jacob-sloane",
       actorId: "east-tennessee-1861:actor:jacob-sloane",
-      name: "Jacob Hatcher · Mechanical Placeholder",
-      letter: "JS", color: "#546B54", pc: true,
+      name: "Jacob Hatcher",
+      letter: "JH", color: "#546B54", pc: true,
     },{
       id: "east-tennessee-1861-actor-elias-rourke", actorId: "east-tennessee-1861:actor:elias-rourke",
-      name: "Elias Rourke · Mechanical Placeholder", letter: "ER", color: "#70534A", pc: true,
+      name: "Elias Rourke", letter: "ER", color: "#70534A", pc: true,
+    },{
+      id: "east-tennessee-1861-actor-clara-webb", actorId: "east-tennessee-1861:actor:clara-webb",
+      name: "Clara Webb", letter: "CW", color: "#596B73", pc: true,
+    },{
+      id: "east-tennessee-1861-actor-ned-hale", actorId: "east-tennessee-1861:actor:ned-hale",
+      name: "Reverend Edmund “Ned” Hale", letter: "NH", color: "#6A6049", pc: true,
+    },{
+      id: "east-tennessee-1861-actor-tom-whitaker", actorId: "east-tennessee-1861:actor:tom-whitaker",
+      name: "Thomas “Tom” Whitaker", letter: "TW", color: "#62556B", pc: true,
     }],
   });
 
@@ -61,21 +63,21 @@
     revealed: { "east-tennessee-1861-placeholder-room": true },
     tracker: { order: [], active: 0, round: 1 },
     tokens: [{
-      actorId: "east-tennessee-1861:actor:placeholder-operative",
-      name: "Placeholder Operative",
-      letter: "ET",
-      color: "#8A6E36",
-      x: 3.5,
-      y: 2.5,
-      size: 1,
-      pc: true,
-    },{
       actorId: "east-tennessee-1861:actor:jacob-sloane",
-      name: "Jacob Hatcher · Mechanical Placeholder",
-      letter: "JS", color: "#546B54", x: 4.5, y: 2.5, size: 1, pc: true,
+      name: "Jacob Hatcher",
+      letter: "JH", color: "#546B54", x: 1.5, y: 2.5, size: 1, pc: true,
     },{
-      actorId: "east-tennessee-1861:actor:elias-rourke", name: "Elias Rourke · Mechanical Placeholder",
-      letter: "ER", color: "#70534A", x: 5.5, y: 2.5, size: 1, pc: true,
+      actorId: "east-tennessee-1861:actor:elias-rourke", name: "Elias Rourke",
+      letter: "ER", color: "#70534A", x: 2.75, y: 2.5, size: 1, pc: true,
+    },{
+      actorId: "east-tennessee-1861:actor:clara-webb", name: "Clara Webb",
+      letter: "CW", color: "#596B73", x: 4, y: 2.5, size: 1, pc: true,
+    },{
+      actorId: "east-tennessee-1861:actor:ned-hale", name: "Reverend Edmund “Ned” Hale",
+      letter: "NH", color: "#6A6049", x: 5.25, y: 2.5, size: 1, pc: true,
+    },{
+      actorId: "east-tennessee-1861:actor:tom-whitaker", name: "Thomas “Tom” Whitaker",
+      letter: "TW", color: "#62556B", x: 6.5, y: 2.5, size: 1, pc: true,
     }],
   });
 
@@ -119,27 +121,9 @@
     createCampaignState: () => ({
       namespace: EAST_TENNESSEE_ID,
       actors: {
-        "east-tennessee-1861:actor:placeholder-operative": {
-          actorId: "east-tennessee-1861:actor:placeholder-operative",
-          ownerKey: null,
-          identity: { name: "Placeholder Operative", publicExample: "publicExample" },
-          owner: { ownerExample: "ownerExample" },
-          party: { revealed: false, partyExample: "partyExample" },
-          selected: { recipientIds: [], selectedExample: "selectedExample" },
-          gm: { gmExample: "gmExample" },
-          mechanics: { visibility: "public", data: { placeholder: true } },
-          privateNotes: { visibility: "owner", data: {} },
-          health: { state: "unhurt", stable: true, dyingFailures: 0, dead: false },
-          injuries: [], skills: { athletics: 9, awareness: 11, fieldcraft: 10, firearms: 10, influence: 8, mechanics: 9, medicine: 8, melee: 10, mobility: 10, resolve: 10, riding: 8, stealth: 11 },
-          conditions: eastTennesseeConditions(), medicalCapability: { hasPlausibleMaterials: true, hasProperSupplies: true },
-          talents: { fieldMedicine: false },
-          weaponIds: ["revolver", "knife"], healthClassification: "full", aim: { active: false },
-          combatContext: { cover: "none", visibility: "clear", unaware: false, stationary: false, coverDescription: "" },
-        },
         "east-tennessee-1861:actor:jacob-sloane": {
           actorId: "east-tennessee-1861:actor:jacob-sloane", ownerKey: null,
-          identity: { name: "Jacob Hatcher · Mechanical Placeholder" },
-          mechanics: { visibility: "public", data: { placeholder: true } },
+          identity: { name: "Jacob Hatcher" },
           privateNotes: { visibility: "owner", data: {} },
           health: { state: "unhurt", stable: true, dyingFailures: 0, dead: false }, injuries: [],
           skills: { athletics: 8, awareness: 11, fieldcraft: 10, firearms: 9, influence: 10, mechanics: 9, medicine: 14, melee: 8, mobility: 9, resolve: 12, riding: 8, stealth: 9 },
@@ -150,7 +134,7 @@
         },
         "east-tennessee-1861:actor:elias-rourke": {
           actorId: "east-tennessee-1861:actor:elias-rourke", ownerKey: null,
-          identity: { name: "Elias Rourke · Mechanical Placeholder" }, mechanics: { visibility: "public", data: { placeholder: true } },
+          identity: { name: "Elias Rourke" },
           privateNotes: { visibility: "owner", data: {} }, health: { state: "unhurt", stable: true, dyingFailures: 0, dead: false }, injuries: [],
           skills: { firearms: 14, melee: 10, resolve: 11 }, conditions: eastTennesseeConditions(), medicalCapability: { hasPlausibleMaterials: false, hasProperSupplies: false },
           talents: { fieldMedicine: false }, weaponIds: ["revolver"], healthClassification: "full", aim: { active: false },

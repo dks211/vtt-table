@@ -66,12 +66,20 @@ test("campaign registry exposes isolated Palimpsest and East Tennessee packages"
   assert.equal(palimpsestSession.campaignId, "palimpsest");
   assert.deepEqual(palimpsestSession.campaignState, {});
   assert.equal(eastTennesseeSession.campaignId, "east-tennessee-1861");
-  assert.equal(eastTennesseeSession.level.name, "East Tennessee 1861 · Placeholder Scene");
+  assert.equal(eastTennesseeSession.level.name, "East Tennessee 1861 · Opening Adventure");
   assert.ok(eastTennesseeSession.level.rooms[0].id.startsWith("east-tennessee-1861-"));
   assert.equal(eastTennesseeSession.campaignState.namespace, "east-tennessee-1861");
   assert.equal(Object.keys(eastTennesseeSession.campaignState.actors).length, 5);
   assert.equal(eastTennesseeSession.campaignState.actors["east-tennessee-1861:actor:clara-webb"].health.state, "unhurt");
   assert.equal(eastTennesseeSession.campaignState.actors["east-tennessee-1861:actor:jacob-sloane"].talents.fieldMedicine, true);
+  assert.equal(eastTennessee.initialLevel.roster.length, 5);
+  assert.equal(eastTennessee.initialStart.tokens.length, 5);
+  assert.deepEqual(
+    new Set(eastTennessee.initialStart.tokens.map(token => token.actorId)),
+    new Set(Object.values(globalThis.EastTennesseeCharacters.DEFINITIONS).map(character => character.actorId)),
+  );
+  assert.equal(JSON.stringify(eastTennessee.initialLevel).includes("Placeholder"), false);
+  assert.equal(JSON.stringify(eastTennessee.initialStart).includes("Placeholder"), false);
   assert.equal(eastTennesseeSession.campaignState.scene.immediateDanger, false);
   assert.deepEqual(eastTennesseeSession.campaignState.npcs, {});
   assert.equal(JSON.stringify(palimpsestSession).includes("east-tennessee"), false);
