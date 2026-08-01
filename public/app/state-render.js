@@ -253,6 +253,8 @@ function emptyMapMessage(){
 function drawTokenFlat(t,g,s,options={}){
   const concise=!!options.concise;
   const r=g*.42*t.size;
+  const npc=App.session.campaignId==="east-tennessee-1861"&&App.session.campaignState?.npcs?.[t.actorId];
+  const npcBadge=npc&&globalThis.EastTennesseeNPCs?.tokenBadge(App.session.campaignState,t.actorId);
   const active=App.session.tracker.order[App.session.tracker.active]?.tok===t.id;
   const selected=RVIEW==="dm"&&App.session.selToken===t.id;
   ctx.save();
@@ -260,7 +262,7 @@ function drawTokenFlat(t,g,s,options={}){
   ctx.beginPath(); ctx.arc(t.x,t.y,r,0,7); ctx.fillStyle=t.color; ctx.fill();
   ctx.shadowColor="transparent";
   ctx.lineWidth=active?Math.max(4,g*.075):Math.max(2,g*.05);
-  ctx.strokeStyle = active ? "#C8A14E" : selected ? "#E9E2CE" : "rgba(7,9,8,.6)";
+  ctx.strokeStyle = active ? "#C8A14E" : selected ? "#E9E2CE" : npc ? "#8A6E36" : "rgba(7,9,8,.6)";
   ctx.stroke();
   if(t.sheet&&t.sheet.hpMax>0&&(RVIEW==="dm"||t.pc)){
     const hp=Math.max(0,Math.min(t.sheet.hpMax,t.sheet.hp==null?t.sheet.hpMax:t.sheet.hp));
@@ -289,6 +291,7 @@ function drawTokenFlat(t,g,s,options={}){
       ctx.fillStyle=colors[status]||"#E9E2CE";ctx.fill();
     });
   }
+  if(npcBadge){ctx.font=`700 ${Math.max(9,g*.13)}px 'IBM Plex Mono', monospace`;ctx.fillStyle="#E9E2CE";ctx.strokeStyle="rgba(7,9,8,.9)";ctx.lineWidth=3;ctx.strokeText(npcBadge,t.x,t.y-r-g*.12);ctx.fillText(npcBadge,t.x,t.y-r-g*.12);}
   ctx.restore();
 }
 
@@ -1124,7 +1127,8 @@ function drawTokenIso(t,s){
   ctx.beginPath(); ctx.arc(cx,cy-r*.5,r,0,7);
   ctx.fillStyle=t.color; ctx.fill();
   ctx.lineWidth=2.4;
-  ctx.strokeStyle = (RVIEW==="dm"&&App.session.selToken===t.id) ? "#E9E2CE" : "rgba(7,9,8,.65)";
+  const npc=App.session.campaignId==="east-tennessee-1861"&&App.session.campaignState?.npcs?.[t.actorId],npcBadge=npc&&globalThis.EastTennesseeNPCs?.tokenBadge(App.session.campaignState,t.actorId);
+  ctx.strokeStyle = (RVIEW==="dm"&&App.session.selToken===t.id) ? "#E9E2CE" : npc ? "#8A6E36" : "rgba(7,9,8,.65)";
   ctx.stroke();
   ctx.fillStyle="#070908"; ctx.textAlign="center"; ctx.textBaseline="middle";
   ctx.font=`600 ${r*.78}px 'IBM Plex Mono', monospace`;
@@ -1132,6 +1136,7 @@ function drawTokenIso(t,s){
   ctx.font="500 11px 'IBM Plex Mono', monospace";
   ctx.fillStyle="#E9E2CE"; ctx.strokeStyle="rgba(7,9,8,.85)"; ctx.lineWidth=3; ctx.lineJoin="round";
   ctx.strokeText(t.name,cx,cy+r*.9+8); ctx.fillText(t.name,cx,cy+r*.9+8);
+  if(npcBadge){ctx.font="700 9px 'IBM Plex Mono', monospace";ctx.fillStyle="#E9E2CE";ctx.strokeText(npcBadge,cx,cy-r*1.65);ctx.fillText(npcBadge,cx,cy-r*1.65);}
   ctx.restore();
 }
 

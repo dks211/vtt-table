@@ -16,7 +16,7 @@
   const text=(value,max=240)=>String(value||"").trim().slice(0,max);
   const integer=(value,min,max,fallback=0)=>Number.isInteger(Number(value))?Math.max(min,Math.min(max,Number(value))):fallback;
   const actorName=actor=>text(actor&&actor.identity&&actor.identity.name,80)||"Character";
-  const owns=(recipient,actor)=>recipient&&recipient.role==="gm"||!!(recipient&&actor&&recipient.actorId===actor.actorId&&recipient.playerKey&&recipient.playerKey===actor.ownerKey);
+  const owns=(recipient,actor)=>recipient&&recipient.role==="gm"||!!(recipient&&actor&&recipient.playerKey&&(recipient.actorId===actor.actorId&&recipient.playerKey===actor.ownerKey||recipient.playerKey===actor.delegatedOwnerKey));
   const fail=reason=>({ok:false,reason});
   const success=(state,result={})=>({ok:true,state,...result});
   const defaultConditions=()=>Object.fromEntries(CONDITIONS.map(id=>[id,{active:false,source:null,notes:null}]));

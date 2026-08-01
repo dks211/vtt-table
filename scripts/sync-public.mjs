@@ -10,6 +10,7 @@ const files = [
   "content/east-tennessee-rounds.js",
   "content/east-tennessee-characters.js",
   "content/east-tennessee-talents.js",
+  "content/east-tennessee-npcs.js",
   "content/east-tennessee-equipment.js",
   "content/east-tennessee-combat.js",
   "content/campaigns.js",

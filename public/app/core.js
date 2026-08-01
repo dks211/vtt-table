@@ -644,8 +644,10 @@
 
   function ownsActor(recipient, actor) {
     return recipient.role === "gm" || !!(
-      recipient.playerKey && recipient.actorId && actor &&
-      actor.actorId === recipient.actorId && actor.ownerKey === recipient.playerKey
+      recipient.playerKey && actor && (
+        recipient.actorId && actor.actorId === recipient.actorId && actor.ownerKey === recipient.playerKey ||
+        actor.delegatedOwnerKey === recipient.playerKey
+      )
     );
   }
 
@@ -705,7 +707,7 @@
       return safe;
     });
     if (objectOrNull(actor.talents)) out.talents = clone(actor.talents);
-    if (objectOrNull(actor.skills)) out.skills = clone(actor.skills);
+    if (objectOrNull(actor.skills) && (!actor.npcLiveId || ownsActor(recipient, actor))) out.skills = clone(actor.skills);
     if (Array.isArray(actor.ordinaryEquipment)) out.ordinaryEquipment = clone(actor.ordinaryEquipment);
     if (objectOrNull(actor.conditions)) out.conditions = Object.fromEntries(Object.entries(actor.conditions).map(([id, item]) => [id, {
       active: !!(item && item.active), source: item && item.source != null ? String(item.source) : null,
@@ -755,6 +757,15 @@
     };
     if (objectOrNull(source.fieldMedicineUsage)) projected.fieldMedicineUsage = clone(source.fieldMedicineUsage);
     if (objectOrNull(source.characterRoster)) projected.characterRoster = clone(source.characterRoster);
+    if (objectOrNull(source.npcs)) projected.npcs = Object.fromEntries(Object.entries(source.npcs).slice(0,500).map(([id,npc]) => {
+      const actor=source.actors?.[npc.actorId],delegated=actor&&ownsActor(recipient,actor),safe={id:String(id),actorId:String(npc.actorId||id),npcClass:String(npc.npcClass||"named"),active:npc.active!==false,
+        label:String(actor?.identity?.name||npc.visibleLabel||"Unknown Person"),identityRevealed:!!npc.identityRevealed,
+        sceneStatus:String(npc.sceneStatus||"present"),health:clone(actor?.health||{}),tokenBadge:globalThis.EastTennesseeNPCs?.tokenBadge?globalThis.EastTennesseeNPCs.tokenBadge(source,id):null};
+      if(npc.moraleRevealed)safe.moraleState=String(npc.moraleState||"steady");
+      if(npc.publicNotes)safe.publicNotes=String(npc.publicNotes);
+      if(delegated)safe.mechanicalControl=true;
+      return[id,safe];
+    }));
     if (source.characterClaimSequence != null) projected.characterClaimSequence = integer(source.characterClaimSequence,1);
     if (objectOrNull(source.talentUsage)) {
       projected.talentUsage={scene:clone(source.talentUsage.scene||{}),round:clone(source.talentUsage.round||{}),pending:null};
@@ -822,7 +833,7 @@
         availableReactions: attack.targetActorId === recipient.actorId ? clone(attack.availableReactions||[]) : [],
       };
     } else projected.pendingAttack=null;
-    projected.weapons = Object.fromEntries(Object.entries(objectOrNull(source.weapons)||{}).filter(([,weapon]) => objectOrNull(weapon) && !weapon.gmOnly).map(([id,weapon]) => {
+    projected.weapons = Object.fromEntries(Object.entries(objectOrNull(source.weapons)||{}).filter(([,weapon]) => objectOrNull(weapon) && !weapon.gmOnly && weapon.visibility!=="gm").map(([id,weapon]) => {
       const safe=clone(weapon);delete safe.notes;return[id,safe];
     }));
     projected.cylinders = Object.fromEntries(Object.entries(objectOrNull(source.cylinders)||{}).filter(([,cylinder]) => objectOrNull(cylinder) && !cylinder.gmOnly).map(([id,cylinder]) => {

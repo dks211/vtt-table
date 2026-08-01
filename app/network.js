@@ -247,7 +247,8 @@ function hostHandle(c,m){
     const context=recipientContextFor(c),options={tokens:[...App.session.map.tokens,...App.session.verso.tokens]};
     let result=globalThis.EastTennesseeCharacters?EastTennesseeCharacters.performAction(App.session.campaignState,context,m.action,options):{ok:false,reason:"unknown character action"};
     if(!result.ok&&result.reason==="unknown character action")result=globalThis.EastTennesseeTalents?EastTennesseeTalents.performAction(App.session.campaignState,context,m.action,options):{ok:false,reason:"unknown talent action"};
-    if(!result.ok&&result.reason==="unknown talent action")result=globalThis.EastTennesseeEquipment?EastTennesseeEquipment.performAction(App.session.campaignState,context,m.action,options):{ok:false,reason:"unknown equipment action"};
+    if(!result.ok&&result.reason==="unknown talent action")result=globalThis.EastTennesseeNPCs?EastTennesseeNPCs.performAction(App.session.campaignState,context,m.action,options):{ok:false,reason:"unknown NPC action"};
+    if(!result.ok&&result.reason==="unknown NPC action")result=globalThis.EastTennesseeEquipment?EastTennesseeEquipment.performAction(App.session.campaignState,context,m.action,options):{ok:false,reason:"unknown equipment action"};
     if(!result.ok&&result.reason==="unknown equipment action")result=globalThis.EastTennesseeCombat?EastTennesseeCombat.performAction(App.session.campaignState,context,m.action,options):{ok:false,reason:"unknown combat action"};
     if(!result.ok&&result.reason==="unknown combat action")result=globalThis.EastTennesseeRounds?EastTennesseeRounds.performAction(App.session.campaignState,context,m.action,options):{ok:false,reason:"unknown structured-play action"};
     if(!result.ok&&result.reason==="unknown structured-play action")result=EastTennesseeHealth.performAction(App.session.campaignState,context,m.action,options);

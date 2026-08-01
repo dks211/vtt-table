@@ -15,6 +15,7 @@ require("../content/east-tennessee-health.js");
 require("../content/east-tennessee-rounds.js");
 require("../content/east-tennessee-characters.js");
 require("../content/east-tennessee-talents.js");
+require("../content/east-tennessee-npcs.js");
 require("../content/east-tennessee-equipment.js");
 require("../content/east-tennessee-combat.js");
 require("../content/campaigns.js");
@@ -55,7 +56,7 @@ test("campaign registry exposes isolated Palimpsest and East Tennessee packages"
   assert.equal(palimpsest.content, globalThis.VTTContent);
   assert.equal(eastTennessee.title, "East Tennessee 1861");
   assert.equal(eastTennessee.packageVersion, 1);
-  assert.equal(eastTennessee.stateSchemaVersion, 7);
+  assert.equal(eastTennessee.stateSchemaVersion, 8);
 
   const palimpsestSession = palimpsest.createSession();
   const eastTennesseeSession = eastTennessee.createSession();
@@ -69,6 +70,7 @@ test("campaign registry exposes isolated Palimpsest and East Tennessee packages"
   assert.equal(eastTennesseeSession.campaignState.actors["east-tennessee-1861:actor:clara-webb"].health.state, "unhurt");
   assert.equal(eastTennesseeSession.campaignState.actors["east-tennessee-1861:actor:jacob-sloane"].talents.fieldMedicine, true);
   assert.equal(eastTennesseeSession.campaignState.scene.immediateDanger, false);
+  assert.deepEqual(eastTennesseeSession.campaignState.npcs, {});
   assert.equal(JSON.stringify(palimpsestSession).includes("east-tennessee"), false);
   assert.equal(JSON.stringify(eastTennesseeSession).includes("Randy Meisner"), false);
   assert.deepEqual(palimpsest.normalizeCampaignState({
@@ -84,6 +86,17 @@ test("campaign registry exposes isolated Palimpsest and East Tennessee packages"
   assert.equal(Object.keys(normalized.actors).length,5);
   assert.equal("leaked" in normalized.actors,false);
   assert.equal("legacyPalimpsestState" in normalized,false);
+  const schema7=JSON.parse(JSON.stringify(eastTennesseeSession.campaignState));
+  const elias="east-tennessee-1861:actor:elias-rourke";
+  schema7.actors[elias].health.state="wounded";
+  schema7.actors[elias].ownerKey="legacy-owner";
+  schema7.timers={legacy:{id:"legacy",definitionId:"custom",label:"Legacy timer",state:"paused",initialRounds:9,remainingRounds:7,visibility:"public"}};
+  delete schema7.npcs;delete schema7.nextNpcSequence;
+  const migrated=eastTennessee.normalizeCampaignState(schema7);
+  assert.equal(migrated.actors[elias].health.state,"wounded");
+  assert.equal(migrated.actors[elias].ownerKey,"legacy-owner");
+  assert.equal(migrated.timers.legacy.remainingRounds,7);
+  assert.deepEqual(migrated.npcs,{});
 });
 
 test("campaign descriptor precedes campaign state in initial join messages", () => {
