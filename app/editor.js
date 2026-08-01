@@ -661,7 +661,11 @@ function setView(v){
 }
 function setLevelView(v,focus){
   if(NET.mode==="client")return;
-  App.session.verso.view=v==="tactical"?"tactical":"isometric";
+  // East Tennessee currently uses one consistent player-facing presentation.
+  // Keep its shared Verso entry scene isometric until the campaign scenes are
+  // migrated into editable Verso level data. Palimpsest retains its saved
+  // isometric/tactical choice.
+  App.session.verso.view=App.session.campaignId==="east-tennessee-1861"?"isometric":(v==="tactical"?"tactical":"isometric");
   App.session.verso.tacticalFocus=App.session.verso.view==="tactical"&&focus?focus.id:null;
   document.body.classList.toggle("tacticalscene",App.session.verso.view==="tactical");
   $("view-iso").classList.toggle("on",App.session.verso.view==="isometric");
@@ -750,7 +754,7 @@ function applyCampaignChrome(id){
   $("tab-map").textContent=east?"SCENE MAP":"YOUR MAP";
   $("tab-verso").textContent=east?"CAMPAIGN TABLE":"THE VERSO · BACK OF HOUSE";
   $("tab-edit").textContent=east?"LAYOUT EDITOR":"EDITOR";
-  $("st-hint").textContent=east?"Top-down campaign view · rulings remain GM-authoritative":"";
+  $("st-hint").textContent=east?"Isometric campaign view · rulings remain GM-authoritative":"";
 }
 function applyBundledLevel(level,start,{preserveParty=false,announce=false}={}){
   const previous=App.session.verso.tokens;
@@ -772,7 +776,7 @@ function applyBundledLevel(level,start,{preserveParty=false,announce=false}={}){
   }else App.session.verso.tokens=destination;
   App.session.tracker=JSON.parse(JSON.stringify(start.tracker||{order:[],active:0,round:1}));
   rebindConnectedOwners();
-  setLevelView(App.session.campaignId==="east-tennessee-1861"?"tactical":"isometric");setScene("verso");markDirty();hideStartScreen();
+  setLevelView("isometric");setScene("verso");markDirty();hideStartScreen();
   if(announce)requestAnimationFrame(()=>broadcastLevelTransition(level.name));
 }
 function startVerso(){
@@ -869,7 +873,7 @@ function deserialize(d){
     App.session.campaignStateSchemaVersion=campaign.stateSchemaVersion;
     loadLevel(session.level);
     App.session.verso.revealed=session.verso.revealed;
-    App.session.verso.view=session.campaignId==="east-tennessee-1861"?"tactical":session.verso.view;
+    App.session.verso.view=session.campaignId==="east-tennessee-1861"?"isometric":session.verso.view;
     document.body.classList.toggle("tacticalscene",App.session.verso.view==="tactical");
     $("view-iso").classList.toggle("on",App.session.verso.view==="isometric");
     $("view-tactical").classList.toggle("on",App.session.verso.view==="tactical");
@@ -878,7 +882,7 @@ function deserialize(d){
     App.session.verso.doorStates=session.verso.doorStates;
     App.session.verso.effects=session.verso.effects;
     App.session.verso.propStates=session.verso.propStates;
-    App.session.verso.tacticalFocus=session.verso.tacticalFocus;
+    App.session.verso.tacticalFocus=App.session.verso.view==="tactical"?session.verso.tacticalFocus:null;
     App.session.tracker=session.tracker;
     const doorIds=new Set(App.document.doors.map(door=>door.id));
     for(const id of Object.keys(App.session.verso.doorStates))if(!doorIds.has(id))delete App.session.verso.doorStates[id];

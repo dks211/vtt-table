@@ -459,7 +459,7 @@ function renderPanel(){
     ${tabDefinitions.map(([key,label])=>`<button class="${dmPanelTab===key?"on":""}" data-panel-tab="${key}" aria-selected="${dmPanelTab===key}">${label}</button>`).join("")}
   </nav>`;
   const bundledLevel=App.document.level.name===App.content.VAULT_LEVEL.name?"vault":App.document.level.name===App.content.VERSO_LEVEL.name?"verso":"custom";
-  if(etMode)html+=`<div class="sect"><h3>Campaign Table</h3><div class="hint">East Tennessee uses one top-down player presentation. Choose Scene Map for prepared location maps; campaign state and character ownership persist when the scene changes.</div></div>`;
+  if(etMode)html+=`<div class="sect"><h3>Campaign Table</h3><div class="hint">East Tennessee uses one isometric player presentation. Choose Scene Map for prepared location maps; campaign state and character ownership persist when the scene changes.</div></div>`;
   else html+=`<div class="sect"><h3>Level</h3>
     <div class="row"><select id="run-level" style="flex:1">
       <option value="verso" ${bundledLevel==="verso"?"selected":""}>The Verso</option>
@@ -484,7 +484,7 @@ function renderPanel(){
         </div>
         <div class="rc-foot dm-only" style="flex-direction:column;align-items:stretch">
           <button class="rbtn" id="rc-toggle">${rev?"HIDE FROM PLAYERS":"REVEAL TO PLAYERS"}</button>
-          <button class="rbtn quiet" id="rc-tactical" style="margin-top:8px">${r.battleGrid==="square"?"OPEN TACTICAL MAP":"VIEW OVERHEAD"}</button>
+          ${App.session.campaignId==="east-tennessee-1861"?"":`<button class="rbtn quiet" id="rc-tactical" style="margin-top:8px">${r.battleGrid==="square"?"OPEN TACTICAL MAP":"VIEW OVERHEAD"}</button>`}
           <div class="row" style="margin:8px 0 0">
             <button class="rbtn quiet" id="rc-light" title="cycle lit / dim / dark / flicker">☀ ${(r.light||"lit").toUpperCase()}</button>
             <button class="rbtn quiet" id="rc-tokens" title="off: NPCs here are hidden from players until a PC is also in the room. on: NPCs always show once the room is revealed.">${r.tokensAlways?"👁 NPCS VISIBLE":"🕶 PARTY ONLY"}</button>
@@ -1002,7 +1002,7 @@ function renderEditorPanel(){
       <button class="rbtn quiet" id="lv-verso">RESET TO VERSO</button>
     </div>
     <button class="rbtn quiet" id="lv-vault" style="width:100%">LOAD LEVEL 2 · THE VAULT</button></div>`;
-  if(App.session.campaignId==="east-tennessee-1861")html+=`<div class="sect"><h3>Map Workflow</h3><div class="hint">This layout editor builds top-down room geometry, doors, stairs, and reusable objects. Illustrated outdoor maps such as Lick Creek are prepared as image assets, then run in Scene Map with fog, tokens, and advisory measuring tools.</div><button class="rbtn" id="ed-open-scene-map" style="width:100%;margin-top:8px">OPEN SCENE MAP TOOLS</button></div>`;
+  if(App.session.campaignId==="east-tennessee-1861")html+=`<div class="sect"><h3>Map Workflow</h3><div class="hint">The shared editor builds editable Verso room geometry, doors, stairs, and reusable objects. East Tennessee starts in the isometric Verso presentation; Finch's Nest and Lick Creek remain prepared Scene Map assets until their editable campaign packages are built.</div><button class="rbtn" id="ed-open-scene-map" style="width:100%;margin-top:8px">OPEN SCENE MAP TOOLS</button></div>`;
   html+=`<div class="sect"><h3>Tools</h3>
     <div class="row">${toolBtn("draw","DRAW (D)")}${toolBtn("select","SELECT (V)")}</div>
     <div class="row">${toolBtn("door","DOORS (O)")}${toolBtn("prop","PROPS (P)")}${toolBtn("stair","STAIRS (S)")}</div>

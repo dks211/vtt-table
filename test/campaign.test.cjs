@@ -129,5 +129,8 @@ test("East Tennessee presents campaign workspaces and plain-language controls", 
   assert.equal(panel.includes("BEGIN IMMEDIATE DANGER"), false);
   assert.equal(panel.includes("et-npc-weapon"), false);
   assert.match(panel, /Abner Raines carries a revolver/);
-  assert.match(editor, /campaignId==="east-tennessee-1861"\?"tactical":"isometric"/);
+  assert.match(editor, /campaignId==="east-tennessee-1861"\?"isometric":session\.verso\.view/);
+  assert.match(editor, /setLevelView\("isometric"\);setScene\("verso"\)/);
+  assert.match(panel, /East Tennessee uses one isometric player presentation/);
+  assert.match(panel, /editable Verso room geometry/);
 });

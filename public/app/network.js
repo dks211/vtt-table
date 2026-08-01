@@ -416,7 +416,7 @@ function clientHandle(m){
   if(m.type==="sync"){
     let refit=false;
     if(m.scene!==App.session.scene){App.session.scene=m.scene;document.body.classList.toggle("mapscene",m.scene==="map");refit=true;}
-    const levelView=m.levelView==="tactical"?"tactical":"isometric";
+    const levelView=App.session.campaignId==="east-tennessee-1861"?"isometric":(m.levelView==="tactical"?"tactical":"isometric");
     if(levelView!==App.session.verso.view){App.session.verso.view=levelView;refit=true;}
     document.body.classList.toggle("tacticalscene",App.session.verso.view==="tactical");
     $("view-iso").classList.toggle("on",App.session.verso.view==="isometric");
@@ -471,7 +471,7 @@ function clientHandle(m){
   }
   if(m.type==="camera"){
     const nextScene=m.scene==="map"?"map":"verso";
-    const nextView=m.levelView==="tactical"?"tactical":"isometric";
+    const nextView=App.session.campaignId==="east-tennessee-1861"?"isometric":(m.levelView==="tactical"?"tactical":"isometric");
     App.session.scene=nextScene;
     App.session.verso.view=nextView;
     document.body.classList.toggle("mapscene",nextScene==="map");
