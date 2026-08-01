@@ -127,5 +127,7 @@ test("East Tennessee presents campaign workspaces and plain-language controls", 
     assert.ok(panel.includes(label), `missing East Tennessee UI label: ${label}`);
   assert.equal(panel.includes("OPEN CLARA AWARENESS CHECK"), false);
   assert.equal(panel.includes("BEGIN IMMEDIATE DANGER"), false);
+  assert.equal(panel.includes("et-npc-weapon"), false);
+  assert.match(panel, /Abner Raines carries a revolver/);
   assert.match(editor, /campaignId==="east-tennessee-1861"\?"tactical":"isometric"/);
 });
