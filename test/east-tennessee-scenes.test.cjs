@@ -38,6 +38,10 @@ test("editable packages normalize with stable scene geometry and reusable props"
   assert.ok(under.rects[0].w>=14&&under.rects[0].h>=7);
   assert.equal(under.surface,"mud");
   assert.equal(Scenes.LEVELS["finchs-nest:exterior"].level.rooms.find(room=>room.id==="et-fn-ext-inn").sceneRole,"building");
+  const exterior=Scenes.LEVELS["finchs-nest:exterior"].level;
+  assert.equal(exterior.props.some(prop=>prop.id==="et-fn-ext-yard-cart"),false);
+  for(const id of ["et-fn-ext-front-gate","et-fn-ext-yard-gate","et-fn-ext-front-path","et-fn-ext-inn-chimney"])
+    assert.ok(exterior.props.some(prop=>prop.id===id),`missing exterior visual cue: ${id}`);
   assert.ok(Scenes.LEVELS["finchs-nest:ground"].level.stairs.every(stair=>Math.abs(stair.to-stair.from)>=3));
 });
 
@@ -70,11 +74,19 @@ test("presentation refresh upgrades old package visuals without replacing edited
   legacy.rooms[0].rects[0].w=27;
   legacy.props=legacy.props.filter(prop=>!prop.id.startsWith("et-fn-ext-inn-window-"));
   legacy.props.push({id:"et-fn-ext-inn-rug",t:"rug",x:6.2,y:5.5});
+  legacy.props.push({id:"et-fn-ext-yard-cart",t:"cart",x:18,y:14});
+  legacy.doors.push({id:"et-fn-ext-front-gate",x:7.2,y:1.6,dir:"h",type:"open",len:1});
+  legacy.doors.push({id:"et-fn-ext-yard-gate",x:22.35,y:12,dir:"h",type:"open",len:1});
   const refreshed=Scenes.applyPresentation(legacy,pkg),again=Scenes.applyPresentation(refreshed,pkg);
   assert.equal(refreshed.rooms[0].rects[0].w,27);
   assert.equal(refreshed.rooms[0].environment,"exterior");
   assert.equal(refreshed.rooms.find(room=>room.id==="et-fn-ext-inn").sceneRole,"building");
   assert.equal(refreshed.props.some(prop=>prop.id==="et-fn-ext-inn-rug"),false);
+  assert.equal(refreshed.props.some(prop=>prop.id==="et-fn-ext-yard-cart"),false);
   assert.equal(refreshed.props.filter(prop=>prop.id.startsWith("et-fn-ext-inn-window-")).length,2);
+  assert.equal(refreshed.doors.some(door=>door.id==="et-fn-ext-front-gate"),false);
+  assert.equal(refreshed.doors.some(door=>door.id==="et-fn-ext-yard-gate"),false);
+  for(const id of ["et-fn-ext-front-gate","et-fn-ext-yard-gate","et-fn-ext-front-path","et-fn-ext-inn-chimney"])
+    assert.ok(refreshed.props.some(prop=>prop.id===id),`presentation did not restore cue: ${id}`);
   assert.deepEqual(again,refreshed);
 });

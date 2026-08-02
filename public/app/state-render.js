@@ -54,7 +54,7 @@ function loadLevel(lv){
   if(App.session.verso.tacticalFocus&&!ids.has(App.session.verso.tacticalFocus))App.session.verso.tacticalFocus=null;
   enforceAlwaysRoomReveal();
   if(App.session.selRoom && !ids.has(App.session.selRoom)) App.session.selRoom=null;
-  const tab=$("tab-verso"); if(tab) tab.textContent=App.document.level.name.toUpperCase();
+  const tab=$("tab-verso"); if(tab) tab.textContent=App.session.campaignId==="east-tennessee-1861"?"CAMPAIGN TABLE":App.document.level.name.toUpperCase();
   netMarkLevel(); netMark();
   renderPanel();
 }
@@ -420,8 +420,8 @@ function isFrontRoomEdge(r,edge){
   return roomHasTile(r,x1-1,Math.floor((y1+y2)/2));
 }
 const ET_SURFACES={
-  wood:["#74583E","#624932"],kitchen:["#655543","#574938"],stable:["#6A543C","#5A4532"],
-  porch:["#806346","#6C5138"],roof:["#4F463B","#433B32"],road:["#837764","#716654"],
+  wood:["#74583E","#624932"],kitchen:["#655543","#574938"],stable:["#79583B","#65472F"],
+  porch:["#806346","#6C5138"],roof:["#6F5B47","#514438"],road:["#8E806A","#786B58"],
   grass:["#536248","#46563F"],forest:["#40543F","#344735"],earth:["#6D604B","#5D513F"],
   mud:["#58605A","#48524F"],water:["#54767A","#45676D"],rail:["#655D50","#554E44"],
   bridge:["#74563B","#60452F"],stone:["#756E61","#645E54"]
@@ -452,9 +452,11 @@ function etDrawSurfaceTexture(r){
     const cross=surface==="roof"?1.1:2;
     for(let y=bb.y0+cross;y<bb.y1;y+=cross){const a=P(bb.x0,y),b=P(bb.x1,y);ctx.beginPath();ctx.moveTo(...a);ctx.lineTo(...b);ctx.stroke();}
   }else if(surface==="road"){
-    ctx.strokeStyle="rgba(47,39,30,.28)";ctx.lineWidth=2;
+    ctx.strokeStyle="rgba(47,39,30,.32)";ctx.lineWidth=2;
     const horizontal=(bb.x1-bb.x0)>=(bb.y1-bb.y0);
     for(const inset of [.32,.68]){const a=horizontal?P(bb.x0,bb.y0+(bb.y1-bb.y0)*inset):P(bb.x0+(bb.x1-bb.x0)*inset,bb.y0),b=horizontal?P(bb.x1,bb.y0+(bb.y1-bb.y0)*inset):P(bb.x0+(bb.x1-bb.x0)*inset,bb.y1);ctx.beginPath();ctx.moveTo(...a);ctx.lineTo(...b);ctx.stroke();}
+    ctx.strokeStyle="rgba(223,204,166,.28)";ctx.lineWidth=.8;ctx.setLineDash([3,5]);
+    const a=horizontal?P(bb.x0+.2,bb.y0+(bb.y1-bb.y0)*.5):P(bb.x0+(bb.x1-bb.x0)*.5,bb.y0+.2),b=horizontal?P(bb.x1-.2,bb.y0+(bb.y1-bb.y0)*.5):P(bb.x0+(bb.x1-bb.x0)*.5,bb.y1-.2);ctx.beginPath();ctx.moveTo(...a);ctx.lineTo(...b);ctx.stroke();ctx.setLineDash([]);
   }else if(["grass","forest"].includes(surface)){
     ctx.strokeStyle=surface==="forest"?"rgba(23,52,31,.64)":"rgba(38,67,39,.5)";ctx.lineWidth=.8;
     for(const [i,j]of roomTiles(r)){const h=hash2(i*3,j*5);if(h<.27)continue;const [x,y]=P(i+.2+h*.6,j+.25+hash2(j,i)*.5);ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x-2,y-5-h*3);ctx.moveTo(x,y);ctx.lineTo(x+2,y-4-h*2);ctx.stroke();}
@@ -483,12 +485,43 @@ function etWallSegments(edge){
   return out.map(([a,b])=>horizontal?[a,y1,b,y1]:[x1,a,x1,b]);
 }
 function etDrawBuildingRoof(r,wallPx,elevation){
+  const bb=roomBBox(r);
+  if(r.sceneRole==="open-building"&&r.surface==="stable"){
+    // Leave the front bays open so the horse and stall rails remain legible,
+    // but give the stable a recognizable roof edge, posts, and timber frame.
+    const rear=Math.min(bb.y1-.6,bb.y0+2.7),front=bb.y0+2.35,z=Math.max(30,wallPx*.78)+elevation;
+    const points=[[bb.x0+.12,bb.y0+.08],[bb.x1-.12,bb.y0+.08],[bb.x1-.12,rear],[bb.x0+.12,rear]].map(([i,j])=>{const [x,y]=P(i,j);return[x,y-z];});
+    ctx.save();ctx.beginPath();ctx.moveTo(...points[0]);for(const point of points.slice(1))ctx.lineTo(...point);ctx.closePath();ctx.fillStyle="#927557";ctx.fill();ctx.strokeStyle="rgba(250,224,179,.72)";ctx.lineWidth=1.8;ctx.stroke();
+    ctx.strokeStyle="rgba(250,226,185,.42)";ctx.lineWidth=1.05;for(let y=bb.y0+.45;y<rear;y+=.45){const a=P(bb.x0+.2,y),b=P(bb.x1-.2,y),lift=z+((y-bb.y0)/(rear-bb.y0))*3;ctx.beginPath();ctx.moveTo(a[0],a[1]-lift);ctx.lineTo(b[0],b[1]-lift);ctx.stroke();}
+    // The open front is framed like a real timber stable rather than a
+    // floating brown rectangle. The front beam and posts stay visible over
+    // the roof plane so the bays read at the fitted zoom.
+    const [fa,fb]=[P(bb.x0+.12,front),P(bb.x1-.12,front)];
+    ctx.strokeStyle="#3E2B20";ctx.lineWidth=7;ctx.beginPath();ctx.moveTo(fa[0],fa[1]-z);ctx.lineTo(fb[0],fb[1]-z);ctx.stroke();
+    ctx.strokeStyle="#A77C4F";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(fa[0],fa[1]-z-1);ctx.lineTo(fb[0],fb[1]-z-1);ctx.stroke();
+    for(const x of [bb.x0+.2,bb.x0+3.55,bb.x0+7.1,bb.x1-.2]){
+      const [px,py]=P(x,front);ctx.fillStyle="#513622";ctx.fillRect(px-3.2,py-z-1,6.4,z+3);ctx.fillStyle="#9A7046";ctx.fillRect(px-1.1,py-z-2,2.2,z+1);
+    }
+    ctx.strokeStyle="rgba(52,34,22,.9)";ctx.lineWidth=1.5;for(const x of [bb.x0+3.55,bb.x0+7.1]){const [px,py]=P(x,front);ctx.beginPath();ctx.moveTo(px,py-z+2);ctx.lineTo(px+18,py-z+24);ctx.stroke();}
+    ctx.strokeStyle="#805C3E";ctx.lineWidth=2.4;for(const x of [bb.x0+.45,bb.x1-.45]){const [px,py]=P(x,rear);ctx.beginPath();ctx.moveTo(px,py-z);ctx.lineTo(px,py-z-30);ctx.stroke();}
+    ctx.restore();
+    return;
+  }
   if(r.sceneRole!=="building")return;
-  const bb=roomBBox(r),z=elevation+wallPx+5;
-  ctx.save();ctx.translate(0,-z);flat(bb.x0-.12,bb.y0-.12,bb.x1+.12,bb.y1+.12,"#4A4035","rgba(224,205,166,.42)");
-  ctx.strokeStyle="rgba(231,213,179,.2)";ctx.lineWidth=.8;
-  for(let y=bb.y0+.35;y<bb.y1;y+=.45){const a=P(bb.x0-.08,y),b=P(bb.x1+.08,y);ctx.beginPath();ctx.moveTo(...a);ctx.lineTo(...b);ctx.stroke();}
-  const midY=(bb.y0+bb.y1)/2,a=P(bb.x0-.08,midY),b=P(bb.x1+.08,midY);ctx.strokeStyle="rgba(237,220,185,.55)";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(...a);ctx.lineTo(...b);ctx.stroke();ctx.restore();
+  const z=elevation+wallPx+5,roofRise=Math.max(20,Math.min(34,(bb.x1-bb.x0)*1.35)),midY=(bb.y0+bb.y1)/2;
+  const lift=(i,j,extra=0)=>{const [x,y]=P(i,j);return[x,y-z-extra];};
+  const a=lift(bb.x0-.14,bb.y0-.14),b=lift(bb.x1+.14,bb.y0-.14),c=lift(bb.x1+.14,bb.y1+.14),d=lift(bb.x0-.14,bb.y1+.14),r0=lift(bb.x0-.14,midY,roofRise),r1=lift(bb.x1+.14,midY,roofRise);
+  const poly=(points,fill,stroke)=>{ctx.beginPath();ctx.moveTo(...points[0]);for(const point of points.slice(1))ctx.lineTo(...point);ctx.closePath();ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=1;ctx.stroke();}};
+  ctx.save();
+  poly([a,b,r1,r0],"#8A6A4A","rgba(247,222,178,.7)");poly([r0,r1,c,d],"#5C4A3B","rgba(247,222,178,.55)");
+  ctx.strokeStyle="rgba(246,224,185,.3)";ctx.lineWidth=.9;
+  for(let y=bb.y0+.45;y<midY;y+=.45){const q=(y-bb.y0)/(midY-bb.y0),aa=lift(bb.x0-.08,y,roofRise*q),bbp=lift(bb.x1+.08,y,roofRise*q);ctx.beginPath();ctx.moveTo(...aa);ctx.lineTo(...bbp);ctx.stroke();}
+  for(let y=midY+.45;y<bb.y1;y+=.45){const q=(y-midY)/(bb.y1-midY),aa=lift(bb.x0-.08,y,roofRise*(1-q)),bbp=lift(bb.x1+.08,y,roofRise*(1-q));ctx.beginPath();ctx.moveTo(...aa);ctx.lineTo(...bbp);ctx.stroke();}
+  ctx.strokeStyle="#B38A58";ctx.lineWidth=3.2;ctx.beginPath();ctx.moveTo(...r0);ctx.lineTo(...r1);ctx.stroke();
+  ctx.strokeStyle="rgba(250,230,194,.7)";ctx.lineWidth=1.5;for(const edge of [[a,b],[b,c],[c,d],[d,a]]){ctx.beginPath();ctx.moveTo(...edge[0]);ctx.lineTo(...edge[1]);ctx.stroke();}
+  // A small gable on each short end makes the building mass read as a house.
+  poly([a,b,r0],"rgba(116,75,48,.88)");poly([d,c,r1],"rgba(73,57,45,.82)");
+  ctx.restore();
 }
 function etDrawRoomWalls(r){
   const elevation=roomElevation(r),wallPx=r.sceneRole==="building"?48:(r.wallHeight??1)*18;
@@ -534,6 +567,34 @@ function drawStair(stair){
   const sideLines=alongX?[stair.y+.08,stair.y+stair.h-.08]:[stair.x+.08,stair.x+stair.w-.08];
   ctx.save();ctx.strokeStyle=stair.style==="metal"?"#A2ADB0":"#8A6744";ctx.lineWidth=2.2;
   for(const side of sideLines){ctx.beginPath();for(let k=0;k<=steps;k++){const position=k/steps*run,forward=stair.dir==="e"||stair.dir==="s"?k:steps-k,progress=forward/steps,z=base+(ascending?progress:1-progress)*visualRise+15;const i=alongX?stair.x+position:side,j=alongX?side:stair.y+position,[x,y]=P(i,j);if(!k)ctx.moveTo(x,y-z);else ctx.lineTo(x,y-z);}ctx.stroke();}
+  ctx.restore();
+}
+function etDrawExteriorArchitecture(){
+  if(eastTennesseeSceneKey()!=="finchs-nest:exterior")return;
+  const inn=App.document.rooms.find(r=>r.id==="et-fn-ext-inn"),stable=App.document.rooms.find(r=>r.id==="et-fn-ext-stable");
+  if(!inn||!stable)return;
+  // Timber siding makes the inn read as a building even when the roof is
+  // carrying the silhouette. This is a visual cue only; room geometry stays
+  // editable and no spatial rule is inferred from it.
+  const ib=roomBBox(inn),iy=ib.y1-.02,iz=48;
+  const ia=P(ib.x0+.12,iy),ibp=P(ib.x1-.12,iy);
+  ctx.save();ctx.strokeStyle="rgba(39,25,17,.72)";ctx.lineWidth=1.25;
+  for(let z=9;z<iz;z+=9){ctx.beginPath();ctx.moveTo(ia[0],ia[1]-z);ctx.lineTo(ibp[0],ibp[1]-z);ctx.stroke();}
+  ctx.strokeStyle="rgba(206,158,99,.52)";ctx.lineWidth=1.35;
+  for(let x=ib.x0+1.5;x<ib.x1-.2;x+=2.05){const a=P(x,iy);ctx.beginPath();ctx.moveTo(a[0],a[1]-3);ctx.lineTo(a[0],a[1]-iz+2);ctx.stroke();}
+  // Porch posts and lintel give the front walk a clear destination.
+  const py=3.08,pz=29,pa=P(ib.x0+1.15,py),pb=P(ib.x1-1.15,py);
+  ctx.strokeStyle="#3E2B20";ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(pa[0],pa[1]-pz);ctx.lineTo(pb[0],pb[1]-pz);ctx.stroke();
+  for(const x of [4.35,13.65]){const [px,py2]=P(x,py);ctx.fillStyle="#6B4B31";ctx.fillRect(px-2.5,py2-pz,5,pz+2);ctx.fillStyle="#B2814E";ctx.fillRect(px-.8,py2-pz-1,1.6,pz);}
+  ctx.restore();
+
+  // The stable is an open-front shed: a beam and repeated posts distinguish
+  // it from the adjacent yard without covering the horse or stall rails.
+  const sb=roomBBox(stable),sy=sb.y1-.04,sz=34,sa=P(sb.x0+.12,sy),sbp=P(sb.x1-.12,sy);
+  ctx.save();ctx.strokeStyle="#3B281C";ctx.lineWidth=7;ctx.beginPath();ctx.moveTo(sa[0],sa[1]-sz);ctx.lineTo(sbp[0],sbp[1]-sz);ctx.stroke();
+  ctx.strokeStyle="#A5794B";ctx.lineWidth=1.8;ctx.beginPath();ctx.moveTo(sa[0],sa[1]-sz-1);ctx.lineTo(sbp[0],sbp[1]-sz-1);ctx.stroke();
+  for(const x of [sb.x0+.25,sb.x0+3.55,sb.x0+7.05,sb.x1-.25]){const [px,py2]=P(x,sy);ctx.fillStyle="#4F3522";ctx.fillRect(px-3,py2-sz,6,sz+2);ctx.fillStyle="#9B7046";ctx.fillRect(px-.9,py2-sz-1,1.8,sz);}
+  ctx.strokeStyle="rgba(65,42,24,.82)";ctx.lineWidth=1.4;for(const x of [sb.x0+3.55,sb.x0+7.05]){const [px,py2]=P(x,sy);ctx.beginPath();ctx.moveTo(px,py2-sz+1);ctx.lineTo(px-17,py2-sz+22);ctx.stroke();}
   ctx.restore();
 }
 function stairVisible(stair){
@@ -1044,6 +1105,7 @@ function drawVerso(){
   // stairs sit on top of room-specific carpet and floor dressing. Drawing them
   // before that pass buries most of each tread and makes the run appear shorter.
   for(const stair of (App.document.stairs||[]))if(RVIEW==="dm"||stairVisible(stair))drawStair(stair);
+  if(east)etDrawExteriorArchitecture();
   // Data-driven furniture and landmarks. Important props use light rather than
   // unrealistic scale to remain legible at the fitted player-view zoom.
   for(const pr of activeLevelProps()){

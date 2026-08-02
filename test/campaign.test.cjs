@@ -130,7 +130,10 @@ test("East Tennessee presents campaign workspaces and plain-language controls", 
   assert.equal(panel.includes("OPEN CLARA AWARENESS CHECK"), false);
   assert.equal(panel.includes("BEGIN IMMEDIATE DANGER"), false);
   assert.equal(panel.includes("et-npc-weapon"), false);
-  assert.match(panel, /Abner Raines carries a revolver/);
+  assert.equal(panel.includes("Abner Raines carries a revolver"), false);
+  assert.equal(panel.includes("weaponChoice"), false);
+  assert.match(panel, /Tracker only/);
+  assert.match(panel, /Bridge condition/);
   assert.match(editor, /campaignId==="east-tennessee-1861"\?"isometric":session\.verso\.view/);
   assert.match(editor, /setLevelView\("isometric"\);setScene\("verso"\)/);
   assert.match(panel, /East Tennessee uses one isometric player presentation/);

@@ -3,7 +3,7 @@
 
 const ID="east-tennessee-1861",PIXELS_PER_TILE=50;
 const clone=value=>JSON.parse(JSON.stringify(value));
-const VISUAL_VERSION=2;
+const VISUAL_VERSION=5;
 const room=(id,name,rect,style={})=>({id,name,rects:[rect],revealMode:"always",tokensAlways:true,cutaway:"front",visualVersion:VISUAL_VERSION,...style});
 const prop=(id,t,x,y,extra={})=>({id,t,x,y,visualVersion:VISUAL_VERSION,...extra});
 
@@ -21,35 +21,39 @@ const FINCHS_NEST=Object.freeze({
     level:{schemaVersion:3,name:"Finch's Nest · Exterior & Stable",bg:"#2B332C",rooms:[
       room("et-fn-ext-road","Road",{x:0,y:0,w:24,h:3},{sub:"road and front approach",environment:"exterior",surface:"road",floorA:"#837764",floorB:"#716654",wall:"#5A5146",wallHeight:0,read:"The road and front approach run along the north edge of the inn.",dm:"The front gate opens toward the road. The yard and stable sit behind the inn."}),
       room("et-fn-ext-porch","Porch",{x:4,y:3,w:10,h:2},{sub:"front entrance",environment:"exterior",surface:"porch",floorA:"#806346",floorB:"#6C5138",wall:"#4D382A",wallHeight:0,elevation:1,structure:"platform",read:"A raised porch gives onto the common room and the road.",dm:"The porch is the ordinary public entrance."}),
-      room("et-fn-ext-inn","Inn",{x:3,y:5,w:12,h:4},{sub:"main building",environment:"exterior",surface:"roof",sceneRole:"building",floorA:"#5A493A",floorB:"#4B3E34",wall:"#594331",wallHeight:3,cutaway:"none",read:"The inn's front wall and windows face the road; service access turns toward the yard.",dm:"The inn is a timber structure. The stable roof lies below the east upper window."}),
-      room("et-fn-ext-stable","Stable",{x:0,y:9,w:11,h:7},{sub:"stalls and loft",environment:"interior",surface:"stable",sceneRole:"open-building",floorA:"#6A543C",floorB:"#5A4532",wall:"#513927",wallHeight:2,read:"A timber stable holds stalls, tack, feed, water, and a ladder to the loft.",dm:"Will's chestnut mare occupies a stall while he is present. A stablehand normally sleeps near the loft."}),
-      room("et-fn-ext-yard","Yard",{x:12,y:9,w:12,h:7},{sub:"service yard",environment:"exterior",surface:"grass",floorA:"#536248",floorB:"#46563F",wall:"#4A4436",wallHeight:0,read:"The service yard holds the rear gate, cart, water, feed, and ordinary clutter.",dm:"The rear yard is open enough for a quiet approach but not hidden from every window."}),
+      room("et-fn-ext-inn","Inn",{x:3,y:5,w:12,h:4},{sub:"main building",environment:"exterior",surface:"roof",sceneRole:"building",floorA:"#66503D",floorB:"#554131",wall:"#765239",wallHeight:3,cutaway:"none",read:"The inn's front wall and windows face the road; service access turns toward the yard.",dm:"The inn is a timber structure. The stable roof lies below the east upper window."}),
+      room("et-fn-ext-stable","Stable",{x:0,y:9,w:11,h:7},{sub:"stalls and loft",environment:"interior",surface:"stable",sceneRole:"open-building",floorA:"#79583B",floorB:"#65472F",wall:"#68452E",wallHeight:2,read:"A timber stable holds stalls, tack, feed, water, and a ladder to the loft.",dm:"Will's chestnut mare occupies a stall while he is present. A stablehand normally sleeps near the loft."}),
+      room("et-fn-ext-yard","Yard",{x:12,y:9,w:12,h:7},{sub:"service yard",environment:"exterior",surface:"grass",floorA:"#536248",floorB:"#46563F",wall:"#4A4436",wallHeight:0,read:"The service yard holds the rear gate, water, feed, and ordinary clutter.",dm:"The rear yard is open enough for a quiet approach but not hidden from every window."}),
       room("et-fn-ext-roof","Stable roof",{x:5,y:8,w:6,h:2},{sub:"lower roof",environment:"exterior",surface:"roof",floorA:"#514A3E",floorB:"#474137",wall:"#3B362E",wallHeight:0,elevation:3,structure:"platform",read:"A low stable roof runs beneath the east upper window.",dm:"The roof is an advisory approach, not an automatic route or legality ruling."}),
     ],doors:[
-      {id:"et-fn-ext-front-gate",x:8,y:2,dir:"v",type:"open",len:1},
       {id:"et-fn-ext-porch-door",x:8,y:4,dir:"v",type:"open",len:1},
       {id:"et-fn-ext-stable-door",x:11,y:11,dir:"v",type:"open",len:1},
-      {id:"et-fn-ext-yard-gate",x:23,y:12,dir:"v",type:"open",len:1},
     ],stairs:[
       {id:"et-fn-ext-ladder",x:9,y:8,w:1,h:2,dir:"n",from:0,to:3,style:"wood"},
     ],props:[
       prop("et-fn-ext-road-fence","fence",1,2,{footprint:{w:6,h:.5}}),
       prop("et-fn-ext-road-fence-east","fence",10,2,{footprint:{w:5,h:.5}}),
+      prop("et-fn-ext-front-gate","gate",7.2,1.6,{label:"Front gate",playerLabel:"Front gate",footprint:{w:1.6,h:.8},essentialVisual:true}),
+      prop("et-fn-ext-front-path","path",7.05,2.2,{label:"Front walk",playerLabel:"Worn path to the porch",footprint:{w:2,h:2.8},essentialVisual:true}),
+      prop("et-fn-ext-inn-entry","entry",7.45,3.7,{label:"Inn entrance",playerLabel:"Inn entrance",footprint:{w:1.15,h:.18},essentialVisual:true}),
       prop("et-fn-ext-porch-lamp","lamp",8.5,3.3,{label:"Porch lamp",playerLabel:"Porch lamp",focus:true}),
-      prop("et-fn-ext-inn-window-a","window",5.1,8.3,{label:"Inn window",playerLabel:"Inn window",z:20,essentialVisual:true}),
-      prop("et-fn-ext-inn-window-b","window",11.1,8.3,{label:"Inn window",playerLabel:"Inn window",z:20,essentialVisual:true}),
+      prop("et-fn-ext-inn-window-a","window",5.1,8.3,{label:"Inn window",playerLabel:"Inn window",z:30,scale:1.5,essentialVisual:true}),
+      prop("et-fn-ext-inn-window-b","window",11.1,8.3,{label:"Inn window",playerLabel:"Inn window",z:30,scale:1.5,essentialVisual:true}),
+      prop("et-fn-ext-inn-chimney","chimney",5.1,5.35,{label:"Inn chimney",playerLabel:"Chimney",z:2,essentialVisual:true}),
       prop("et-fn-ext-stall-rail-a","fence",1,10,{label:"Stall rail",playerLabel:"Stall rail",footprint:{w:8,h:.5}}),
       prop("et-fn-ext-stall-rail-b","fence",1,12,{label:"Stall rail",playerLabel:"Stall rail",footprint:{w:8,h:.5}}),
-      prop("et-fn-ext-horse","horse",3,10.1,{label:"Will's chestnut mare",playerLabel:"A horse in the stall",playerInspect:"A saddled chestnut mare shifts quietly in the straw."}),
-      prop("et-fn-ext-hay","crate",7.8,13.1,{label:"Hay and feed",playerLabel:"Feed bin"}),
-      prop("et-fn-ext-stable-barrel","barrel",9.2,14.3,{label:"Water barrel",playerLabel:"Water barrel"}),
-      prop("et-fn-ext-yard-cart","cart",14,12.2,{label:"Service cart",playerLabel:"Service cart",scale:1.15}),
+      prop("et-fn-ext-horse","horse",3,10.1,{label:"Will's chestnut mare",playerLabel:"A horse in the stall",playerInspect:"A saddled chestnut mare shifts quietly in the straw.",scale:1.35}),
+      prop("et-fn-ext-hay","hay",7.4,13.1,{label:"Hay and feed",playerLabel:"Hay and feed",footprint:{w:1.5,h:1.2},scale:1.2,essentialVisual:true}),
+      prop("et-fn-ext-stable-trough","trough",8.8,14.1,{label:"Water trough",playerLabel:"Water trough",footprint:{w:1.8,h:.75},scale:1.25,essentialVisual:true}),
+      prop("et-fn-ext-yard-gate","gate",22.35,12,{label:"Rear gate",playerLabel:"Rear gate",footprint:{w:1.6,h:.8},essentialVisual:true}),
       prop("et-fn-ext-yard-crates","crate",17,14,{label:"Stacked crates",playerLabel:"Crates",scale:1.2}),
       prop("et-fn-ext-yard-barrel","barrel",19,14.4,{label:"Feed barrel",playerLabel:"Barrel"}),
       prop("et-fn-ext-yard-fence","fence",18,9,{label:"Rear fence",playerLabel:"Rear fence",footprint:{w:5,h:.5}}),
+      prop("et-fn-ext-yard-path","path",16.2,9.4,{label:"Rear yard path",playerLabel:"Worn yard path",footprint:{w:1.6,h:3.8},essentialVisual:true}),
       prop("et-fn-ext-roof-ladder","fence",9,8,{label:"Stable-roof ladder",playerLabel:"Ladder",footprint:{w:1,h:2}}),
     ],roster:[],encounterEffects:[]},
-    retiredVisualPropIds:["et-fn-ext-inn-rug"],
+    retiredVisualPropIds:["et-fn-ext-inn-rug","et-fn-ext-yard-cart"],
+    retiredVisualDoorIds:["et-fn-ext-front-gate","et-fn-ext-yard-gate"],
     partyStart:{x:18,y:1.4},
   }),
   ground:Object.freeze({
@@ -190,6 +194,7 @@ function applyPresentation(level,pkg){
   const retired=new Set(pkg.retiredVisualPropIds||[]),sourceProps=new Map((source.props||[]).map(prop=>[prop.id,prop])),existing=new Set();
   next.props=(next.props||[]).filter(prop=>!retired.has(prop.id)||(+prop.visualVersion||0)>=VISUAL_VERSION).map(prop=>{existing.add(prop.id);const authored=sourceProps.get(prop.id);if(!authored||(+prop.visualVersion||0)>=(+authored.visualVersion||0))return prop;for(const key of["t","scale","footprint","z","rotation","essentialVisual"])if(Object.hasOwn(authored,key))prop[key]=clone(authored[key]);prop.visualVersion=authored.visualVersion;return prop;});
   for(const authored of source.props||[])if(authored.essentialVisual&&!existing.has(authored.id))next.props.push(clone(authored));
+  const retiredDoors=new Set(pkg.retiredVisualDoorIds||[]);if(retiredDoors.size)next.doors=(next.doors||[]).filter(door=>!retiredDoors.has(door.id));
   return next;
 }
 root.EastTennesseeScenes=Object.freeze({CAMPAIGN_ID:ID,PIXELS_PER_TILE,VISUAL_VERSION,FINCHS_NEST,LICK_CREEK,LEVELS,clone,applyPresentation});

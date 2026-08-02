@@ -45,15 +45,17 @@ input[type=color]{padding:1px 2px;width:40px;height:26px;cursor:pointer}
 #wordmark{font-family:'Marcellus',serif;font-size:19px;letter-spacing:.14em;color:var(--brass);white-space:nowrap}
 #wordmark small{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.22em;color:var(--vellum-dim);
   display:block;margin-top:-2px}
-.tabs{display:flex;gap:2px;margin-left:6px}
+.tabs{display:flex;gap:2px;margin-left:6px;min-width:0}
 .tab{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.08em;padding:7px 13px;
-  color:var(--vellum-dim);border:1px solid transparent;border-radius:3px}
+  color:var(--vellum-dim);border:1px solid transparent;border-radius:3px;flex:0 0 auto;white-space:nowrap}
 .tab:hover{color:var(--vellum)}
 .tab.on{color:var(--brass);border-color:var(--brass-faint);background:var(--felt-950)}
 #topbar .spacer{flex:1}
 .tbtn{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.08em;padding:7px 12px;
-  border:1px solid var(--brass-faint);border-radius:3px;color:var(--vellum-dim)}
+  border:1px solid var(--brass-faint);border-radius:3px;color:var(--vellum-dim);flex:0 0 auto;white-space:nowrap}
 .tbtn:hover{color:var(--brass);border-color:var(--brass-dim)}
+@media (max-width:1100px){#btn-pwin,#btn-focus{display:none}}
+@media (max-width:900px){#btn-save,#btn-load{display:none}#topbar{gap:7px;padding:0 9px}.tabs{margin-left:0}.tab{padding-left:8px;padding-right:8px}}
 .level-view{display:flex;border:1px solid var(--brass-faint);border-radius:3px;overflow:hidden}
 .level-view button{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.08em;padding:6px 9px;color:var(--vellum-dim)}
 .level-view button+button{border-left:1px solid var(--brass-faint)}
@@ -175,6 +177,7 @@ body.campaign-east-tennessee .rbtn{border-radius:2px}
 .hint{font-size:13px;line-height:1.55;color:var(--vellum-dim);font-style:italic}
 .row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
 .row label{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--vellum-dim);width:64px;flex:none}
+.et-control-label{display:block;margin:9px 0 3px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;color:var(--vellum-dim)}
 .row input[type=range]{flex:1;accent-color:var(--brass)}
 .row input[type=number]{width:64px}
 .row input[type=text]{flex:1}

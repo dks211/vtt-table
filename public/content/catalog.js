@@ -220,6 +220,40 @@ const PROP_LIB={
     ctx.save();ctx.strokeStyle="#765B3E";ctx.lineWidth=2;for(let k=0;k<=count;k++){const q=k/count*span;const [x,y]=horizontal?P(i+q,j+fp.h/2):P(i+fp.w/2,j+q);ctx.beginPath();ctx.moveTo(x,y-1);ctx.lineTo(x,y-18);ctx.stroke();}
     const a=horizontal?P(i,j+fp.h/2):P(i+fp.w/2,j),b=horizontal?P(i+fp.w,j+fp.h/2):P(i+fp.w/2,j+fp.h);ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(a[0],a[1]-12);ctx.lineTo(b[0],b[1]-12);ctx.moveTo(a[0],a[1]-6);ctx.lineTo(b[0],b[1]-6);ctx.stroke();ctx.restore();
   }},
+  path:{n:"Worn path",draw(i,j,p){
+    const fp=p&&p.footprint||{w:1.5,h:2},w=fp.w,h=fp.h;
+    flat(i+.04,j+.04,i+w-.04,j+h-.04,"#7B6D53","rgba(44,37,28,.5)");
+    const horizontal=w>=h,span=horizontal?w:h;
+    ctx.save();ctx.strokeStyle="rgba(65,52,37,.34)";ctx.lineWidth=1.2;
+    for(const offset of [.32,.68]){const a=horizontal?P(i,j+h*offset):P(i+w*offset,j),b=horizontal?P(i+w,j+h*offset):P(i+w*offset,j+h);ctx.beginPath();ctx.moveTo(a[0],a[1]-1);ctx.lineTo(b[0],b[1]-1);ctx.stroke();}
+    ctx.restore();
+  }},
+  gate:{n:"Wood gate",draw(i,j,p){
+    const fp=p&&p.footprint||{w:1.6,h:.8},w=fp.w,h=fp.h,horizontal=w>=h,span=horizontal?w:h;
+    const a=horizontal?P(i,j+h/2):P(i+w/2,j),b=horizontal?P(i+w,j+h/2):P(i+w/2,j+h);
+    for(const [xq,yq] of horizontal?[[i,j+h/2],[i+w,j+h/2]]:[[i+w/2,j],[i+w/2,j+h]])pole(xq,yq,26,3.4,"#5C432D");
+    ctx.save();ctx.strokeStyle="#765438";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(a[0],a[1]-16);ctx.lineTo(b[0],b[1]-16);ctx.stroke();ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(a[0],a[1]-5);ctx.lineTo(b[0],b[1]-16);ctx.moveTo(a[0],a[1]-16);ctx.lineTo(b[0],b[1]-5);ctx.stroke();ctx.restore();
+  }},
+  chimney:{n:"Masonry chimney",draw(i,j,p){
+    const fp=p&&p.footprint||{w:.65,h:.65},w=fp.w,h=fp.h;box(i+.08,j+.08,i+w-.08,j+h-.08,36,"#665C50");box(i-.02,j-.02,i+w+.02,j+h+.02,4,"#403B35");
+  }},
+  entry:{n:"Building entrance",draw(i,j,p){
+    const fp=p&&p.footprint||{w:1.15,h:.18},w=fp.w,h=fp.h,height=p&&p.height||34;
+    wallPlate(i,i+w,j+h,height,"#3C2B22","rgba(218,185,128,.65)");
+    const A=P(i+.12,j+h),B=P(i+w-.12,j+h),LA=[A[0],A[1]-height+4],LB=[B[0],B[1]-height+4];
+    ctx.strokeStyle="rgba(236,211,168,.7)";ctx.lineWidth=1.1;ctx.beginPath();ctx.moveTo(...LA);ctx.lineTo(...LB);ctx.stroke();
+    ctx.strokeStyle="rgba(218,185,128,.42)";ctx.lineWidth=.8;ctx.beginPath();ctx.moveTo((LA[0]+LB[0])/2,LA[1]);ctx.lineTo((A[0]+B[0])/2,A[1]-3);ctx.stroke();
+    box(i-.16,j-.05,i+w+.16,j+h+.2,4,"#8A6A48");
+  }},
+  trough:{n:"Water trough",draw(i,j,p){
+    const fp=p&&p.footprint||{w:1.8,h:.75},w=fp.w,h=fp.h;box(i+.05,j+.08,i+w-.05,j+h-.06,8,"#6C5138");
+    flat(i+.18,j+.18,i+w-.18,j+h-.16,"#3F6060","rgba(215,231,216,.32)");
+    const [x,y]=P(i+w/2,j+h/2);ctx.strokeStyle="rgba(222,238,218,.5)";ctx.lineWidth=.8;ctx.beginPath();ctx.moveTo(x-6,y-5);ctx.quadraticCurveTo(x,y-8,x+7,y-5);ctx.stroke();
+  }},
+  hay:{n:"Hay stack",draw(i,j,p){
+    const fp=p&&p.footprint||{w:1.3,h:1.1},w=fp.w,h=fp.h;box(i+.12,j+.12,i+w-.1,j+h-.08,10,"#9A7A43");
+    const [x,y]=P(i+w/2,j+h/2);ctx.strokeStyle="rgba(237,207,132,.62)";ctx.lineWidth=1;for(let k=-1;k<=1;k++){ctx.beginPath();ctx.moveTo(x-7,y-12+k*4);ctx.lineTo(x+8,y-15+k*4);ctx.stroke();}
+  }},
   bridge:{n:"Timber bridge",draw(i,j,p){
     const fp=p&&p.footprint||{w:5,h:2};box(i+.04,j+.05,i+fp.w-.04,j+fp.h-.05,12,"#604B36");ctx.save();ctx.strokeStyle="rgba(35,25,18,.55)";ctx.lineWidth=1;for(let x=.35;x<fp.w-.1;x+=.55){const a=P(i+x,j+.08),b=P(i+x,j+fp.h-.08);ctx.beginPath();ctx.moveTo(a[0],a[1]-13);ctx.lineTo(b[0],b[1]-13);ctx.stroke();}ctx.restore();
   }},
