@@ -189,8 +189,20 @@ const PROP_LIB={
     const [px,py]=P(i+w-.18,j+.18);ctx.strokeStyle="#282B2D";ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(px,py-18);ctx.lineTo(px,py-46);ctx.stroke();
   }},
   timberpier:{n:"Timber pier",draw(i,j,p){
-    const fp=p&&p.footprint||{w:1.5,h:1.5},w=fp.w,h=fp.h;box(i+.12,j+.12,i+w-.12,j+h-.12,42,"#65482F");
-    const A=P(i+.2,j+h-.16),B=P(i+w-.2,j+.16),C=P(i+.2,j+.16),D=P(i+w-.2,j+h-.16);ctx.strokeStyle="rgba(224,190,139,.5)";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(A[0],A[1]-38);ctx.lineTo(B[0],B[1]-4);ctx.moveTo(C[0],C[1]-4);ctx.lineTo(D[0],D[1]-38);ctx.stroke();
+    const fp=p&&p.footprint||{w:1.5,h:1.5},w=fp.w,h=fp.h,height=p&&p.height||42;
+    if(p&&p.bridgeSupport){
+      // Lick Creek's supports are open timber trestles, not square crates.
+      // The height is visual only: the GM still decides what the supports
+      // mean for cover, movement, and line of sight.
+      const inset=Math.min(.23,w*.24);
+      for(const [xq,yq] of [[i+inset,j+inset],[i+w-inset,j+h-inset]])pole(xq,yq,height,4,"#65482F");
+      ctx.save();ctx.translate(0,-height);box(i-.1,j-.1,i+w+.1,j+h+.1,6,"#765337");ctx.restore();
+      const A=P(i+inset,j+h-inset),B=P(i+w-inset,j+inset),C=P(i+inset,j+inset),D=P(i+w-inset,j+h-inset);
+      ctx.strokeStyle="rgba(224,190,139,.62)";ctx.lineWidth=2.4;ctx.beginPath();ctx.moveTo(A[0],A[1]-height+2);ctx.lineTo(B[0],B[1]-5);ctx.moveTo(C[0],C[1]-5);ctx.lineTo(D[0],D[1]-height+2);ctx.stroke();
+      return;
+    }
+    box(i+.12,j+.12,i+w-.12,j+h-.12,height,"#65482F");
+    const A=P(i+.2,j+h-.16),B=P(i+w-.2,j+.16),C=P(i+.2,j+.16),D=P(i+w-.2,j+h-.16);ctx.strokeStyle="rgba(224,190,139,.5)";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(A[0],A[1]-height+4);ctx.lineTo(B[0],B[1]-4);ctx.moveTo(C[0],C[1]-4);ctx.lineTo(D[0],D[1]-height+4);ctx.stroke();
   }},
   workshed:{n:"Work shed",draw(i,j,p){
     const fp=p&&p.footprint||{w:4,h:2.5},w=fp.w,h=fp.h;flat(i+.08,j+.08,i+w-.08,j+h-.08,"#5F503E","rgba(31,23,17,.72)");
@@ -202,6 +214,19 @@ const PROP_LIB={
     flat(i,j,i+fp.w,j+fp.h,"#496B70","rgba(181,212,208,.34)");
     ctx.save();ctx.strokeStyle="rgba(205,229,222,.42)";ctx.lineWidth=.8;
     for(let y=.35;y<fp.h-.1;y+=.55){const a=P(i+.18,j+y),b=P(i+fp.w-.18,j+y+.04);ctx.beginPath();ctx.moveTo(a[0],a[1]-1);ctx.quadraticCurveTo((a[0]+b[0])/2,(a[1]+b[1])/2-1.5,b[0],b[1]-1);ctx.stroke();}
+    ctx.restore();
+  }},
+  creek:{n:"Creek channel",draw(i,j,p){
+    const fp=p&&p.footprint||{w:4,h:2},w=fp.w,h=fp.h;
+    const edge=(xq,yq)=>P(xq,yq),left=edge(i+.12,j+.16),top=edge(i+w-.12,j+.22),right=edge(i+w-.06,j+h-.22),bottom=edge(i+.12,j+h-.16);
+    ctx.save();ctx.beginPath();ctx.moveTo(...left);ctx.lineTo(...top);ctx.lineTo(...right);ctx.lineTo(...bottom);ctx.closePath();
+    ctx.fillStyle="#41686C";ctx.fill();ctx.strokeStyle="rgba(184,215,207,.5)";ctx.lineWidth=1.15;ctx.stroke();
+    ctx.strokeStyle="rgba(209,231,220,.34)";ctx.lineWidth=.85;
+    if(h>w){
+      for(let k=.35;k<w-.1;k+=.72){const a=edge(i+k,j+.45),b=edge(i+k+.07,j+h-.5);ctx.beginPath();ctx.moveTo(...a);ctx.quadraticCurveTo((a[0]+b[0])/2+1.4,(a[1]+b[1])/2,b[0],b[1]);ctx.stroke();}
+    }else{
+      for(let k=.24;k<h-.1;k+=.72){const a=edge(i+.45,j+k),b=edge(i+w-.5,j+k+.07);ctx.beginPath();ctx.moveTo(...a);ctx.quadraticCurveTo((a[0]+b[0])/2,(a[1]+b[1])/2-1.4,b[0],b[1]);ctx.stroke();}
+    }
     ctx.restore();
   }},
   track:{n:"Rail track",draw(i,j,p){
@@ -255,7 +280,17 @@ const PROP_LIB={
     const [x,y]=P(i+w/2,j+h/2);ctx.strokeStyle="rgba(237,207,132,.62)";ctx.lineWidth=1;for(let k=-1;k<=1;k++){ctx.beginPath();ctx.moveTo(x-7,y-12+k*4);ctx.lineTo(x+8,y-15+k*4);ctx.stroke();}
   }},
   bridge:{n:"Timber bridge",draw(i,j,p){
-    const fp=p&&p.footprint||{w:5,h:2};box(i+.04,j+.05,i+fp.w-.04,j+fp.h-.05,12,"#604B36");ctx.save();ctx.strokeStyle="rgba(35,25,18,.55)";ctx.lineWidth=1;for(let x=.35;x<fp.w-.1;x+=.55){const a=P(i+x,j+.08),b=P(i+x,j+fp.h-.08);ctx.beginPath();ctx.moveTo(a[0],a[1]-13);ctx.lineTo(b[0],b[1]-13);ctx.stroke();}ctx.restore();
+    const fp=p&&p.footprint||{w:5,h:2},w=fp.w,h=fp.h,deckHeight=12;box(i+.04,j+.05,i+w-.04,j+h-.05,deckHeight,"#604B36");ctx.save();
+    ctx.strokeStyle="rgba(35,25,18,.58)";ctx.lineWidth=1;for(let x=.35;x<w-.1;x+=.55){const a=P(i+x,j+.08),b=P(i+x,j+h-.08);ctx.beginPath();ctx.moveTo(a[0],a[1]-deckHeight-1);ctx.lineTo(b[0],b[1]-deckHeight-1);ctx.stroke();}
+    // Two dark side beams and their lighter cap edges make the deck read as
+    // one railroad structure instead of a floating brown platform.
+    for(const side of [.12,h-.12]){const a=P(i+.08,j+side),b=P(i+w-.08,j+side);ctx.strokeStyle="#3B2A1D";ctx.lineWidth=3.4;ctx.beginPath();ctx.moveTo(a[0],a[1]-deckHeight+1);ctx.lineTo(b[0],b[1]-deckHeight+1);ctx.stroke();ctx.strokeStyle="rgba(192,145,91,.68)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(a[0],a[1]-deckHeight-1);ctx.lineTo(b[0],b[1]-deckHeight-1);ctx.stroke();}
+    // The rails continue across the deck and line up with the approach
+    // tracks. They are deliberately visual; movement and targeting remain
+    // GM rulings in the campaign scene.
+    for(const rail of [j+1.7,j+2.3]){const a=P(i+.12,rail),b=P(i+w-.12,rail);ctx.strokeStyle="#242A27";ctx.lineWidth=2.2;ctx.beginPath();ctx.moveTo(a[0],a[1]-deckHeight-2);ctx.lineTo(b[0],b[1]-deckHeight-2);ctx.stroke();ctx.strokeStyle="rgba(176,145,100,.72)";ctx.lineWidth=.8;ctx.beginPath();ctx.moveTo(a[0],a[1]-deckHeight-4);ctx.lineTo(b[0],b[1]-deckHeight-4);ctx.stroke();}
+    for(let x=.35;x<w-.1;x+=.55){const a=P(i+x,j+1.58),b=P(i+x,j+2.42);ctx.strokeStyle="rgba(49,34,23,.7)";ctx.lineWidth=1.1;ctx.beginPath();ctx.moveTo(a[0],a[1]-deckHeight-3);ctx.lineTo(b[0],b[1]-deckHeight-3);ctx.stroke();}
+    ctx.restore();
   }},
   horse:{n:"Horse",draw(i,j,p){
     const fp=p&&p.footprint||{w:1.5,h:1};const cx=i+fp.w/2,cy=j+fp.h/2,[x,y]=P(cx,cy);ctx.save();ctx.fillStyle="#6F4A32";ctx.strokeStyle="rgba(20,13,9,.65)";ctx.lineWidth=1;ctx.beginPath();ctx.ellipse(x,y-10,10,4.6,0,0,7);ctx.fill();ctx.stroke();ctx.beginPath();ctx.ellipse(x+9,y-16,4,3.5,-.25,0,7);ctx.fill();ctx.stroke();for(const dx of [-6,5]){ctx.beginPath();ctx.moveTo(x+dx,y-7);ctx.lineTo(x+dx-1,y+3);ctx.stroke();}ctx.beginPath();ctx.moveTo(x+12,y-18);ctx.lineTo(x+15,y-22);ctx.stroke();ctx.restore();

@@ -4,8 +4,11 @@
 const ID="east-tennessee-1861",PIXELS_PER_TILE=50;
 const clone=value=>JSON.parse(JSON.stringify(value));
 const VISUAL_VERSION=5;
+const LICK_VISUAL_VERSION=6;
 const room=(id,name,rect,style={})=>({id,name,rects:[rect],revealMode:"always",tokensAlways:true,cutaway:"front",visualVersion:VISUAL_VERSION,...style});
 const prop=(id,t,x,y,extra={})=>({id,t,x,y,visualVersion:VISUAL_VERSION,...extra});
+const lickRoom=(id,name,rect,style={})=>room(id,name,rect,{...style,visualVersion:LICK_VISUAL_VERSION});
+const lickProp=(id,t,x,y,extra={})=>prop(id,t,x,y,{...extra,visualVersion:LICK_VISUAL_VERSION});
 
 /*
  * These are deliberately ordinary Verso levels: rooms, doors, stairs, and
@@ -133,15 +136,15 @@ const FINCHS_NEST=Object.freeze({
 const LICK_CREEK=Object.freeze({
   key:"lick-creek",sceneId:"lick-creek",floor:"main",scale:PIXELS_PER_TILE,label:"Lick Creek · Railroad Bridge",
   level:{schemaVersion:3,name:"Lick Creek · Railroad Bridge",bg:"#26332D",rooms:[
-    room("et-lc-ridge","Ridge",{x:0,y:0,w:9,h:6},{sub:"observation ridge",environment:"exterior",surface:"grass",floorA:"#536248",floorB:"#46563F",wall:"#33412F",wallHeight:0,elevation:1,structure:"platform",read:"Wooded rising ground overlooks the bridge from the northwest.",dm:"A suitable observation point is here. Plainly visible guard count and posture remain GM-controlled reveals."}),
-    room("et-lc-woods","Woods",{x:0,y:6,w:7,h:8},{sub:"horse-hiding woods",environment:"exterior",surface:"forest",floorA:"#40543F",floorB:"#344735",wall:"#29392B",wallHeight:0,read:"Dense woods offer concealment away from the exposed floodplain.",dm:"The woods are an approach option, not an automatic concealment or route."}),
-    room("et-lc-west","West Approach",{x:7,y:5,w:5,h:5},{sub:"west railroad approach",environment:"exterior",surface:"rail",floorA:"#655D50",floorB:"#554E44",wall:"#443E34",wallHeight:0,elevation:1,structure:"platform",read:"The west embankment rises toward the bridge and a modest guard post.",dm:"The west post and approach are visible from the ridge and bridge space."}),
-    room("et-lc-bridge","Bridge Deck",{x:9,y:4,w:14,h:5},{sub:"railroad bridge",environment:"exterior",surface:"bridge",floorA:"#74563B",floorB:"#60452F",wall:"#4A3628",wallHeight:0,elevation:3,structure:"platform",read:"The timber railroad bridge crosses the broad shallow creek.",dm:"The deck is elevated above the open space beneath it. Fire and damage remain GM state, not geometry automation."}),
-    room("et-lc-east","East Approach",{x:23,y:5,w:5,h:5},{sub:"east railroad approach",environment:"exterior",surface:"rail",floorA:"#655D50",floorB:"#554E44",wall:"#443E34",wallHeight:0,elevation:1,structure:"platform",read:"The east embankment runs toward the road and the work camp.",dm:"The east post and approach are visible from the bridge space."}),
-    room("et-lc-under","Beneath Bridge",{x:9,y:9,w:14,h:7},{sub:"under-bridge work space",environment:"exterior",surface:"mud",floorA:"#58605A",floorB:"#48524F",wall:"#334C4F",wallHeight:0,read:"A broad, muddy space lies beneath the bridge, with timber piers, rocks, and room to move around the supports.",dm:"This is the main actionable space under the bridge. The VTT records positions; it does not decide cover, adjacency, line of sight, or legality."}),
-    room("et-lc-south","South Bank",{x:9,y:16,w:14,h:4},{sub:"south bank",environment:"exterior",surface:"grass",floorA:"#536248",floorB:"#46563F",wall:"#394534",wallHeight:0,read:"The south bank and creek margins lead toward the country road.",dm:"Possible withdrawal routes remain GM-adjudicated."}),
-    room("et-lc-camp","Work Camp",{x:24,y:10,w:8,h:9},{sub:"railroad work camp",environment:"exterior",surface:"earth",floorA:"#6D604B",floorB:"#5D513F",wall:"#473C30",wallHeight:0,read:"The southeast work camp holds tools, fuel, a wagon, lamps, and sleeping areas.",dm:"Raines, Isaac, Daniel Cole, and worker groups begin here. Worker response remains GM-controlled."}),
-    room("et-lc-road","Country Road",{x:28,y:5,w:4,h:5},{sub:"southeast road",environment:"exterior",surface:"road",floorA:"#837764",floorB:"#716654",wall:"#4A473B",wallHeight:0,read:"A country road runs southeast from the bridge and work camp.",dm:"A messenger or escaping party may use this direction only by GM ruling."}),
+    lickRoom("et-lc-ridge","Ridge",{x:0,y:0,w:9,h:6},{sub:"observation ridge",environment:"exterior",surface:"grass",floorA:"#536248",floorB:"#46563F",wall:"#33412F",wallHeight:0,elevation:1,structure:"platform",read:"Wooded rising ground overlooks the bridge from the northwest.",dm:"A suitable observation point is here. Plainly visible guard count and posture remain GM-controlled reveals."}),
+    lickRoom("et-lc-woods","Woods",{x:0,y:6,w:7,h:8},{sub:"horse-hiding woods",environment:"exterior",surface:"forest",floorA:"#40543F",floorB:"#344735",wall:"#29392B",wallHeight:0,read:"Dense woods offer concealment away from the exposed floodplain.",dm:"The woods are an approach option, not an automatic concealment or route."}),
+    lickRoom("et-lc-west","West Approach",{x:7,y:5,w:5,h:5},{sub:"west railroad approach",environment:"exterior",surface:"rail",floorA:"#655D50",floorB:"#554E44",wall:"#443E34",wallHeight:0,elevation:3,structure:"platform",read:"The raised west railroad embankment meets the bridge deck at one continuous grade.",dm:"The west post and approach are visible from the ridge and bridge space."}),
+    lickRoom("et-lc-bridge","Bridge Deck",{x:9,y:4,w:14,h:5},{sub:"railroad bridge",environment:"exterior",surface:"bridge",floorA:"#74563B",floorB:"#60452F",wall:"#4A3628",wallHeight:0,elevation:3,structure:"platform",read:"The timber railroad bridge crosses the broad shallow creek on a continuous raised deck.",dm:"The deck is elevated above the open space beneath it. Fire and damage remain GM state, not geometry automation."}),
+    lickRoom("et-lc-east","East Approach",{x:23,y:5,w:5,h:5},{sub:"east railroad approach",environment:"exterior",surface:"rail",floorA:"#655D50",floorB:"#554E44",wall:"#443E34",wallHeight:0,elevation:3,structure:"platform",read:"The raised east railroad embankment leaves the bridge at the same grade toward the road and work camp.",dm:"The east post and approach are visible from the bridge space."}),
+    lickRoom("et-lc-under","Beneath Bridge",{x:9,y:9,w:14,h:7},{sub:"under-bridge work space",environment:"exterior",surface:"mud",floorA:"#58605A",floorB:"#48524F",wall:"#334C4F",wallHeight:0,read:"A broad, muddy space lies beneath the raised deck. A shallow creek runs north-south through the trestle, leaving muddy banks and room to move around the supports.",dm:"This is the main actionable space under the bridge. The VTT records positions; it does not decide cover, adjacency, line of sight, or legality."}),
+    lickRoom("et-lc-south","South Bank",{x:9,y:16,w:14,h:4},{sub:"south bank",environment:"exterior",surface:"grass",floorA:"#536248",floorB:"#46563F",wall:"#394534",wallHeight:0,read:"The south bank and creek margins lead toward the country road.",dm:"Possible withdrawal routes remain GM-adjudicated."}),
+    lickRoom("et-lc-camp","Work Camp",{x:24,y:10,w:8,h:9},{sub:"railroad work camp",environment:"exterior",surface:"earth",floorA:"#6D604B",floorB:"#5D513F",wall:"#473C30",wallHeight:0,read:"The southeast work camp holds tools, fuel, a wagon, lamps, and sleeping areas.",dm:"Raines, Isaac, Daniel Cole, and worker groups begin here. Worker response remains GM-controlled."}),
+    lickRoom("et-lc-road","Country Road",{x:28,y:5,w:4,h:5},{sub:"southeast road",environment:"exterior",surface:"road",floorA:"#837764",floorB:"#716654",wall:"#4A473B",wallHeight:0,read:"A country road runs southeast from the bridge and work camp.",dm:"A messenger or escaping party may use this direction only by GM ruling."}),
   ],doors:[
     {id:"et-lc-west-to-bridge",x:9,y:7,dir:"h",type:"open",len:2},
     {id:"et-lc-east-to-bridge",x:22,y:7,dir:"h",type:"open",len:2},
@@ -149,29 +152,29 @@ const LICK_CREEK=Object.freeze({
     {id:"et-lc-under-east",x:23,y:11,dir:"v",type:"open",len:2},
     {id:"et-lc-camp-road",x:28,y:9,dir:"h",type:"open",len:2},
   ],stairs:[
-    {id:"et-lc-west-embankment",x:8,y:7,w:1,h:2,dir:"e",from:0,to:1,style:"stone"},
-    {id:"et-lc-east-embankment",x:22,y:7,w:1,h:2,dir:"w",from:0,to:1,style:"stone"},
+    {id:"et-lc-west-embankment",x:7.6,y:7,w:1.4,h:2,dir:"e",from:0,to:3,style:"stone"},
+    {id:"et-lc-east-embankment",x:22,y:7,w:1.4,h:2,dir:"w",from:0,to:3,style:"stone"},
   ],props:[
-    prop("et-lc-ridge-tree-a","tree",0.8,1,{label:"Ridge tree",playerLabel:"Tree",footprint:{w:1.4,h:1.4}}),
-    prop("et-lc-ridge-tree-b","tree",4,2,{label:"Ridge tree",playerLabel:"Tree",footprint:{w:1.4,h:1.4}}),
-    prop("et-lc-woods-tree-a","tree",1,8,{label:"Woodland tree",playerLabel:"Tree",footprint:{w:1.4,h:1.4}}),
-    prop("et-lc-woods-tree-b","tree",4,11,{label:"Woodland tree",playerLabel:"Tree",footprint:{w:1.4,h:1.4}}),
-    prop("et-lc-west-track","track",7,6.7,{label:"West rail line",playerLabel:"Rail line",footprint:{w:7,h:1}}),
-    prop("et-lc-east-track","track",21,6.7,{label:"East rail line",playerLabel:"Rail line",footprint:{w:7,h:1}}),
-    prop("et-lc-bridge-deck","bridge",10,5.2,{label:"Timber bridge deck",playerLabel:"Timber deck",footprint:{w:12,h:2.6}}),
-    prop("et-lc-pier-a","timberpier",10.7,8.5,{label:"Bridge pier",playerLabel:"Timber pier",terrain:"cover",footprint:{w:1.5,h:1.5}}),
-    prop("et-lc-pier-b","timberpier",15.2,8.5,{label:"Bridge pier",playerLabel:"Timber pier",terrain:"cover",footprint:{w:1.5,h:1.5}}),
-    prop("et-lc-pier-c","timberpier",19.7,8.5,{label:"Bridge pier",playerLabel:"Timber pier",terrain:"cover",footprint:{w:1.5,h:1.5}}),
-    prop("et-lc-creek-a","water",10,12,{label:"Shallow creek",playerLabel:"Shallow creek",footprint:{w:12,h:2.5}}),
-    prop("et-lc-creek-b","water",10,15,{label:"Shallow creek",playerLabel:"Shallow creek",footprint:{w:12,h:1.2}}),
-    prop("et-lc-under-rubble-a","rubble",12,10.5,{label:"Muddy rocks",playerLabel:"Muddy rocks",terrain:"difficult",footprint:{w:2,h:1.2}}),
-    prop("et-lc-under-rubble-b","rubble",18,13.7,{label:"Maintenance timbers",playerLabel:"Maintenance timbers",terrain:"difficult",footprint:{w:2.5,h:1}}),
-    prop("et-lc-camp-shed","workshed",25,11,{label:"Work shed",playerLabel:"Work shed",footprint:{w:4,h:2.5}}),
-    prop("et-lc-camp-wagon","cart",29,13,{label:"Work wagon",playerLabel:"Work wagon",scale:1.2}),
-    prop("et-lc-camp-crates","crate",26,15,{label:"Dry scrap and tools",playerLabel:"Crates and tools",scale:1.2}),
-    prop("et-lc-camp-barrel","barrel",28,16,{label:"Fuel barrel",playerLabel:"Barrel"}),
-    prop("et-lc-camp-lamp","lamp",30,11,{label:"Camp lamp",playerLabel:"Camp lamp",focus:true}),
-    prop("et-lc-camp-fence","fence",24,18,{label:"Camp fence",playerLabel:"Camp fence",footprint:{w:7,h:.5}}),
+    lickProp("et-lc-ridge-tree-a","tree",0.8,1,{label:"Ridge tree",playerLabel:"Tree",footprint:{w:1.4,h:1.4}}),
+    lickProp("et-lc-ridge-tree-b","tree",4,2,{label:"Ridge tree",playerLabel:"Tree",footprint:{w:1.4,h:1.4}}),
+    lickProp("et-lc-woods-tree-a","tree",1,8,{label:"Woodland tree",playerLabel:"Tree",footprint:{w:1.4,h:1.4}}),
+    lickProp("et-lc-woods-tree-b","tree",4,11,{label:"Woodland tree",playerLabel:"Tree",footprint:{w:1.4,h:1.4}}),
+    lickProp("et-lc-west-track","track",7,6.7,{label:"West rail line",playerLabel:"Rail line",footprint:{w:7,h:1}}),
+    lickProp("et-lc-east-track","track",21,6.7,{label:"East rail line",playerLabel:"Rail line",footprint:{w:7,h:1}}),
+    lickProp("et-lc-bridge-deck","bridge",10,5.2,{label:"Timber bridge deck",playerLabel:"Timber deck",footprint:{w:12,h:2.6}}),
+    lickProp("et-lc-pier-a","timberpier",10.7,9.05,{label:"Bridge pier",playerLabel:"Timber pier",terrain:"cover",bridgeSupport:true,height:54,footprint:{w:1.25,h:2.2}}),
+    lickProp("et-lc-pier-b","timberpier",15.2,9.05,{label:"Bridge pier",playerLabel:"Timber pier",terrain:"cover",bridgeSupport:true,height:54,footprint:{w:1.25,h:2.2}}),
+    lickProp("et-lc-pier-c","timberpier",19.7,9.05,{label:"Bridge pier",playerLabel:"Timber pier",terrain:"cover",bridgeSupport:true,height:54,footprint:{w:1.25,h:2.2}}),
+    lickProp("et-lc-creek-a","creek",14.1,9.2,{label:"Shallow creek",playerLabel:"Shallow creek",footprint:{w:4.8,h:4.1}}),
+    lickProp("et-lc-creek-b","creek",14.1,12.95,{label:"Shallow creek",playerLabel:"Shallow creek",footprint:{w:4.8,h:2.85}}),
+    lickProp("et-lc-under-rubble-a","rubble",12,10.5,{label:"Muddy rocks",playerLabel:"Muddy rocks",terrain:"difficult",footprint:{w:2,h:1.2}}),
+    lickProp("et-lc-under-rubble-b","rubble",18,13.7,{label:"Maintenance timbers",playerLabel:"Maintenance timbers",terrain:"difficult",footprint:{w:2.5,h:1}}),
+    lickProp("et-lc-camp-shed","workshed",25,11,{label:"Work shed",playerLabel:"Work shed",footprint:{w:4,h:2.5}}),
+    lickProp("et-lc-camp-wagon","cart",29,13,{label:"Work wagon",playerLabel:"Work wagon",scale:1.2}),
+    lickProp("et-lc-camp-crates","crate",26,15,{label:"Dry scrap and tools",playerLabel:"Crates and tools",scale:1.2}),
+    lickProp("et-lc-camp-barrel","barrel",28,16,{label:"Fuel barrel",playerLabel:"Barrel"}),
+    lickProp("et-lc-camp-lamp","lamp",30,11,{label:"Camp lamp",playerLabel:"Camp lamp",focus:true}),
+    lickProp("et-lc-camp-fence","fence",24,18,{label:"Camp fence",playerLabel:"Camp fence",footprint:{w:7,h:.5}}),
   ],roster:[],encounterEffects:[
     {id:"et-lc-fire-zone",name:"Bridge fire",terrain:"hazard",shape:"rect",w:4,h:3,duration:0},
     {id:"et-lc-mud",name:"Muddy ground",terrain:"difficult",shape:"rect",w:3,h:2,duration:0},
@@ -192,7 +195,7 @@ function applyPresentation(level,pkg){
   const sourceRooms=new Map((source.rooms||[]).map(room=>[room.id,room]));
   for(const room of next.rooms||[]){const authored=sourceRooms.get(room.id);if(!authored||(+room.visualVersion||0)>=(+authored.visualVersion||0))continue;for(const key of roomKeys)if(Object.hasOwn(authored,key))room[key]=clone(authored[key]);room.visualVersion=authored.visualVersion;}
   const retired=new Set(pkg.retiredVisualPropIds||[]),sourceProps=new Map((source.props||[]).map(prop=>[prop.id,prop])),existing=new Set();
-  next.props=(next.props||[]).filter(prop=>!retired.has(prop.id)||(+prop.visualVersion||0)>=VISUAL_VERSION).map(prop=>{existing.add(prop.id);const authored=sourceProps.get(prop.id);if(!authored||(+prop.visualVersion||0)>=(+authored.visualVersion||0))return prop;for(const key of["t","scale","footprint","z","rotation","essentialVisual"])if(Object.hasOwn(authored,key))prop[key]=clone(authored[key]);prop.visualVersion=authored.visualVersion;return prop;});
+  next.props=(next.props||[]).filter(prop=>!retired.has(prop.id)||(+prop.visualVersion||0)>=VISUAL_VERSION).map(prop=>{existing.add(prop.id);const authored=sourceProps.get(prop.id);if(!authored||(+prop.visualVersion||0)>=(+authored.visualVersion||0))return prop;for(const key of["t","scale","footprint","z","rotation","essentialVisual","bridgeSupport","height"])if(Object.hasOwn(authored,key))prop[key]=clone(authored[key]);prop.visualVersion=authored.visualVersion;return prop;});
   for(const authored of source.props||[])if(authored.essentialVisual&&!existing.has(authored.id))next.props.push(clone(authored));
   const retiredDoors=new Set(pkg.retiredVisualDoorIds||[]);if(retiredDoors.size)next.doors=(next.doors||[]).filter(door=>!retiredDoors.has(door.id));
   return next;

@@ -37,6 +37,17 @@ test("editable packages normalize with stable scene geometry and reusable props"
   const under=Scenes.LEVELS["lick-creek"].level.rooms.find(room=>room.id==="et-lc-under");
   assert.ok(under.rects[0].w>=14&&under.rects[0].h>=7);
   assert.equal(under.surface,"mud");
+  const lick=Scenes.LEVELS["lick-creek"].level;
+  const bridge=lick.rooms.find(room=>room.id==="et-lc-bridge"),west=lick.rooms.find(room=>room.id==="et-lc-west"),east=lick.rooms.find(room=>room.id==="et-lc-east");
+  assert.equal(bridge.elevation,3);
+  assert.equal(west.elevation,bridge.elevation);
+  assert.equal(east.elevation,bridge.elevation);
+  assert.ok(lick.stairs.every(stair=>Math.abs(stair.to-stair.from)>=3));
+  const creek=lick.props.filter(prop=>prop.t==="creek");
+  assert.equal(creek.length,2);
+  const creekBounds={x0:Math.min(...creek.map(prop=>prop.x)),x1:Math.max(...creek.map(prop=>prop.x+prop.footprint.w)),y0:Math.min(...creek.map(prop=>prop.y)),y1:Math.max(...creek.map(prop=>prop.y+prop.footprint.h))};
+  assert.ok(creekBounds.y1-creekBounds.y0>creekBounds.x1-creekBounds.x0,"creek should cross the bridge rather than run alongside it");
+  assert.ok(creek.every(prop=>prop.x>=under.rects[0].x&&prop.x+prop.footprint.w<=under.rects[0].x+under.rects[0].w));
   assert.equal(Scenes.LEVELS["finchs-nest:exterior"].level.rooms.find(room=>room.id==="et-fn-ext-inn").sceneRole,"building");
   const exterior=Scenes.LEVELS["finchs-nest:exterior"].level;
   assert.equal(exterior.props.some(prop=>prop.id==="et-fn-ext-yard-cart"),false);
@@ -89,4 +100,19 @@ test("presentation refresh upgrades old package visuals without replacing edited
   for(const id of ["et-fn-ext-front-gate","et-fn-ext-yard-gate","et-fn-ext-front-path","et-fn-ext-inn-chimney"])
     assert.ok(refreshed.props.some(prop=>prop.id===id),`presentation did not restore cue: ${id}`);
   assert.deepEqual(again,refreshed);
+});
+
+test("Lick Creek presentation refresh keeps edited geometry but upgrades trestles and creek orientation",()=>{
+  const pkg=Scenes.LEVELS["lick-creek"],legacy=Scenes.clone(pkg.level);
+  legacy.rooms.forEach(room=>{room.visualVersion=5;});
+  legacy.props.forEach(prop=>{prop.visualVersion=5;});
+  legacy.rooms.find(room=>room.id==="et-lc-bridge").rects[0].w=15;
+  const refreshed=Scenes.applyPresentation(legacy,pkg);
+  assert.equal(refreshed.rooms.find(room=>room.id==="et-lc-bridge").rects[0].w,15);
+  const pier=refreshed.props.find(prop=>prop.id==="et-lc-pier-a");
+  assert.equal(pier.bridgeSupport,true);
+  assert.equal(pier.height,54);
+  assert.equal(refreshed.props.filter(prop=>prop.t==="creek").length,2);
+  const creek=refreshed.props.filter(prop=>prop.t==="creek"),creekHeight=Math.max(...creek.map(prop=>prop.y+prop.footprint.h))-Math.min(...creek.map(prop=>prop.y)),creekWidth=Math.max(...creek.map(prop=>prop.x+prop.footprint.w))-Math.min(...creek.map(prop=>prop.x));
+  assert.ok(creekHeight>creekWidth);
 });

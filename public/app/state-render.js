@@ -542,6 +542,12 @@ function etDrawDoor(d,visible){
   const len=d.len||1,x2=d.dir==="h"?d.x+len:d.x,y2=d.dir==="h"?d.y:d.y+len;
   const adjoining=[roomAtTile(d.x+.25,d.y-.25),roomAtTile(d.x+.25,d.y+.25),roomAtTile(d.x-.25,d.y+.25),roomAtTile(d.x-.25,d.y-.25)].filter(Boolean),elevation=Math.max(0,...adjoining.map(roomElevation));
   const A=[isoX(d.x,d.y),isoY(d.x,d.y)-elevation],B=[isoX(x2,y2),isoY(x2,y2)-elevation],open=doorIsOpen(d,App.session.verso.doorStates);
+  if(eastTennesseeSceneKey()==="lick-creek"&&d.type==="open"){
+    // Open crossings in the outdoor scene are not gates. A quiet threshold
+    // line preserves the editable doorway record without adding posts that
+    // make the railroad and creek geometry look artificially enclosed.
+    ctx.save();if(!visible)ctx.globalAlpha=.3;ctx.strokeStyle="rgba(38,30,23,.58)";ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(...A);ctx.lineTo(...B);ctx.stroke();ctx.restore();return;
+  }
   ctx.save();if(!visible)ctx.globalAlpha=.3;
   ctx.strokeStyle="rgba(21,15,11,.92)";ctx.lineWidth=7;ctx.beginPath();ctx.moveTo(...A);ctx.lineTo(...B);ctx.stroke();
   ctx.strokeStyle="#C6A76A";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(...A);ctx.lineTo(...B);ctx.stroke();
