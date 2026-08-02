@@ -649,7 +649,12 @@ function setScene(s){
   if(!fogOK && (App.session.tool==="fogr"||App.session.tool==="fogh")) setTool("select");
   fitScene(); updZoom(); renderPanel();
 }
-$("tab-map").onclick=()=>setScene("map");
+$("tab-map").onclick=()=>{
+  const east=App.session.campaignId==="east-tennessee-1861",key=App.session.campaignState?.activeSceneLevel;
+  if(east&&key&&typeof openEtSceneLevel==="function"){openEtSceneLevel(key);return;}
+  if(east&&NET.mode==="client"&&App.session.scene==="verso"){setScene("verso");return;}
+  setScene("map");
+};
 $("tab-verso").onclick=()=>setScene("verso");
 $("tab-edit").onclick=()=>setMode("edit");
 
@@ -661,10 +666,9 @@ function setView(v){
 }
 function setLevelView(v,focus){
   if(NET.mode==="client")return;
-  // East Tennessee currently uses one consistent player-facing presentation.
-  // Keep its shared Verso entry scene isometric until the campaign scenes are
-  // migrated into editable Verso level data. Palimpsest retains its saved
-  // isometric/tactical choice.
+  // East Tennessee uses one consistent isometric player-facing presentation;
+  // its campaign scene packages remain editable through the shared layout
+  // editor. Palimpsest retains its saved isometric/tactical choice.
   App.session.verso.view=App.session.campaignId==="east-tennessee-1861"?"isometric":(v==="tactical"?"tactical":"isometric");
   App.session.verso.tacticalFocus=App.session.verso.view==="tactical"&&focus?focus.id:null;
   document.body.classList.toggle("tacticalscene",App.session.verso.view==="tactical");
@@ -751,7 +755,7 @@ function applyCampaignChrome(id){
   const east=id==="east-tennessee-1861";
   document.body.classList.toggle("campaign-east-tennessee",east);
   $("wordmark").innerHTML=east?'EAST TENNESSEE 1861<small>VERSO CAMPAIGN TABLE</small>':'THE VERSO<small>TABLE CONSOLE</small>';
-  $("tab-map").textContent=east?"SCENE MAP":"YOUR MAP";
+  $("tab-map").textContent=east?"SCENES":"YOUR MAP";
   $("tab-verso").textContent=east?"CAMPAIGN TABLE":"THE VERSO · BACK OF HOUSE";
   $("tab-edit").textContent=east?"LAYOUT EDITOR":"EDITOR";
   $("st-hint").textContent=east?"Isometric campaign view · rulings remain GM-authoritative":"";
@@ -840,6 +844,7 @@ async function resumeAutosave(){
   return false;
 }
 function serialize(){
+  App.services.panel?.persistEtSceneLevel?.();
   const persistedTokens=tokens=>tokens.map(token=>{const copy=JSON.parse(JSON.stringify(token));delete copy.owner;return copy;});
   return {
     schemaVersion:SESSION_SCHEMA_VERSION,

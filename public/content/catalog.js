@@ -170,10 +170,39 @@ const PROP_LIB={
    lightPool(cx,cy,70,"rgba(232,196,120,.15)");ctx.strokeStyle="#C8A14E";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x,y-r-32);ctx.lineTo(x,y-r);ctx.stroke();ctx.beginPath();ctx.ellipse(x,y-r,r,r*.45,0,0,7);ctx.stroke();
    for(let a=0;a<8;a++){const q=a*Math.PI/4,ax=x+Math.cos(q)*r,ay=y-r+Math.sin(q)*r*.45;ctx.beginPath();ctx.moveTo(x,y-r);ctx.lineTo(ax,ay);ctx.stroke();ctx.fillStyle="rgba(240,200,120,.95)";ctx.beginPath();ctx.arc(ax,ay-3,2.4,0,7);ctx.fill();}
  }},
- hoard:{n:"Coin hoard",draw(i,j,p){
+  hoard:{n:"Coin hoard",draw(i,j,p){
    const fp=p&&p.footprint||{w:2,h:1};
    for(let x=.3;x<fp.w-.05;x+=.55)for(let y=.3;y<fp.h-.05;y+=.58){const n=3+((x*7+y*11)|0)%5;chipStack(i+x,j+y,((x+y)*10|0)%2?"#C8A14E":"#8A2E25",n);}
- }}
+  }},
+  water:{n:"Water",draw(i,j,p){
+    const fp=p&&p.footprint||{w:2,h:2};
+    flat(i,j,i+fp.w,j+fp.h,"#496B70","rgba(181,212,208,.34)");
+    ctx.save();ctx.strokeStyle="rgba(205,229,222,.42)";ctx.lineWidth=.8;
+    for(let y=.35;y<fp.h-.1;y+=.55){const a=P(i+.18,j+y),b=P(i+fp.w-.18,j+y+.04);ctx.beginPath();ctx.moveTo(a[0],a[1]-1);ctx.quadraticCurveTo((a[0]+b[0])/2,(a[1]+b[1])/2-1.5,b[0],b[1]-1);ctx.stroke();}
+    ctx.restore();
+  }},
+  track:{n:"Rail track",draw(i,j,p){
+    const fp=p&&p.footprint||{w:4,h:1};
+    flat(i,j,i+fp.w,j+fp.h,"#4A4137","rgba(13,16,14,.55)");
+    const a=P(i+.18,j+.2),b=P(i+fp.w-.18,j+.2),c=P(i+.18,j+fp.h-.2),d=P(i+fp.w-.18,j+fp.h-.2);
+    ctx.save();ctx.strokeStyle="#242A27";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(a[0],a[1]-1);ctx.lineTo(b[0],b[1]-1);ctx.moveTo(c[0],c[1]-1);ctx.lineTo(d[0],d[1]-1);ctx.stroke();
+    ctx.strokeStyle="#8C7653";ctx.lineWidth=1;for(let x=.35;x<fp.w-.1;x+=.55){const e=P(i+x,j+.08),f=P(i+x,j+fp.h-.08);ctx.beginPath();ctx.moveTo(e[0],e[1]-1);ctx.lineTo(f[0],f[1]-1);ctx.stroke();}ctx.restore();
+  }},
+  tree:{n:"Tree",draw(i,j,p){
+    const fp=p&&p.footprint||{w:1,h:1},cx=i+fp.w/2,cy=j+fp.h/2;
+    pole(cx,cy,30,4,"#4B3828");const [x,y]=P(cx,cy);ctx.save();ctx.fillStyle="#304A37";ctx.strokeStyle="rgba(8,16,10,.6)";ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(x,y-37,11+Math.min(fp.w,fp.h)*2,0,7);ctx.arc(x-7,y-31,8,0,7);ctx.arc(x+8,y-31,8,0,7);ctx.fill();ctx.stroke();ctx.restore();
+  }},
+  fence:{n:"Fence",draw(i,j,p){
+    const fp=p&&p.footprint||{w:3,h:.5},horizontal=fp.w>=fp.h,span=horizontal?fp.w:fp.h,count=Math.max(2,Math.floor(span/.9));
+    ctx.save();ctx.strokeStyle="#765B3E";ctx.lineWidth=2;for(let k=0;k<=count;k++){const q=k/count*span;const [x,y]=horizontal?P(i+q,j+fp.h/2):P(i+fp.w/2,j+q);ctx.beginPath();ctx.moveTo(x,y-1);ctx.lineTo(x,y-18);ctx.stroke();}
+    const a=horizontal?P(i,j+fp.h/2):P(i+fp.w/2,j),b=horizontal?P(i+fp.w,j+fp.h/2):P(i+fp.w/2,j+fp.h);ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(a[0],a[1]-12);ctx.lineTo(b[0],b[1]-12);ctx.moveTo(a[0],a[1]-6);ctx.lineTo(b[0],b[1]-6);ctx.stroke();ctx.restore();
+  }},
+  bridge:{n:"Timber bridge",draw(i,j,p){
+    const fp=p&&p.footprint||{w:5,h:2};box(i+.04,j+.05,i+fp.w-.04,j+fp.h-.05,12,"#604B36");ctx.save();ctx.strokeStyle="rgba(35,25,18,.55)";ctx.lineWidth=1;for(let x=.35;x<fp.w-.1;x+=.55){const a=P(i+x,j+.08),b=P(i+x,j+fp.h-.08);ctx.beginPath();ctx.moveTo(a[0],a[1]-13);ctx.lineTo(b[0],b[1]-13);ctx.stroke();}ctx.restore();
+  }},
+  horse:{n:"Horse",draw(i,j,p){
+    const fp=p&&p.footprint||{w:1.5,h:1};const cx=i+fp.w/2,cy=j+fp.h/2,[x,y]=P(cx,cy);ctx.save();ctx.fillStyle="#6F4A32";ctx.strokeStyle="rgba(20,13,9,.65)";ctx.lineWidth=1;ctx.beginPath();ctx.ellipse(x,y-10,10,4.6,0,0,7);ctx.fill();ctx.stroke();ctx.beginPath();ctx.ellipse(x+9,y-16,4,3.5,-.25,0,7);ctx.fill();ctx.stroke();for(const dx of [-6,5]){ctx.beginPath();ctx.moveTo(x+dx,y-7);ctx.lineTo(x+dx-1,y+3);ctx.stroke();}ctx.beginPath();ctx.moveTo(x+12,y-18);ctx.lineTo(x+15,y-22);ctx.stroke();ctx.restore();
+  }}
 };
 
 /* Level 2 is below the Verso. Its authored square grid is confined to the

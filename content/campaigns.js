@@ -114,8 +114,9 @@
     id: EAST_TENNESSEE_ID,
     title: "East Tennessee 1861",
     packageVersion: 1,
-    stateSchemaVersion: 11,
+    stateSchemaVersion: 12,
     assetNamespace: "campaigns/east-tennessee-1861",
+    scenePackages: root.EastTennesseeScenes || null,
     initialLevel: eastTennesseeLevel,
     initialStart: eastTennesseeStart,
     createCampaignState: () => ({
@@ -157,6 +158,9 @@
       nextTimerId: 1,
       recipientGrants: {},
       adventure: {},
+      sceneLevels: {},
+      sceneLevelStates: {},
+      activeSceneLevel: null,
     }),
     normalizeCampaignState(state) {
       const source = state && typeof state === "object" && !Array.isArray(state) ? state : {};
@@ -187,6 +191,9 @@
         nextTimerId: Number(source.nextTimerId) || 1,
         recipientGrants: safeObject(source.recipientGrants),
         adventure: safeObject(source.adventure),
+        sceneLevels: safeObject(source.sceneLevels),
+        sceneLevelStates: safeObject(source.sceneLevelStates),
+        activeSceneLevel: typeof source.activeSceneLevel === "string" ? source.activeSceneLevel.slice(0, 100) : null,
         characterRoster: safeObject(source.characterRoster),
         activeRosterLimit: Number(source.activeRosterLimit) || 4,
         characterClaimSequence: Number(source.characterClaimSequence) || 1,

@@ -620,7 +620,7 @@ function renderPanel(){
     html+=etHandoutsHTML();
     html+=etCharactersHTML(true);
     html+=etNpcsHTML(true);
-    if(!etScenePanelLocation)etScenePanelLocation=String(App.session.map.name||"").startsWith("Lick Creek")?"lick-creek":"finchs-nest";
+    if(!etScenePanelLocation){const active=App.session.campaignState.activeSceneLevel||"";etScenePanelLocation=active==="lick-creek"||String(App.session.map.name||"").startsWith("Lick Creek")?"lick-creek":"finchs-nest";}
     html+=`<div class="sect"><h3>Adventure Location</h3><div class="row"><button class="rbtn ${etScenePanelLocation==="finchs-nest"?"":"quiet"}" data-et-location="finchs-nest">FINCH'S NEST</button><button class="rbtn ${etScenePanelLocation==="lick-creek"?"":"quiet"}" data-et-location="lick-creek">LICK CREEK</button></div></div>`;
     html+=etScenePanelLocation==="lick-creek"?etLickCreekHTML(true):etFinchsHTML(true);
     html+=etTalentControlsHTML(etSelected,true);
@@ -694,6 +694,11 @@ function renderPanel(){
   wireEtFinchs(p,true);
   wireHandouts(p,true);
   wireEtLickCreek(p,true);
+  if(App.session.campaignId==="east-tennessee-1861"){
+    const fnInit=$("#fn-init");if(fnInit)fnInit.textContent="INITIALIZE & OPEN ISOMETRIC SCENE";
+    const lcInit=$("#lc-init");if(lcInit)lcInit.textContent="INITIALIZE & OPEN ISOMETRIC SCENE";
+    const lcMap=$("#lc-map");if(lcMap)lcMap.textContent="OPEN ISOMETRIC SCENE";
+  }
   p.querySelectorAll("[data-et-location]").forEach(button=>button.onclick=()=>{etScenePanelLocation=button.dataset.etLocation;renderPanel();});
   wireEtTalentControls(p,etSelected,true);
   wireEtSkills(p,etSelected,true);
@@ -1002,7 +1007,7 @@ function renderEditorPanel(){
       <button class="rbtn quiet" id="lv-verso">RESET TO VERSO</button>
     </div>
     <button class="rbtn quiet" id="lv-vault" style="width:100%">LOAD LEVEL 2 · THE VAULT</button></div>`;
-  if(App.session.campaignId==="east-tennessee-1861")html+=`<div class="sect"><h3>Map Workflow</h3><div class="hint">The shared editor builds editable Verso room geometry, doors, stairs, and reusable objects. East Tennessee starts in the isometric Verso presentation; Finch's Nest and Lick Creek remain prepared Scene Map assets until their editable campaign packages are built.</div><button class="rbtn" id="ed-open-scene-map" style="width:100%;margin-top:8px">OPEN SCENE MAP TOOLS</button></div>`;
+  if(App.session.campaignId==="east-tennessee-1861")html+=`<div class="sect"><h3>Campaign Scene Editor</h3><div class="hint">The shared editor builds editable Verso room geometry, doors, stairs, and reusable objects. Finch's Nest and Lick Creek are editable campaign-owned packages; the play view remains isometric.</div><button class="rbtn" id="ed-open-scene-map" style="width:100%;margin-top:8px">OPEN CURRENT CAMPAIGN SCENE</button></div>`;
   html+=`<div class="sect"><h3>Tools</h3>
     <div class="row">${toolBtn("draw","DRAW (D)")}${toolBtn("select","SELECT (V)")}</div>
     <div class="row">${toolBtn("door","DOORS (O)")}${toolBtn("prop","PROPS (P)")}${toolBtn("stair","STAIRS (S)")}</div>
@@ -1089,7 +1094,7 @@ function renderEditorPanel(){
   if(rosEntry) html+=sheetFormHTML(rosEntry);
   html+=`<div class="sect"><h3>How this works</h3><div class="hint">The editor is a top-down view of the same level players see in isometric. Switch back to the ${esc(App.document.level.name)} tab to play it; reveal rooms from there as usual. Levels travel with SAVE/LOAD, or share them with EXPORT.</div></div>`;
   p.innerHTML=html;
-  const sceneMap=$("ed-open-scene-map");if(sceneMap)sceneMap.onclick=()=>{dmPanelTab="table";setMode("play");setScene("map");};
+  const sceneMap=$("ed-open-scene-map");if(sceneMap)sceneMap.onclick=()=>{const state=App.session.campaignState,key=state.activeSceneLevel||(state.lickCreek?.initialized?"lick-creek":`finchs-nest:${state.finchsNest?.activeFloor||"ground"}`);dmPanelTab="table";setMode("play");openEtSceneLevel(key);};
   let snapped=false;
   const snap1=()=>{if(!snapped){edSnapshot();snapped=true;}};   // one undo step per slider/picker interaction
   $("ed-undo").onclick=()=>edUndoPop();
@@ -1341,7 +1346,105 @@ function renderClientPanel(){
 
 function etFinchsHTML(gm=false){if(App.session.campaignId!=="east-tennessee-1861"||!globalThis.EastTennesseeFinchsNest)return"";const d=EastTennesseeFinchsNest.DEFINITION,s=App.session.campaignState.finchsNest;if(!s?.initialized)return gm?`<div class="sect"><h3>Finch's Nest</h3><div class="hint">Dormant scene package. Initialization creates its scene roster once without starting structured rounds.</div><button class="rbtn" id="fn-init">INITIALIZE FINCH'S NEST</button></div>`:"";const phase=EastTennesseeFinchsNest.PHASES.find(x=>x.id===s.phaseId),willId=s.npcIds.will,willLoc=s.npcLocations[willId];if(!gm){return`<div class="sect"><h3>Finch's Nest</h3><div class="hint">${esc(phase?.label||s.phaseId)} · ${esc(phase?.time||"")} · ${esc(d.maps[s.activeFloor]?.label||s.activeFloor)}</div>${(s.regions||[]).map(r=>`<details class="tok"><summary class="nm">${esc(r.label)}</summary><div class="hint">${esc(r.public)}</div></details>`).join("")}${Object.values(s.objects||{}).map(o=>`<details class="tok"><summary class="nm">${esc(o.label)}</summary><div class="hint">${esc(o.publicSummary)}</div></details>`).join("")}</div>`;}
  const floorButtons=Object.entries(d.maps).map(([id,m])=>`<button class="rbtn ${s.activeFloor===id?"":"quiet"}" data-fn-floor="${id}">${esc(m.label.toUpperCase())}</button>`).join("");const caseState=s.caseState;return`<div class="sect"><h3>Finch's Nest · Scene Control</h3><div class="row">${floorButtons}</div><label class="check"><input id="fn-overlay" type="checkbox" ${s.overlayVisible?"checked":""}> show advisory GM overlay cards</label><div class="row"><select id="fn-phase" style="flex:1">${EastTennesseeFinchsNest.PHASES.map(x=>`<option value="${x.id}" ${x.id===s.phaseId?"selected":""}>${esc(x.label)} · ${esc(x.time)}</option>`).join("")}</select></div><div class="tok"><span class="nm">${esc(phase.label)} · ${esc(phase.time)}</span><div class="hint">Will: ${esc(willLoc?.regionId||"GM-set location")} · Case: <b>${esc(caseState.location)}</b> · ${esc(caseState.sealCondition)}<br>${esc(phase.guidance)}</div></div>${s.overlayVisible?etOverlayNotesHTML(EastTennesseeFinchsNest.OVERLAY.filter(x=>x.floor===s.activeFloor)):""}<details><summary>Regions and reveals</summary>${(d.regions[s.activeFloor]||[]).map(r=>`<div class="tok"><span class="nm">${esc(r.label)}</span><button class="rbtn quiet" data-fn-region="${r.id}">${s.revealedRegions.includes(r.id)?"CONCEAL":"REVEAL"}</button><div class="hint">${esc(r.public)}${r.gm?`<br><b>GM:</b> ${esc(r.gm)}`:""}</div></div>`).join("")}</details><details><summary>Dispatch case</summary><div class="row"><select id="fn-case-location">${[...EastTennesseeFinchsNest.LOCATIONS].map(x=>`<option ${x===caseState.location?"selected":""}>${x}</option>`).join("")}</select><select id="fn-case-seal">${["intact","openedCleanly","openedVisibly","resealedImperfectly","resealedConvincingly","damaged","unknown"].map(x=>`<option ${x===caseState.sealCondition?"selected":""}>${x}</option>`).join("")}</select></div>${[["contentsAccessed","contents accessed"],["officialPacketsInspected","packets inspected"],["importantInformationCopied","information copied"],["personalLettersHandled","letters handled"],["returnedToOriginalLocation","returned"],["missingDiscovered","missing discovered"],["willAwareOfCompromise","Will aware"],["concealed","concealed"]].map(([k,l])=>`<label class="check"><input data-fn-case="${k}" type="checkbox" ${caseState[k]?"checked":""}> ${l}</label>`).join("")}<textarea id="fn-case-notes" placeholder="case GM notes">${esc(caseState.gmNotes)}</textarea><button class="rbtn" id="fn-case-save">SAVE CASE STATE</button></details><details><summary>Inspectable objects</summary>${Object.values(EastTennesseeFinchsNest.OBJECTS).map(o=>`<div class="tok"><span class="nm">${esc(o.label)}</span><button class="rbtn quiet" data-fn-object="${o.id}">${s.revealedObjects.includes(o.id)?"CONCEAL":"REVEAL"}</button><div class="hint">${esc(o.gmSummary)}</div></div>`).join("")}</details><details><summary>Witnesses and evidence</summary>${EastTennesseeFinchsNest.WITNESS_FIELDS.map(k=>`<label>${esc(k)}<input data-fn-witness="${k}" value="${esc(s.witnessNotes[k]||"")}"></label>`).join("")}<textarea id="fn-evidence" placeholder="tracks, equipment, blood, bodies, prisoners, or other evidence">${esc(s.evidenceNotes)}</textarea><button class="rbtn" id="fn-witness-save">SAVE WITNESS / EVIDENCE</button></details><details><summary>Courier outcome and transition</summary><select id="fn-outcome">${[...EastTennesseeFinchsNest.OUTCOMES].map(x=>`<option ${x===s.courierOutcome?"selected":""}>${x}</option>`).join("")}</select><label class="check"><input id="fn-outcome-reveal" type="checkbox" ${s.courierOutcomeRevealed?"checked":""}> reveal outcome to players</label><button class="rbtn" id="fn-outcome-save">RECORD OUTCOME</button><div class="hint">Suggested Lick Creek variant: <b>${esc(s.suggestedLickCreekVariant)}</b>. Suggestion never changes the canonical selection.</div><div class="row"><select id="fn-variant">${[...EastTennesseeFinchsNest.VARIANTS].map(x=>`<option ${x===s.lickCreekVariant?"selected":""}>${x}</option>`).join("")}</select><button class="rbtn" id="fn-variant-save">CONFIRM VARIANT</button></div></details><button class="rbtn quiet" id="fn-reset">RESET LOCAL SCENE STATE</button></div>`;}
-function showFinchsFloor(floor){const d=EastTennesseeFinchsNest.MAPS[floor],s=App.session.campaignState.finchsNest;if(!d||!s?.initialized)return;const image=new Image();image.onload=()=>{App.session.map.img=image;App.session.map.imgURL=d.asset;App.session.map.name=`Finch's Nest · ${d.label}`;Object.assign(App.session.map.grid,d.grid);const pcs=App.session.map.tokens.filter(t=>t.pc),npcs=Object.entries(s.npcLocations).filter(([,loc])=>loc.floor===floor&&loc.visible!==false).map(([actorId,loc],i)=>{const actor=App.session.campaignState.actors[actorId],name=actor?.identity?.name||"Person",parts=name.replace(/[^A-Za-z ]/g,"").split(/\s+/).filter(Boolean);return{id:900000+i,actorId,name,letter:parts.slice(0,2).map(x=>x[0]).join("").toUpperCase()||"?",color:"#705943",x:Number(loc.x)||600,y:Number(loc.y)||400,size:1};});App.session.map.tokens=[...pcs,...npcs];App.session.scene="map";document.body.classList.add("mapscene");fitScene();if(typeof NET!=="undefined"){NET.imgStamp++;netBroadcast({type:"img",data:d.asset,stamp:NET.imgStamp});}markDirty();netMark();renderPanel();};image.src=d.asset;}
+function etScenePackage(key){return App.session.campaignId==="east-tennessee-1861"?globalThis.EastTennesseeScenes?.LEVELS?.[key]||null:null;}
+function etSceneClone(value){return value==null?value:JSON.parse(JSON.stringify(value));}
+function etSceneState(){
+  const state=App.session.campaignState;
+  if(!state||App.session.campaignId!=="east-tennessee-1861")return null;
+  if(!state.sceneLevels||typeof state.sceneLevels!=="object"||Array.isArray(state.sceneLevels))state.sceneLevels={};
+  if(!state.sceneLevelStates||typeof state.sceneLevelStates!=="object"||Array.isArray(state.sceneLevelStates))state.sceneLevelStates={};
+  return state;
+}
+function etSceneDefaultReveals(level){
+  const revealed={};
+  for(const room of level?.rooms||[])if(room.revealMode==="always")revealed[room.id]=true;
+  return revealed;
+}
+function etSceneLiveState(){
+  return {revealed:etSceneClone(App.session.verso.revealed||{}),doorStates:etSceneClone(App.session.verso.doorStates||{}),effects:etSceneClone(App.session.verso.effects||[]),propStates:etSceneClone(App.session.verso.propStates||{}),tacticalFocus:App.session.verso.tacticalFocus||null};
+}
+function etSceneRestoreState(key,level){
+  const state=etSceneState(),stored=state?.sceneLevelStates?.[key]||{};
+  const roomIds=new Set((level.rooms||[]).map(room=>room.id)),doorIds=new Set((level.doors||[]).map(door=>door.id)),propIds=new Set((level.props||[]).map(prop=>prop.id));
+  const revealed={...etSceneDefaultReveals(level)};
+  if(stored.revealed&&typeof stored.revealed==="object")for(const [id,value] of Object.entries(stored.revealed))if(roomIds.has(id))revealed[id]=!!value;
+  App.session.verso.revealed=revealed;
+  App.session.verso.doorStates={};
+  if(stored.doorStates&&typeof stored.doorStates==="object")for(const [id,value] of Object.entries(stored.doorStates))if(doorIds.has(id))App.session.verso.doorStates[id]=value;
+  App.session.verso.propStates={};
+  if(stored.propStates&&typeof stored.propStates==="object")for(const [id,value] of Object.entries(stored.propStates))if(propIds.has(id))App.session.verso.propStates[id]=value;
+  App.session.verso.effects=Array.isArray(stored.effects)?etSceneClone(stored.effects):[];
+  App.session.verso.tacticalFocus=roomIds.has(stored.tacticalFocus)?stored.tacticalFocus:null;
+}
+function etSceneSyncNpcLocations(key){
+  const pkg=etScenePackage(key),state=etSceneState();
+  if(!pkg||!state||App.session.scene!=="verso")return;
+  const sceneState=pkg.sceneId==="finchs-nest"?state.finchsNest:state.lickCreek,locations=sceneState?.npcLocations||{};
+  for(const token of App.session.verso.tokens||[]){
+    const loc=locations[token.actorId];
+    if(!loc||!Number.isFinite(+token.x)||!Number.isFinite(+token.y))continue;
+    loc.x=+token.x*pkg.scale;loc.y=+token.y*pkg.scale;loc.visible=true;
+    if(pkg.sceneId==="finchs-nest")loc.floor=pkg.floor;
+  }
+}
+function etSaveActiveSceneLevel(){
+  const state=etSceneState(),key=state?.activeSceneLevel,pkg=key&&etScenePackage(key);
+  if(!pkg||!App.services.model?.levelData)return false;
+  etSceneSyncNpcLocations(key);
+  state.sceneLevels[key]=etSceneClone(App.services.model.levelData());
+  state.sceneLevelStates[key]=etSceneLiveState();
+  return true;
+}
+function etScenePartySources(){
+  let sources=App.session.scene==="map"?(App.session.map.tokens||[]).filter(token=>token.pc):(App.session.verso.tokens||[]).filter(token=>token.pc);
+  if(!sources.length)sources=(App.session.verso.tokens||[]).filter(token=>token.pc);
+  if(!sources.length)sources=(App.campaign?.initialStart?.tokens||[]).filter(token=>token.pc);
+  return sources.map(etSceneClone);
+}
+function etScenePartyTokens(pkg,sameKey,sources=etScenePartySources()){
+  const start=pkg.partyStart||{x:.5,y:.5};
+  return sources.map((source,index)=>{
+    const column=index%3,row=Math.floor(index/3);
+    const x=sameKey&&Number.isFinite(+source.x)?+source.x:start.x+column*.9;
+    const y=sameKey&&Number.isFinite(+source.y)?+source.y:start.y+row*.8;
+    return mkTokFrom({...source,x,y});
+  });
+}
+function etNpcIsGuard(record){return ["hiram-vance","caleb-rader","mose-gentry","confederate-guard"].includes(record?.definitionId);}
+function etSceneNpcTokens(pkg){
+  const state=etSceneState(),sceneState=pkg.sceneId==="finchs-nest"?state?.finchsNest:state?.lickCreek;
+  if(!sceneState)return [];
+  const alert=pkg.sceneId==="lick-creek"&&sceneState.variant==="alarmed";
+  return Object.entries(sceneState.npcLocations||{}).filter(([,loc])=>loc&&loc.visible!==false&&(pkg.sceneId!=="finchs-nest"||loc.floor===pkg.floor)).map(([actorId,loc])=>{
+    const actor=state.actors?.[actorId],record=state.npcs?.[actorId],name=actor?.identity?.name||record?.visibleLabel||"Person";
+    const letters=name.replace(/[^A-Za-z ]/g,"").split(/\s+/).filter(Boolean).map(part=>part[0]).join("").slice(0,2).toUpperCase()||"?";
+    const guard=etNpcIsGuard(record);
+    return mkTokFrom({actorId,name,letter:letters,color:guard?(alert?"#9a4e42":"#6f7653"):"#705943",x:(Number.isFinite(+loc.x)?+loc.x:0)/pkg.scale,y:(Number.isFinite(+loc.y)?+loc.y:0)/pkg.scale,size:guard?1.18:1});
+  });
+}
+function openEtSceneLevel(key,{announce=true}={}){
+  const pkg=etScenePackage(key),state=etSceneState();
+  if(!pkg||!state)return false;
+  if(state.activeSceneLevel)etSaveActiveSceneLevel();
+  const sameKey=state.activeSceneLevel===key&&App.session.scene==="verso";
+  const partySources=etScenePartySources();
+  let level=state.sceneLevels[key]?etSceneClone(state.sceneLevels[key]):etSceneClone(pkg.level);
+  state.activeSceneLevel=key;
+  etScenePanelLocation=pkg.sceneId==="lick-creek"?"lick-creek":"finchs-nest";
+  App.session.scene="verso";App.session.map.img=null;App.session.map.imgURL=null;App.session.map.name=null;App.session.map.fog=null;App.session.map.tokens=[];
+  try{App.services.model.loadLevel(level);}catch(error){delete state.sceneLevels[key];level=etSceneClone(pkg.level);App.services.model.loadLevel(level);}
+  etSceneRestoreState(key,level);
+  App.session.verso.tokens=[...etScenePartyTokens(pkg,sameKey,partySources),...etSceneNpcTokens(pkg)];
+  App.services.editor.setLevelView("isometric");
+  App.services.editor.setScene("verso");
+  App.services.network.rebindConnectedOwners();
+  etSaveActiveSceneLevel();
+  markDirty();netMarkLevel();netMark();renderPanel();
+  if(announce&&NET.mode==="host")requestAnimationFrame(()=>App.services.network.broadcastLevelTransition(App.document.level.name));
+  return true;
+}
+function openEtFinchsFloor(floor){return openEtSceneLevel(`finchs-nest:${floor}`);}
+function showFinchsFloor(floor){return openEtFinchsFloor(floor);}
 function wireEtFinchs(p,gm=false){if(!gm||!globalThis.EastTennesseeFinchsNest)return;const init=p.querySelector("#fn-init");if(init)init.onclick=()=>{etHostAction({type:"gmFinchsInitialize"});showFinchsFloor(App.session.campaignState.finchsNest.activeFloor);};p.querySelectorAll("[data-fn-floor]").forEach(el=>el.onclick=()=>{etHostAction({type:"gmFinchsSetFloor",floor:el.dataset.fnFloor});showFinchsFloor(el.dataset.fnFloor);});const phase=p.querySelector("#fn-phase");if(phase)phase.onchange=()=>{etHostAction({type:"gmFinchsSetPhase",phaseId:phase.value});showFinchsFloor(App.session.campaignState.finchsNest.activeFloor);};const overlay=p.querySelector("#fn-overlay");if(overlay)overlay.onchange=()=>etHostAction({type:"gmFinchsSetOverlay",visible:overlay.checked});p.querySelectorAll("[data-fn-region]").forEach(el=>el.onclick=()=>etHostAction({type:"gmFinchsReveal",domain:"region",id:el.dataset.fnRegion,revealed:!App.session.campaignState.finchsNest.revealedRegions.includes(el.dataset.fnRegion)}));p.querySelectorAll("[data-fn-object]").forEach(el=>el.onclick=()=>etHostAction({type:"gmFinchsReveal",domain:"object",id:el.dataset.fnObject,revealed:!App.session.campaignState.finchsNest.revealedObjects.includes(el.dataset.fnObject)}));const caseSave=p.querySelector("#fn-case-save");if(caseSave)caseSave.onclick=()=>{const state={location:p.querySelector("#fn-case-location").value,sealCondition:p.querySelector("#fn-case-seal").value,gmNotes:p.querySelector("#fn-case-notes").value};p.querySelectorAll("[data-fn-case]").forEach(el=>state[el.dataset.fnCase]=el.checked);etHostAction({type:"gmFinchsSetCase",caseState:state});};const witness=p.querySelector("#fn-witness-save");if(witness)witness.onclick=()=>{const notes={};p.querySelectorAll("[data-fn-witness]").forEach(el=>notes[el.dataset.fnWitness]=el.value);etHostAction({type:"gmFinchsSetWitnesses",witnessNotes:notes,evidenceNotes:p.querySelector("#fn-evidence").value});};const outcome=p.querySelector("#fn-outcome-save");if(outcome)outcome.onclick=()=>etHostAction({type:"gmFinchsSetOutcome",courierOutcome:p.querySelector("#fn-outcome").value,revealed:p.querySelector("#fn-outcome-reveal").checked});const variant=p.querySelector("#fn-variant-save");if(variant)variant.onclick=()=>etHostAction({type:"gmFinchsConfirmVariant",variant:p.querySelector("#fn-variant").value});const reset=p.querySelector("#fn-reset");if(reset)reset.onclick=()=>{if(confirm("Reset local Finch's Nest phase, placements, case, and reveals? Committed witnesses, evidence, outcome, and Lick Creek variant will be preserved.")){etHostAction({type:"gmFinchsReset",confirm:true});showFinchsFloor("ground");}};}
 
 function etLickVariantNote(variant){return variant==="alarmed"?"Alert detail: eight guards start in place, with overlapping watches near the approaches and under the bridge.":variant==="baseline"?"Routine detail: six guards start in place, with ordinary rest and two main posts.":"Choose the detail before opening the map; the selected roster and starting positions will appear immediately.";}
@@ -1353,7 +1456,7 @@ function etLickCreekHTML(gm=false){if(App.session.campaignId!=="east-tennessee-1
  <details><summary>Timers and messenger</summary><label class="check"><input id="lc-messenger" type="checkbox" ${s.messengerState.escaped?"checked":""}> GM confirms messenger escaped</label><button class="rbtn quiet" id="lc-messenger-save">SAVE MESSENGER</button><div class="row"><input id="lc-missing-rounds" type="number" min="1" value="8"><button class="rbtn quiet" data-lc-timer="missingPatrol">MISSING PATROL</button></div><div class="row"><input id="lc-help-rounds" type="number" min="1" value="12"><button class="rbtn quiet" data-lc-timer="helpWarned">HELP WARNED</button></div><div class="row"><input id="lc-train-rounds" type="number" min="1" value="20"><button class="rbtn quiet" data-lc-timer="morningTrain">MORNING TRAIN</button></div><div class="hint">All presets start manually and advance only through structured round ends.</div></details>
  <details><summary>Work camp and materials</summary><div class="row"><label>free/craftsmen <input id="lc-free-count" type="number" min="0" max="20" value="${s.workCampState.freeWorkerCount}"></label><label>hired-out <input id="lc-enslaved-count" type="number" min="0" max="20" value="${s.workCampState.enslavedWorkerCount}"></label><button class="rbtn quiet" id="lc-camp-save">SAVE</button></div><div class="hint">${EastTennesseeLickCreek.WORK_CAMP_GUIDANCE.map(esc).join(" ")} Objects remain in camp until the GM uses the equipment-location system.</div>${Object.values(d.inspectableObjects).map(o=>`<div class="tok"><span class="nm">${esc(o.label)}</span><button class="rbtn quiet" data-lc-object="${o.id}">${s.revealedObjects.includes(o.id)?"CONCEAL":"REVEAL"}</button></div>`).join("")}</details>
  <details><summary>Evidence, witnesses, and ending</summary>${EastTennesseeLickCreek.WITNESS_FIELDS.map(k=>`<label>${esc(k)}<input data-lc-witness="${k}" value="${esc(s.witnessNotes[k]||"")}"></label>`).join("")}<textarea id="lc-evidence" placeholder="other GM-only evidence">${esc(s.evidenceNotes)}</textarea><button class="rbtn quiet" id="lc-evidence-save">SAVE EVIDENCE</button><select id="lc-outcome" style="width:100%">${[...EastTennesseeLickCreek.OUTCOMES].map(x=>`<option ${x===s.missionOutcome?"selected":""}>${x}</option>`).join("")}</select><textarea id="lc-outcome-notes" placeholder="outcome notes">${esc(s.outcomeNotes)}</textarea><button class="rbtn" id="lc-outcome-save">CONFIRM OUTCOME</button><div class="hint"><b>Successful ridge:</b> ${esc(EastTennesseeLickCreek.ENDINGS.success)}<br><b>Legitimate withdrawal:</b> ${esc(EastTennesseeLickCreek.ENDINGS.withdrawal)}</div></details><button class="rbtn quiet" id="lc-reset">RESET LOCAL LICK CREEK STATE</button></div>`;}
-function showLickCreekMap(){const d=EastTennesseeLickCreek.MAP,s=App.session.campaignState.lickCreek;if(!s?.initialized)return;const image=new Image();image.onload=()=>{App.session.map.img=image;App.session.map.imgURL=d.asset;App.session.map.name=d.label;Object.assign(App.session.map.grid,d.grid);const pcs=App.session.map.tokens.filter(t=>t.pc),alerted=s.variant==="alarmed",npcs=Object.entries(s.npcLocations).filter(([,loc])=>loc.visible!==false).map(([actorId,loc],i)=>{const actor=App.session.campaignState.actors[actorId],record=App.session.campaignState.npcs?.[actorId],name=actor?.identity?.name||"Person",parts=name.replace(/[^A-Za-z ]/g,"").split(/\s+/).filter(Boolean),isGuard=["hiram-vance","caleb-rader","mose-gentry","confederate-guard"].includes(record?.definitionId);return{id:910000+i,actorId,name,letter:parts.slice(0,2).map(x=>x[0]).join("").toUpperCase()||"?",color:isGuard?(alerted?"#9a4e42":"#6f7653"):"#705943",x:Number(loc.x)||800,y:Number(loc.y)||500,size:isGuard?1.28:1.05};});App.session.map.tokens=[...pcs,...npcs];App.session.scene="map";document.body.classList.add("mapscene");fitScene();if(typeof NET!=="undefined"){NET.imgStamp++;netBroadcast({type:"img",data:d.asset,stamp:NET.imgStamp});}markDirty();netMark();renderPanel();};image.src=d.asset;}
+function showLickCreekMap(){return openEtSceneLevel("lick-creek");}
 function wireEtLickCreek(p,gm=false){if(!gm||!globalThis.EastTennesseeLickCreek)return;const init=p.querySelector("#lc-init");if(init)init.onclick=()=>{etHostAction({type:"gmLickInitialize",variant:p.querySelector("#lc-init-variant").value,abnerWeapon:"revolver"});if(App.session.campaignState.lickCreek.initialized)showLickCreekMap();};const map=p.querySelector("#lc-map");if(map)map.onclick=showLickCreekMap;const phase=p.querySelector("#lc-phase");if(phase)phase.onchange=()=>etHostAction({type:"gmLickSetPhase",phase:phase.value});const overlay=p.querySelector("#lc-overlay");if(overlay)overlay.onchange=()=>etHostAction({type:"gmLickSetOverlay",visible:overlay.checked});p.querySelectorAll("[data-lc-fact]").forEach(el=>el.onclick=()=>etHostAction({type:"gmLickRevealFact",factId:el.dataset.lcFact,visibility:el.dataset.lcVis,actorIds:el.dataset.lcVis==="selected"?[p.querySelector("#lc-recon-actor").value]:[]}));p.querySelectorAll("[data-lc-object]").forEach(el=>el.onclick=()=>etHostAction({type:"gmLickRevealObject",objectId:el.dataset.lcObject,revealed:!App.session.campaignState.lickCreek.revealedObjects.includes(el.dataset.lcObject)}));const bridge=p.querySelector("#lc-bridge-save");if(bridge)bridge.onclick=()=>etHostAction({type:"gmLickSetBridge",bridgeState:p.querySelector("#lc-bridge").value});const fire=p.querySelector("#lc-fire-start");if(fire)fire.onclick=()=>etHostAction({type:"gmLickStartFire",category:p.querySelector("#lc-fire-kind").value,initialRounds:p.querySelector("#lc-fire-rounds").value?+p.querySelector("#lc-fire-rounds").value:undefined});const stage2=p.querySelector("#lc-stage2");if(stage2)stage2.onclick=()=>etHostAction({type:"gmLickStartStageTwo",initialRounds:p.querySelector("#lc-stage2-rounds").value?+p.querySelector("#lc-stage2-rounds").value:undefined});const extinguish=p.querySelector("#lc-extinguish");if(extinguish)extinguish.onclick=()=>etHostAction({type:"gmLickExtinguishFire"});const messenger=p.querySelector("#lc-messenger-save");if(messenger)messenger.onclick=()=>etHostAction({type:"gmLickConfirmMessenger",escaped:p.querySelector("#lc-messenger").checked});p.querySelectorAll("[data-lc-timer]").forEach(el=>el.onclick=()=>{const kind=el.dataset.lcTimer,input=kind==="missingPatrol"?"#lc-missing-rounds":kind==="helpWarned"?"#lc-help-rounds":"#lc-train-rounds";etHostAction({type:"gmLickStartTimer",kind,initialRounds:+p.querySelector(input).value});});p.querySelectorAll("[data-lc-patrol]").forEach(el=>el.onclick=()=>{const id=App.session.campaignState.lickCreek.npcIds.mose,pos=el.dataset.lcPatrol==="mose-rest"?{regionId:"mose-rest",x:600,y:340,visible:false}:{regionId:"north-circuit",x:800,y:290,visible:true};etHostAction({type:"gmLickSetNpcLocation",npcId:id,...pos});showLickCreekMap();});const camp=p.querySelector("#lc-camp-save");if(camp)camp.onclick=()=>etHostAction({type:"gmLickSetWorkCamp",freeWorkerCount:+p.querySelector("#lc-free-count").value,enslavedWorkerCount:+p.querySelector("#lc-enslaved-count").value});const evidence=p.querySelector("#lc-evidence-save");if(evidence)evidence.onclick=()=>{const notes={};p.querySelectorAll("[data-lc-witness]").forEach(el=>notes[el.dataset.lcWitness]=el.value);etHostAction({type:"gmLickSetEvidence",witnessNotes:notes,evidenceNotes:p.querySelector("#lc-evidence").value});};const outcome=p.querySelector("#lc-outcome-save");if(outcome)outcome.onclick=()=>etHostAction({type:"gmLickSetOutcome",outcome:p.querySelector("#lc-outcome").value,notes:p.querySelector("#lc-outcome-notes").value});const reset=p.querySelector("#lc-reset");if(reset)reset.onclick=()=>{if(confirm("Reset local Lick Creek positions, bridge, fire, timers, reveals, and phase? Committed outcome and evidence will be preserved.")){etHostAction({type:"gmLickReset",confirm:true});showLickCreekMap();}};}
 
-Object.assign(App.services.panel,{renderPanel,renderEditorPanel,renderClientPanel});
+Object.assign(App.services.panel,{renderPanel,renderEditorPanel,renderClientPanel,persistEtSceneLevel:etSaveActiveSceneLevel,openEtSceneLevel});
