@@ -174,6 +174,29 @@ const PROP_LIB={
    const fp=p&&p.footprint||{w:2,h:1};
    for(let x=.3;x<fp.w-.05;x+=.55)for(let y=.3;y<fp.h-.05;y+=.58){const n=3+((x*7+y*11)|0)%5;chipStack(i+x,j+y,((x+y)*10|0)%2?"#C8A14E":"#8A2E25",n);}
   }},
+  window:{n:"Window",draw(i,j){
+    wallPlate(i+.08,i+.92,j+.12,34,"#59422F","rgba(197,220,215,.48)");
+    const A=P(i+.18,j+.12),B=P(i+.82,j+.12);quad([A[0],A[1]-28],[B[0],B[1]-28],[B[0],B[1]-6],[A[0],A[1]-6],"rgba(116,151,151,.55)","rgba(231,216,183,.58)");
+    ctx.strokeStyle="rgba(238,222,188,.72)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo((A[0]+B[0])/2,(A[1]+B[1])/2-28);ctx.lineTo((A[0]+B[0])/2,(A[1]+B[1])/2-6);ctx.moveTo(A[0],A[1]-17);ctx.lineTo(B[0],B[1]-17);ctx.stroke();
+  }},
+  hearth:{n:"Stone hearth",draw(i,j,p){
+    const fp=p&&p.footprint||{w:1.8,h:1.2},w=fp.w,h=fp.h;box(i+.05,j+.12,i+w-.05,j+h-.05,10,"#766D60");wallPlate(i+.14,i+w-.14,j+.16,35,"#625A51");
+    const [x,y]=P(i+w/2,j+.18);ctx.fillStyle="#221B17";ctx.beginPath();ctx.ellipse(x,y-12,12,8,0,0,7);ctx.fill();ctx.fillStyle="#D3783F";ctx.beginPath();ctx.moveTo(x-5,y-8);ctx.quadraticCurveTo(x-2,y-25,x+1,y-10);ctx.quadraticCurveTo(x+7,y-22,x+6,y-7);ctx.closePath();ctx.fill();lightPool(i+w/2,j+.7,46,"rgba(221,128,67,.16)");
+  }},
+  stove:{n:"Cookstove",draw(i,j,p){
+    const fp=p&&p.footprint||{w:1.4,h:1.2},w=fp.w,h=fp.h;box(i+.08,j+.12,i+w-.08,j+h-.08,22,"#34383A");
+    for(const xq of[i+w*.33,i+w*.68]){const [x,y]=P(xq,j+h*.5);ctx.fillStyle="#171A1B";ctx.beginPath();ctx.ellipse(x,y-24,5,2.5,0,0,7);ctx.fill();}
+    const [px,py]=P(i+w-.18,j+.18);ctx.strokeStyle="#282B2D";ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(px,py-18);ctx.lineTo(px,py-46);ctx.stroke();
+  }},
+  timberpier:{n:"Timber pier",draw(i,j,p){
+    const fp=p&&p.footprint||{w:1.5,h:1.5},w=fp.w,h=fp.h;box(i+.12,j+.12,i+w-.12,j+h-.12,42,"#65482F");
+    const A=P(i+.2,j+h-.16),B=P(i+w-.2,j+.16),C=P(i+.2,j+.16),D=P(i+w-.2,j+h-.16);ctx.strokeStyle="rgba(224,190,139,.5)";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(A[0],A[1]-38);ctx.lineTo(B[0],B[1]-4);ctx.moveTo(C[0],C[1]-4);ctx.lineTo(D[0],D[1]-38);ctx.stroke();
+  }},
+  workshed:{n:"Work shed",draw(i,j,p){
+    const fp=p&&p.footprint||{w:4,h:2.5},w=fp.w,h=fp.h;flat(i+.08,j+.08,i+w-.08,j+h-.08,"#5F503E","rgba(31,23,17,.72)");
+    for(const [xq,yq]of[[i+.18,j+.18],[i+w-.18,j+.18],[i+.18,j+h-.18],[i+w-.18,j+h-.18]])pole(xq,yq,31,3.6,"#59412D");
+    ctx.save();ctx.translate(0,-34);flat(i-.08,j-.08,i+w+.08,j+h+.08,"#4B4135","rgba(224,201,163,.48)");ctx.strokeStyle="rgba(236,216,182,.25)";ctx.lineWidth=1;for(let y=.25;y<h;y+=.45){const a=P(i,y+j),b=P(i+w,y+j);ctx.beginPath();ctx.moveTo(...a);ctx.lineTo(...b);ctx.stroke();}ctx.restore();
+  }},
   water:{n:"Water",draw(i,j,p){
     const fp=p&&p.footprint||{w:2,h:2};
     flat(i,j,i+fp.w,j+fp.h,"#496B70","rgba(181,212,208,.34)");

@@ -125,7 +125,7 @@ test("campaign descriptor precedes campaign state in initial join messages", () 
 test("East Tennessee presents campaign workspaces and plain-language controls", () => {
   const panel = readFileSync(join(__dirname, "..", "app", "panel.js"), "utf8");
   const editor = readFileSync(join(__dirname, "..", "app", "editor.js"), "utf8");
-  for (const label of ["SCENE", "CAST", "ENCOUNTER", "DOCUMENTS", "TABLE", "START ENCOUNTER", "Who is in this encounter?", "Add someone to the scene…", "SHARE WITH SELECTED AUDIENCE", "INITIALIZE &amp; OPEN MAP"])
+  for (const label of ["SCENE", "CAST", "ENCOUNTER", "DOCUMENTS", "TABLE", "START ENCOUNTER", "Who is in this encounter?", "Add someone to the scene…", "SHARE WITH SELECTED AUDIENCE", "INITIALIZE &amp; OPEN ISOMETRIC SCENE"])
     assert.ok(panel.includes(label), `missing East Tennessee UI label: ${label}`);
   assert.equal(panel.includes("OPEN CLARA AWARENESS CHECK"), false);
   assert.equal(panel.includes("BEGIN IMMEDIATE DANGER"), false);

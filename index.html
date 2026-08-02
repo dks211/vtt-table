@@ -139,14 +139,25 @@ body.editing #iso-preview{display:block}
 
 /* East Tennessee is a restrained historical table, distinct from Palimpsest's green-and-brass dungeon console. */
 body.campaign-east-tennessee{
-  --felt-950:#111313;--felt-900:#191C1C;--felt-800:#222625;--baize:#282E2B;--baize-line:#37403B;
-  --brass:#D0B77A;--brass-dim:#907A4F;--brass-faint:#4C4537;--vellum:#ECE7DB;--vellum-dim:#B7B0A1;
-  --oxblood:#8D453B;--under:#9CB0A8;--panel-w:390px;
+  --felt-950:#111713;--felt-900:#18201B;--felt-800:#243028;--baize:#2D3A31;--baize-line:#405146;
+  --brass:#D6BB7D;--brass-dim:#957C49;--brass-faint:#504735;--vellum:#F1EBDD;--vellum-dim:#BDB5A5;
+  --oxblood:#93483E;--under:#9FB9AE;--panel-w:390px;
 }
-body.campaign-east-tennessee #topbar{background:linear-gradient(180deg,#272A29,#171919);border-bottom-color:#65583F}
-body.campaign-east-tennessee #wordmark{letter-spacing:.08em;color:#E1CF9E}
-body.campaign-east-tennessee #panel{background:linear-gradient(180deg,#202322,#181A1A);box-shadow:-12px 0 30px rgba(0,0,0,.22)}
-body.campaign-east-tennessee #stage{background:radial-gradient(circle at 48% 42%,#242927,#111313 72%)}
+body.campaign-east-tennessee #topbar{background:linear-gradient(180deg,#26332B,#172019);border-bottom-color:#75613B;box-shadow:0 4px 18px rgba(0,0,0,.22)}
+body.campaign-east-tennessee #wordmark{letter-spacing:.08em;color:#E4CB91}
+body.campaign-east-tennessee #panel{
+  --felt-950:#D9CEB9;--felt-900:#EEE7D8;--felt-800:#D8CDB9;--baize:#D4C9B5;--baize-line:#B8A98E;
+  --brass:#6F5527;--brass-dim:#806A3B;--brass-faint:#B9AA8E;--vellum:#282A25;--vellum-dim:#67675D;
+  --under:#4F7167;--oxblood:#8A4339;--ink:#F7F0E1;
+  color:var(--vellum);background:linear-gradient(180deg,#F1EBDD,#E5DCCB);border-left-color:#9E8C69;box-shadow:-12px 0 30px rgba(0,0,0,.28)
+}
+body.campaign-east-tennessee #panel::before{content:"";position:fixed;top:var(--top-h);right:0;width:var(--panel-w);height:5px;background:linear-gradient(90deg,#6C7C69,#A88C52);z-index:7;pointer-events:none}
+body.campaign-east-tennessee #panel .panel-tabs{background:rgba(238,231,216,.96);box-shadow:0 6px 14px rgba(68,54,35,.12)}
+body.campaign-east-tennessee #panel input,body.campaign-east-tennessee #panel select,body.campaign-east-tennessee #panel textarea{background:#F8F2E7;color:#292A25;border-color:#B8A98D}
+body.campaign-east-tennessee #panel .et-card,body.campaign-east-tennessee #panel details.tok{background:rgba(255,255,255,.25)}
+body.campaign-east-tennessee #stage{background:radial-gradient(circle at 48% 42%,#29362E,#111713 72%)}
+body.campaign-east-tennessee #rail{background:#151D18;border-right-color:#5F5238}
+body.campaign-east-tennessee #status{background:#151D18;border-top-color:#5F5238}
 body.campaign-east-tennessee .level-view{display:none!important}
 body.campaign-east-tennessee #stage-view-toggle{display:none!important}
 body.campaign-east-tennessee #iso-preview{display:none!important}
