@@ -423,7 +423,7 @@ const ET_SURFACES={
   wood:["#74583E","#624932"],kitchen:["#655543","#574938"],stable:["#79583B","#65472F"],
   porch:["#806346","#6C5138"],roof:["#6F5B47","#514438"],road:["#8E806A","#786B58"],
   grass:["#536248","#46563F"],forest:["#40543F","#344735"],earth:["#6D604B","#5D513F"],
-  mud:["#58605A","#48524F"],water:["#54767A","#45676D"],rail:["#655D50","#554E44"],
+  mud:["#58605A","#48524F"],water:["#3B7079","#315E67"],rail:["#655D50","#554E44"],
   bridge:["#74563B","#60452F"],stone:["#756E61","#645E54"]
 };
 function etRoomPath(r){ctx.beginPath();for(const [i,j]of roomTiles(r))tilePathAdd(i,j);}
@@ -439,6 +439,21 @@ function etDrawBackdrop(){
   }else{
     flat(x0-.7,y0-.7,x1+.7,y1+.7,"#171A18","rgba(207,183,122,.18)");
   }
+}
+function etDrawLickCreekWatercourse(){
+  if(eastTennesseeSceneKey()!=="lick-creek")return;
+  // One continuous watercourse sits beneath every room and bridge element.
+  // The editable creek rooms carry interaction state; this underlay makes the
+  // north/south continuity readable even where the raised deck crosses it.
+  const left=[[14.2,-1],[13.85,3.5],[14.15,7],[13.8,11.5],[14.1,16],[13.75,22.5]],right=[[18.75,-1],[19.1,3.5],[18.8,7],[19.15,11.5],[18.85,16],[19.2,22.5]];
+  const points=[...left,...right.slice().reverse()].map(([i,j])=>P(i,j));
+  ctx.save();ctx.beginPath();ctx.moveTo(...points[0]);for(const point of points.slice(1))ctx.lineTo(...point);ctx.closePath();
+  const a=P(16.5,-1),b=P(16.5,22.5),g=ctx.createLinearGradient(a[0],a[1],b[0],b[1]);g.addColorStop(0,"#315E67");g.addColorStop(.5,"#3E7780");g.addColorStop(1,"#294F58");ctx.fillStyle=g;ctx.fill();
+  ctx.strokeStyle="rgba(202,225,216,.58)";ctx.lineWidth=1.6;
+  for(const bank of[left,right]){ctx.beginPath();bank.forEach(([i,j],index)=>{const point=P(i,j);if(!index)ctx.moveTo(...point);else ctx.lineTo(...point);});ctx.stroke();}
+  ctx.strokeStyle="rgba(213,235,225,.28)";ctx.lineWidth=1;
+  for(const xq of [15.1,16.25,17.45,18.3]){const start=P(xq,-.4),end=P(xq+.18,21.8);ctx.beginPath();ctx.moveTo(...start);ctx.quadraticCurveTo(...P(xq-.12,10.4),...end);ctx.stroke();}
+  ctx.restore();
 }
 function etDrawSurfaceTexture(r){
   const bb=roomBBox(r),surface=r.surface||"wood";
@@ -1037,7 +1052,7 @@ function drawVerso(){
   ctx.scale(c.s,c.s); ctx.translate(-c.x,-c.y);
 
   const showHidden = RVIEW==="dm";
-  if(east)etDrawBackdrop();
+  if(east){etDrawBackdrop();etDrawLickCreekWatercourse();}
   // floors
   for(const r of App.document.rooms){
     const rev = !!v.revealed[r.id];

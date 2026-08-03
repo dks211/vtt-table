@@ -236,6 +236,18 @@ const PROP_LIB={
     ctx.save();ctx.strokeStyle="#242A27";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(a[0],a[1]-1);ctx.lineTo(b[0],b[1]-1);ctx.moveTo(c[0],c[1]-1);ctx.lineTo(d[0],d[1]-1);ctx.stroke();
     ctx.strokeStyle="#8C7653";ctx.lineWidth=1;for(let x=.35;x<fp.w-.1;x+=.55){const e=P(i+x,j+.08),f=P(i+x,j+fp.h-.08);ctx.beginPath();ctx.moveTo(e[0],e[1]-1);ctx.lineTo(f[0],f[1]-1);ctx.stroke();}ctx.restore();
   }},
+  railway:{n:"Continuous railway",draw(i,j,p){
+    const fp=p&&p.footprint||{w:8,h:1.3},w=fp.w,h=fp.h;
+    flat(i,j,i+w,j+h,"#4A4238","rgba(18,17,14,.72)");
+    ctx.save();
+    ctx.strokeStyle="#8A6946";ctx.lineWidth=2.1;
+    for(let x=.25;x<w-.08;x+=.48){const a=P(i+x,j+.04),b=P(i+x,j+h-.04);ctx.beginPath();ctx.moveTo(a[0],a[1]-2);ctx.lineTo(b[0],b[1]-2);ctx.stroke();}
+    for(const yq of [j+.25,j+h-.25]){
+      const a=P(i+.04,yq),b=P(i+w-.04,yq);ctx.strokeStyle="#202725";ctx.lineWidth=3.4;ctx.beginPath();ctx.moveTo(a[0],a[1]-4);ctx.lineTo(b[0],b[1]-4);ctx.stroke();
+      ctx.strokeStyle="rgba(183,190,174,.72)";ctx.lineWidth=.9;ctx.beginPath();ctx.moveTo(a[0],a[1]-6);ctx.lineTo(b[0],b[1]-6);ctx.stroke();
+    }
+    ctx.restore();
+  }},
   tree:{n:"Tree",draw(i,j,p){
     const fp=p&&p.footprint||{w:1,h:1},cx=i+fp.w/2,cy=j+fp.h/2;
     pole(cx,cy,30,4,"#4B3828");const [x,y]=P(cx,cy);ctx.save();ctx.fillStyle="#304A37";ctx.strokeStyle="rgba(8,16,10,.6)";ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(x,y-37,11+Math.min(fp.w,fp.h)*2,0,7);ctx.arc(x-7,y-31,8,0,7);ctx.arc(x+8,y-31,8,0,7);ctx.fill();ctx.stroke();ctx.restore();
@@ -285,11 +297,6 @@ const PROP_LIB={
     // Two dark side beams and their lighter cap edges make the deck read as
     // one railroad structure instead of a floating brown platform.
     for(const side of [.12,h-.12]){const a=P(i+.08,j+side),b=P(i+w-.08,j+side);ctx.strokeStyle="#3B2A1D";ctx.lineWidth=3.4;ctx.beginPath();ctx.moveTo(a[0],a[1]-deckHeight+1);ctx.lineTo(b[0],b[1]-deckHeight+1);ctx.stroke();ctx.strokeStyle="rgba(192,145,91,.68)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(a[0],a[1]-deckHeight-1);ctx.lineTo(b[0],b[1]-deckHeight-1);ctx.stroke();}
-    // The rails continue across the deck and line up with the approach
-    // tracks. They are deliberately visual; movement and targeting remain
-    // GM rulings in the campaign scene.
-    for(const rail of [j+1.7,j+2.3]){const a=P(i+.12,rail),b=P(i+w-.12,rail);ctx.strokeStyle="#242A27";ctx.lineWidth=2.2;ctx.beginPath();ctx.moveTo(a[0],a[1]-deckHeight-2);ctx.lineTo(b[0],b[1]-deckHeight-2);ctx.stroke();ctx.strokeStyle="rgba(176,145,100,.72)";ctx.lineWidth=.8;ctx.beginPath();ctx.moveTo(a[0],a[1]-deckHeight-4);ctx.lineTo(b[0],b[1]-deckHeight-4);ctx.stroke();}
-    for(let x=.35;x<w-.1;x+=.55){const a=P(i+x,j+1.58),b=P(i+x,j+2.42);ctx.strokeStyle="rgba(49,34,23,.7)";ctx.lineWidth=1.1;ctx.beginPath();ctx.moveTo(a[0],a[1]-deckHeight-3);ctx.lineTo(b[0],b[1]-deckHeight-3);ctx.stroke();}
     ctx.restore();
   }},
   horse:{n:"Horse",draw(i,j,p){
