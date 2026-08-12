@@ -91,6 +91,11 @@ body.editing .level-view,body.editing #btn-focus,body.mapscene .level-view,body.
 #stage-view-toggle:hover{background:var(--brass);color:var(--ink)}
 body.tacticalscene:not(.editing):not(.mapscene) #stage-view-toggle{display:block}
 body.netclient #stage-view-toggle{display:none}
+#tactical-legend{display:none;position:absolute;left:14px;bottom:14px;z-index:13;max-width:270px;padding:8px 10px;
+  background:rgba(10,15,12,.9);border:1px solid var(--brass-faint);border-radius:4px;box-shadow:0 5px 18px rgba(0,0,0,.35);
+  font-family:'IBM Plex Mono',monospace;font-size:9px;line-height:1.55;letter-spacing:.05em;color:var(--vellum-dim);pointer-events:none}
+#tactical-legend b{color:var(--brass);letter-spacing:.12em} #tactical-legend span{white-space:nowrap}
+body.tacticalscene:not(.editing):not(.mapscene) #tactical-legend{display:block}
 #iso-preview{display:none;position:absolute;right:14px;bottom:14px;width:340px;height:230px;z-index:12;
   background:rgba(10,15,12,.96);border:1px solid var(--brass-dim);border-radius:5px;overflow:hidden;
   box-shadow:0 10px 30px rgba(0,0,0,.5)}
@@ -404,6 +409,7 @@ body.netclient #stage{left:0}
 <main id="stage">
   <canvas id="cv"></canvas>
   <button id="stage-view-toggle" title="Return to the isometric exploration view (B)">↖ RETURN TO ISOMETRIC</button>
+  <div id="tactical-legend"><b>TACTICAL KEY</b><br><span style="color:#C8A14E">▧</span> DIFFICULT · 2× movement<br><span style="color:#E9E2CE">■</span> FULL COVER · blocks movement<br><span style="color:#E07A56">◆</span> HAZARD · use named rule<br><span style="color:#F2CF72">◇</span> DASHED · resolves next initiative 20</div>
   <div id="dropzone">DROP MAP IMAGE</div>
   <div id="iso-preview">
     <div id="iso-preview-head"><span>ISOMETRIC PREVIEW</span>

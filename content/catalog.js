@@ -348,13 +348,19 @@ const COUNTING_THUG_SHEET={prof:2,init:0,ac:11,hp:32,hpMax:32,
 const COUNTING_VETERAN_SHEET={prof:3,init:1,ac:17,hp:58,hpMax:58,
   abil:{str:3,dex:1,con:2,int:0,wis:0,cha:0},
   atks:[{name:"Longsword",hit:5,dmg:"1d8+3"},{name:"Shortsword",hit:5,dmg:"1d6+3"},{name:"Heavy Crossbow",hit:3,dmg:"1d10+1"}],skills:{}};
+const SARLOSSI_HUMAN_SHEET={prof:3,init:2,ac:15,hp:60,hpMax:60,abil:{str:4,dex:2,con:3,int:1,wis:1,cha:3},atks:[{name:"Cane",hit:6,dmg:"1d8+4"}],skills:{}};
+const SARLOSSI_GUARDIAN_SHEET={prof:4,init:2,ac:17,hp:110,hpMax:110,abil:{str:5,dex:2,con:4,int:1,wis:1,cha:3},atks:[{name:"Bite",hit:7,dmg:"2d10+5"},{name:"Claw",hit:7,dmg:"2d6+5"},{name:"Molten Leaf",hit:0,dmg:"10d6"}],skills:{}};
+const SARLOSSI_PHASES=[
+ {title:"Don Sarlossi",name:"Don Sarlossi",letter:"S",color:"#C8A14E",size:1.2,sheet:SARLOSSI_HUMAN_SHEET},
+ {title:"Vault Guardian",name:"Don Sarlossi · Vault Guardian",letter:"S",color:"#B87333",size:3,sheet:SARLOSSI_GUARDIAN_SHEET}
+];
 const VAULT_ROSTER=[
  {name:"Randy Meisner",letter:"R",color:"#8A6FB8",pc:true},
  {name:"Klaus Soundgarden",letter:"K",color:"#E0B341",pc:true},
  {name:"Clown Fart",letter:"CF",color:"#D96A9C",pc:true},
  {name:"David Byrne",letter:"D",color:"#B5443C",pc:true},
  {name:"Trajan",letter:"T",color:"#4E8F86"},
- {name:"Don Sarlossi",letter:"S",color:"#C8A14E"},
+ {name:"Don Sarlossi",letter:"S",color:"#C8A14E",sheet:SARLOSSI_HUMAN_SHEET,phase:0,phases:SARLOSSI_PHASES},
  {name:"Vault Guardian",letter:"D",color:"#B87333"},
  {name:"Counting Floor Veteran",letter:"V",color:"#7FA8B8",sheet:COUNTING_VETERAN_SHEET},
  {name:"Counting Floor Thug",letter:"T",color:"#9AA08F",sheet:COUNTING_THUG_SHEET}
@@ -422,9 +428,9 @@ root.VTTContent=Object.freeze({
   VAULT_LEVEL:{schemaVersion:3,name:"Level 2 · The Vault of the Bella Rosa",bg:"#080B09",rooms:VAULT_ROOMS,doors:VAULT_DOORS,stairs:[
     {id:"verso-stairs",x:0,y:9,w:2,h:3,dir:"w",from:1,to:0,style:"stone"}
   ],roster:VAULT_ROSTER,props:VAULT_PROPS,encounterEffects:[
-    {id:"coin-spray",name:"Coin Spray",terrain:"difficult",shape:"rect",w:4,h:4,duration:1},
-    {id:"molten-leaf",name:"Molten Leaf",terrain:"hazard",shape:"rect",w:6,h:2,duration:0},
-    {id:"floor-unwrite",name:"Floor Unwrite",terrain:"hazard",shape:"circle",w:4,h:4,duration:1},
+    {id:"coin-spray",name:"Coin Spray",playerLabel:"Coin Spray",category:"lair",terrain:"difficult",shape:"rect",w:4,h:4,duration:1,save:"DEX 14",damage:"2d6",rules:"Creatures in the burst make a DC 14 Dexterity save, taking 2d6 bludgeoning damage on a failure or half on a success. The area is difficult terrain until the next initiative 20."},
+    {id:"molten-leaf",name:"Molten Leaf",playerLabel:"Molten Leaf",category:"lair",terrain:"hazard",shape:"rect",w:6,h:2,duration:0,save:"DEX 14",damage:"2d6",rules:"A creature that enters the flow for the first time on a turn or starts its turn there makes a DC 14 Dexterity save, taking 2d6 fire damage on a failure or half on a success. The flow persists until removed."},
+    {id:"floor-unwrite",name:"Floor Unwrite",playerLabel:"Floor Unwrite · Warning",category:"lair",terrain:"hazard",shape:"circle",w:4,h:4,duration:0,save:"DEX 14",damage:"4d6",telegraph:true,rules:"Telegraph this zone for one full round. At the next initiative 20, creatures in it make a DC 14 Dexterity save, taking 4d6 force damage on a failure or half on a success; then remove the zone."},
     {id:"fallen-debris",name:"Fallen Debris",terrain:"cover",shape:"rect",w:2,h:2,duration:0}
   ]},
   VAULT_START:{revealed:{landing2:true},tracker:{order:[],active:0,round:1},tokens:[
@@ -437,12 +443,7 @@ root.VTTContent=Object.freeze({
     {name:"Counting Floor Thug 2",letter:"T",color:"#9AA08F",x:23.5,y:9,size:1,sheet:COUNTING_THUG_SHEET},
     {name:"Counting Floor Thug 3",letter:"T",color:"#9AA08F",x:24.5,y:12,size:1,sheet:COUNTING_THUG_SHEET},
     {name:"Counting Floor Veteran",letter:"V",color:"#7FA8B8",x:22,y:11.5,size:1,sheet:COUNTING_VETERAN_SHEET},
-    {name:"Don Sarlossi",letter:"S",color:"#C8A14E",x:45,y:11,size:1.2,phase:0,
-      sheet:{prof:3,init:2,ac:15,hp:60,hpMax:60,abil:{str:4,dex:2,con:3,int:1,wis:1,cha:3},atks:[{name:"Cane",hit:6,dmg:"1d8+4"}],skills:{}},
-      phases:[
-        {title:"Don Sarlossi",name:"Don Sarlossi",letter:"S",color:"#C8A14E",size:1.2,sheet:{prof:3,init:2,ac:15,hp:60,hpMax:60,abil:{str:4,dex:2,con:3,int:1,wis:1,cha:3},atks:[{name:"Cane",hit:6,dmg:"1d8+4"}],skills:{}}},
-        {title:"Vault Guardian",name:"Don Sarlossi · Vault Guardian",letter:"S",color:"#B87333",size:3,sheet:{prof:4,init:2,ac:17,hp:110,hpMax:110,abil:{str:5,dex:2,con:4,int:1,wis:1,cha:3},atks:[{name:"Bite",hit:7,dmg:"2d10+5"},{name:"Claw",hit:7,dmg:"2d6+5"},{name:"Molten Leaf",hit:0,dmg:"10d6"}],skills:{}}}
-      ]}
+    {name:"Don Sarlossi",letter:"S",color:"#C8A14E",x:45,y:11,size:1.2,phase:0,sheet:SARLOSSI_HUMAN_SHEET,phases:SARLOSSI_PHASES}
   ]},
   DEFAULT_ROSTER:PARTY,
   SWATCHES:SWATCH,

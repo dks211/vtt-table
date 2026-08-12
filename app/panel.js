@@ -433,6 +433,65 @@ function updateTrackerFloat(){
   el.innerHTML=`<div class="tfh">ROUND ${tr.round||1}</div>`+tr.order.map((en,i)=>
     `<div class="tfr${i===tr.active?" on":""}"><span class="n">${(en.h&&!dm)?"—":en.total}</span><span>${i===tr.active?"▶ ":""}${en.marker?"◆ ":""}${esc(en.name)}${(en.h&&dm)?" 🕶":""}</span></div>`).join("");
 }
+function isVaultRoom(room){return room&&(room.id==="vault2"||room.name==="The Vault of the Bella Rosa");}
+function vaultLevelActive(){return App.document.level.name.includes("Vault of the Bella Rosa")||App.document.rooms.some(isVaultRoom);}
+function vaultPreset(id){return(App.document.level.encounterEffects||[]).find(effect=>effect.id===id);}
+function sarlossiToken(){return S().tokens.find(token=>String(token.name||"").toLowerCase().includes("sarlossi")||token.phases?.some(phase=>String(phase.name||"").toLowerCase().includes("sarlossi")));}
+function transformTokenPhase(token){
+  if(!token?.phases?.length)return;
+  const next=((token.phase||0)+1)%token.phases.length,phase=token.phases[next],phases=token.phases;
+  for(const key of ["name","letter","color","size","sheet"]){if(phase[key]!=null)token[key]=JSON.parse(JSON.stringify(phase[key]));}
+  token.phase=next;token.phases=phases;
+  const entry=App.session.tracker.order.find(item=>item.tok===token.id);if(entry)entry.name=token.name;
+  const f={head:next?"THE HOUSE COLLECTS":"THE GUARDIAN RECEDES",total:phase.title||phase.name,detail:next?"Don Sarlossi becomes the Vault Guardian.":"Don Sarlossi returns to mortal shape."};
+  NET.lastDice=Object.assign({},f,{stamp:++NET.diceStamp});netMark();clientBanner(NET.lastDice);pwinBanner(f,"");
+  markDirty();renderPanel();
+}
+function armVaultEffect(preset){
+  if(!preset)return;
+  const room=App.document.rooms.find(isVaultRoom);
+  App.session.selRoom=room?.id||App.session.selRoom;lastPanelRoom=App.session.selRoom;dmPanelTab="combat";setLevelView("tactical",room);
+  tacticalEffectType=preset.terrain;tacticalEffectWidth=preset.w;tacticalEffectHeight=preset.h;tacticalEffectName=preset.name;
+  tacticalEffectDuration=preset.duration;tacticalEffectShape=preset.shape;tacticalEffectMeta={presetId:preset.id,playerLabel:preset.playerLabel||preset.name,
+    save:preset.save||"",damage:preset.damage||"",rules:preset.rules||"",telegraph:!!preset.telegraph};
+  $("st-hint").textContent="Click the tactical map to place "+preset.name;
+}
+function vaultCombatHTML(){
+  if(!vaultLevelActive())return"";
+  const boss=sarlossiToken(),phase=boss?.phase||0,pillars=App.document.level.props.filter(prop=>prop.id?.startsWith("vault-pillar-"));
+  const active=App.session.verso.effects||[];
+  const card=id=>{const e=vaultPreset(id);return e?`<div class="tok" style="display:block"><div class="nm"><b>${esc(e.name)}</b> · ${esc(e.save||"")} · ${esc(e.damage||"")}</div><div class="hint">${esc(e.rules||"")}</div><div class="row" style="margin-top:5px"><button class="rbtn quiet" data-vault-place="${e.id}">${e.telegraph?"PLACE WARNING":"PLACE ZONE"}</button>${e.damage?`<button class="rbtn quiet" data-vault-damage="${e.damage}" data-vault-label="${esc(e.name)}">ROLL ${esc(e.damage.toUpperCase())}</button>`:""}</div></div>`:"";};
+  return`<div class="sect"><h3>Vault Lair Actions</h3>
+    <div class="hint">At initiative 20, rotate Coin Spray → Pillar Collapse → Molten Leaf → Floor Unwrite. Saves are applied manually; these controls handle the map, damage dice, and persistent state.</div>
+    ${card("coin-spray")}
+    <div class="tok" style="display:block"><div class="nm"><b>Pillar Collapse</b> · DEX 14 · 3d6</div><div class="hint">Choose one standing pillar. Failure takes 3d6 bludgeoning; success takes half. The collapsed pillar becomes permanent difficult terrain.</div><div class="row" style="margin-top:5px;flex-wrap:wrap">${pillars.map((prop,index)=>{const fallen=App.session.verso.propStates[prop.id]==="collapsed";return`<button class="rbtn quiet" data-vault-pillar="${prop.id}" ${fallen?"disabled":""}>${["NW","NE","SW","SE"][index]||index+1}${fallen?" · DOWN":""}</button>`;}).join("")}<button class="rbtn quiet" data-vault-damage="3d6" data-vault-label="Pillar Collapse">ROLL 3D6</button></div></div>
+    ${card("molten-leaf")}${card("floor-unwrite")}
+    ${active.length?`<div class="hint" style="margin-top:8px"><b>Active map effects</b></div>${active.map(effect=>`<div class="tok"><span class="dot" style="background:${effect.telegraph?"#F2CF72":effect.terrain==="hazard"?"#B5443C":"#C8A14E"}"></span><span class="nm">${esc(effect.label)}${effect.timed?` · ${effect.remaining}r`:""}</span>${effect.presetId==="floor-unwrite"?`<button class="rbtn" data-vault-resolve="${effect.id}">RESOLVE 4D6</button>`:""}<span class="del" data-effect-del="${effect.id}">✕</span></div>`).join("")}`:""}
+    ${boss?`<div class="tok" style="display:block;margin-top:9px"><div class="nm"><b>${esc(boss.name)}</b> · Phase ${phase+1} · AC ${boss.sheet?.ac??"—"} · HP ${boss.sheet?.hp??"—"}/${boss.sheet?.hpMax??"—"}</div><div class="hint">${phase?"Vault Guardian active. Molten-Leaf Breath: DC 14 Dex, 10d6 fire line.":"Transform at half HP or when someone reaches for the Writ drawer. If the contract shakes him, begin with breath expended."}</div><button class="rbtn" id="vault-transform" style="width:100%;margin-top:6px">${phase?"REVERT TO DON SARLOSSI":"TRANSFORM → VAULT GUARDIAN"}</button></div>`:`<div class="hint">No Sarlossi token is currently on the level.</div>`}
+  </div>`;
+}
+function wireVaultCombat(p){
+  if(!vaultLevelActive())return;
+  p.querySelectorAll("[data-vault-place]").forEach(button=>button.onclick=()=>armVaultEffect(vaultPreset(button.dataset.vaultPlace)));
+  p.querySelectorAll("[data-vault-damage]").forEach(button=>button.onclick=()=>{
+    const parsed=parseDice(button.dataset.vaultDamage);if(parsed)roll(parsed.d,parsed.n,parsed.mod,"dm",button.dataset.vaultLabel||"Lair Action");
+  });
+  p.querySelectorAll("[data-vault-pillar]").forEach(button=>button.onclick=()=>{
+    const prop=App.document.level.props.find(item=>item.id===button.dataset.vaultPillar);if(!prop)return;
+    App.session.verso.propStates[prop.id]="collapsed";
+    const room=App.document.rooms.find(isVaultRoom);App.session.selRoom=room?.id||App.session.selRoom;lastPanelRoom=App.session.selRoom;dmPanelTab="combat";setLevelView("tactical",room);
+    const f={head:"VAULT LAIR ACTION",total:"PILLAR COLLAPSE",detail:(prop.label||"A pillar")+" crashes into difficult rubble · DC 14 Dexterity · 3d6 bludgeoning"};
+    NET.lastDice=Object.assign({},f,{stamp:++NET.diceStamp});netMark();clientBanner(NET.lastDice);pwinBanner(f,"");markDirty();renderPanel();
+  });
+  p.querySelectorAll("[data-vault-resolve]").forEach(button=>button.onclick=()=>{
+    const effect=App.session.verso.effects.find(item=>item.id===button.dataset.vaultResolve);if(!effect)return;
+    roll(6,4,0,"dm","Floor Unwrite");App.session.verso.effects=App.session.verso.effects.filter(item=>item!==effect);markDirty();renderPanel();
+  });
+  p.querySelectorAll("[data-effect-del]").forEach(button=>button.onclick=()=>{
+    App.session.verso.effects=App.session.verso.effects.filter(effect=>effect.id!==button.dataset.effectDel);markDirty();renderPanel();
+  });
+  const transform=$("vault-transform");if(transform)transform.onclick=()=>transformTokenPhase(sarlossiToken());
+}
 function renderPanel(){
   updateTrackerFloat();
   renderRollsFloat();
@@ -562,6 +621,8 @@ function renderPanel(){
       return `<div class="tok" style="cursor:default"><span class="nm" style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--vellum-dim)">${e.hush?"🕶 ":""}${esc(f.head)} ${esc(f.detail)}</span><span style="font-family:Marcellus,serif;font-size:16px;color:var(--brass)">${esc(f.total)}</span></div>`;}).join("")}</div>
     <div class="hint" style="margin-top:6px">Rolls flash on the player window. The tray at the bottom of that window is clickable too (for a table TV).</div></div>`;
 
+  if(!etMode)html+=vaultCombatHTML();
+
   // initiative tracker
   if(!etMode)html+=`<div class="sect"><h3>Initiative · Round ${App.session.tracker.round||1}</h3>`+trackerListHTML(true)+
     (App.session.tracker.order.length
@@ -650,7 +711,7 @@ function renderPanel(){
       if(title==="Adventure Location"||title.startsWith("Finch's Nest")||title.startsWith("Lick Creek"))return"scene";
       return"table";
     }
-    if(title==="Dice"||title.startsWith("Initiative"))return"combat";
+    if(title==="Dice"||title.startsWith("Initiative")||title==="Vault Lair Actions")return"combat";
     if(title==="Tokens"||title.startsWith("Roll as ")||title.startsWith("Sheet ·")||title==="Add Token"||title.startsWith("East Tennessee Health")||title.startsWith("East Tennessee Skills")||title.startsWith("East Tennessee Equipment")||title.startsWith("East Tennessee Attacks"))return"tokens";
     return"scene";
   };
@@ -705,6 +766,7 @@ function renderPanel(){
   wireEtEquipment(p,etSelected,true);
   wireEtCombat(p,etSelected,true);
   wireEtStructured(p,true);
+  wireVaultCombat(p);
   const etDanger=$("et-danger");if(etDanger)etDanger.onclick=()=>etHostAction({type:"setImmediateDanger",active:!App.session.campaignState.scene.immediateDanger});
   const etNewScene=$("et-new-scene");if(etNewScene)etNewScene.onclick=()=>{const id=prompt("New scene instance ID",`scene-${Date.now()}`);if(id)etHostAction({type:"beginNewScene",sceneId:id});};
 
@@ -717,7 +779,7 @@ function renderPanel(){
     const rcm=$("rc-reveal-mode");
     if(rcm) rcm.onchange=e=>{const room=App.document.rooms.find(r=>r.id===App.session.selRoom);e.target.blur();setRoomRevealMode(room,e.target.value);};
     const rctac=$("rc-tactical");
-    if(rctac)rctac.onclick=()=>{const room=App.document.rooms.find(r=>r.id===App.session.selRoom);setLevelView("tactical",room);};
+    if(rctac)rctac.onclick=()=>{const room=App.document.rooms.find(r=>r.id===App.session.selRoom);setLevelView("tactical",room);renderPanel();};
     const rcl=$("rc-light");
     if(rcl) rcl.onclick=()=>{
       const room=App.document.rooms.find(x=>x.id===App.session.selRoom);
@@ -771,7 +833,10 @@ function renderPanel(){
     const effectPlace=$("tac-effect-place");if(effectPlace)effectPlace.onclick=()=>{
       tacticalEffectType=$("tac-effect-type").value;tacticalEffectWidth=Math.max(1,+$("tac-effect-w").value||1);tacticalEffectHeight=Math.max(1,+$("tac-effect-h").value||1);
       tacticalEffectName=$("tac-effect-name").value.trim()||"Encounter effect";tacticalEffectDuration=Math.max(0,+$("tac-effect-duration").value||0);
-      tacticalEffectShape=$("tac-effect-shape").value;$("st-hint").textContent="Click the tactical map to place "+tacticalEffectName;
+      tacticalEffectShape=$("tac-effect-shape").value;
+      const preset=(App.document.level.encounterEffects||[]).find(effect=>effect.id===$("tac-effect-preset")?.value);
+      tacticalEffectMeta=preset?{presetId:preset.id,playerLabel:preset.playerLabel||preset.name,save:preset.save||"",damage:preset.damage||"",rules:preset.rules||"",telegraph:!!preset.telegraph}:null;
+      $("st-hint").textContent="Click the tactical map to place "+tacticalEffectName;
     };
     for(const [attr,delta]of[["data-effect-dec",-1],["data-effect-inc",1]])p.querySelectorAll(`[${attr}]`).forEach(el=>{el.onclick=()=>{
       const effect=App.session.verso.effects.find(item=>item.id===el.getAttribute(attr));if(!effect)return;
@@ -942,11 +1007,7 @@ function renderPanel(){
     selT.statuses=[...statuses];markDirty();renderPanel();
   };});
   const tokPhase=$("tok-phase");if(tokPhase&&selT)tokPhase.onclick=()=>{
-    const next=((selT.phase||0)+1)%selT.phases.length,phase=selT.phases[next],phases=selT.phases;
-    for(const key of ["name","letter","color","size","sheet"]){if(phase[key]!=null)selT[key]=JSON.parse(JSON.stringify(phase[key]));}
-    selT.phase=next;selT.phases=phases;
-    const entry=App.session.tracker.order.find(item=>item.tok===selT.id);if(entry)entry.name=selT.name;
-    markDirty();renderPanel();
+    transformTokenPhase(selT);
   };
   /* sheet wiring (DM edits any selected token; rolls as it too) */
   if(selT && !rollsFloatOpen) wireSheetRolls(p,selT);
@@ -971,10 +1032,10 @@ function renderPanel(){
     placeToken(name, name.replace(/[^A-Za-z]/g,"").slice(0,2).toUpperCase()||"?", addColor, size, $("at-pc").checked);
   };
   p.querySelectorAll("[data-party]").forEach(el=>{
-    el.onclick=()=>{const pp=App.document.level.roster[+el.dataset.party];placeToken(pp.name,pp.letter,pp.color,1,!!pp.pc,pp.sheet);};
+    el.onclick=()=>{const pp=App.document.level.roster[+el.dataset.party];placeToken(pp.name,pp.letter,pp.color,pp.size||1,!!pp.pc,pp.sheet,pp);};
   });
 }
-function placeToken(name,letter,color,size,pc,sheet){
+function placeToken(name,letter,color,size,pc,sheet,source){
   const c=cam();
   let x,y;
   if(App.session.scene==="map"){
@@ -986,6 +1047,7 @@ function placeToken(name,letter,color,size,pc,sheet){
   }
   const t=mkTok(name,letter,color,x,y,size,pc);
   if(sheet) t.sheet=JSON.parse(JSON.stringify(sheet));
+  for(const key of ["phases","phase"]){if(source?.[key]!=null)t[key]=JSON.parse(JSON.stringify(source[key]));}
   S().tokens.push(t);
   App.session.selToken=t.id;
   markDirty(); renderPanel();

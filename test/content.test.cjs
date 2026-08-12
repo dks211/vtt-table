@@ -44,6 +44,10 @@ test("Level 2 ships with a room-scoped tactical vault arena",()=>{
   assert.equal(level.rooms.find(room=>room.id==="mirrors2").light,"torchlight");
   assert.ok(level.props.filter(prop=>prop.t==="wallsconce").length>=6);
   assert.ok(level.encounterEffects.some(effect=>effect.name==="Molten Leaf"));
+  const lairEffects=level.encounterEffects.filter(effect=>effect.category==="lair");
+  assert.deepEqual(lairEffects.map(effect=>effect.id),["coin-spray","molten-leaf","floor-unwrite"]);
+  assert.ok(lairEffects.every(effect=>effect.save==="DEX 14"&&effect.damage&&effect.rules));
+  assert.equal(level.encounterEffects.find(effect=>effect.id==="floor-unwrite").telegraph,true);
   assert.equal(level.props.find(prop=>prop.id==="vault-chandelier").playerLabel,"Hanging chandelier");
   assert.ok(level.props.filter(prop=>prop.id.startsWith("count-table-")).length>=3);
   assert.equal(content.VAULT_START.tokens.filter(token=>token.pc).length,4);
@@ -55,5 +59,6 @@ test("Level 2 ships with a room-scoped tactical vault arena",()=>{
   assert.equal(sarlossi.phases.length,2);
   assert.equal(sarlossi.sheet.atks.filter(attack=>attack.name==="Cane").length,1);
   assert.equal(sarlossi.phases[0].sheet.atks.filter(attack=>attack.name==="Cane").length,1);
+  assert.equal(level.roster.find(token=>token.name==="Don Sarlossi").phases.length,2);
   assert.deepEqual(content.VAULT_START.tracker,{order:[],active:0,round:1});
 });

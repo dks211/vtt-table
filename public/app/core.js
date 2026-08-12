@@ -149,7 +149,7 @@
 
     const encounterEffects = (Array.isArray(level.encounterEffects) ? level.encounterEffects : []).slice(0, 30).map((source, index) => {
       const effect = objectOrNull(source) || {};
-      return {
+      const normalized = {
         id: String(effect.id || `preset-${index + 1}`).replace(/[^A-Za-z0-9_-]/g, "-").slice(0, 64),
         name: String(effect.name || `Encounter effect ${index + 1}`).slice(0, 80),
         terrain: ["cover", "difficult", "hazard"].includes(effect.terrain) ? effect.terrain : "hazard",
@@ -158,6 +158,10 @@
         h: Math.max(.25, Math.min(20, finite(effect.h, 1))),
         duration: Math.max(0, Math.min(99, integer(effect.duration, 0))),
       };
+      for (const key of ["playerLabel", "category", "save", "damage", "rules"])
+        if (effect[key] != null) normalized[key] = String(effect[key]).slice(0, key === "rules" ? 500 : 120);
+      if (effect.telegraph) normalized.telegraph = true;
+      return normalized;
     });
 
     const stairIds = new Set();
@@ -223,7 +227,7 @@
     const effects = (Array.isArray(verso.effects) ? verso.effects : []).slice(0, 100).map((source, index) => {
       const effect = objectOrNull(source) || {};
       const id = uniqueId(effect.id, "effect", effectIds, index);
-      return {
+      const normalized = {
         id,
         terrain: ["cover", "difficult", "hazard"].includes(effect.terrain) ? effect.terrain : "hazard",
         x: finite(effect.x), y: finite(effect.y),
@@ -234,6 +238,10 @@
         remaining: Math.max(0, Math.min(99, integer(effect.remaining, 0))),
         timed: !!effect.timed || integer(effect.remaining, 0) > 0,
       };
+      for (const key of ["presetId", "playerLabel", "save", "damage", "rules"])
+        if (effect[key] != null) normalized[key] = String(effect[key]).slice(0, key === "rules" ? 500 : 120);
+      if (effect.telegraph) normalized.telegraph = true;
+      return normalized;
     });
     const propStates = {};
     if (objectOrNull(verso.propStates)) {

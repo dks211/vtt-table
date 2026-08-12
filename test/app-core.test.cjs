@@ -112,6 +112,15 @@ test("session tactical state normalizes temporary effects and door overrides", (
   assert.deepEqual(session.tracker,{order:[{name:"Lair action",total:20,marker:true}],active:0,round:3});
 });
 
+test("authored and placed tactical effects preserve public rules and telegraphs",()=>{
+  const level=normalizeLevel({rooms:[],encounterEffects:[{id:"warning",name:"Warning",terrain:"hazard",shape:"circle",w:4,h:4,duration:0,playerLabel:"Floor Warning",category:"lair",save:"DEX 14",damage:"4d6",rules:"Resolve next round.",telegraph:true}]});
+  assert.deepEqual(level.encounterEffects[0],{id:"warning",name:"Warning",terrain:"hazard",shape:"circle",w:4,h:4,duration:0,playerLabel:"Floor Warning",category:"lair",save:"DEX 14",damage:"4d6",rules:"Resolve next round.",telegraph:true});
+  const session=normalizeSession({schemaVersion:SESSION_SCHEMA_VERSION,verso:{effects:[{id:"warning-1",presetId:"warning",terrain:"hazard",x:1,y:2,w:4,h:4,shape:"circle",label:"Warning",playerLabel:"Floor Warning",save:"DEX 14",damage:"4d6",rules:"Resolve next round.",telegraph:true}]},level:{rooms:[]}});
+  assert.equal(session.verso.effects[0].presetId,"warning");
+  assert.equal(session.verso.effects[0].playerLabel,"Floor Warning");
+  assert.equal(session.verso.effects[0].telegraph,true);
+});
+
 test("parseDice accepts supported notation and applies limits", () => {
   assert.deepEqual(parseDice("2d4 + 2"), { n: 2, d: 4, mod: 2 });
   assert.deepEqual(parseDice("99d6-3"), { n: 20, d: 6, mod: -3 });

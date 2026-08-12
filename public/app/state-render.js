@@ -305,10 +305,10 @@ const TERRAIN_STYLE={
 };
 function drawTacticalTerrain(pr,c,showLabel=false){
   if(!pr.terrain&&!pr.footprint)return;
-  const bounds=propFootprintBounds(pr),style=TERRAIN_STYLE[pr.terrain]||TERRAIN_STYLE.feature;
+  const bounds=propFootprintBounds(pr),style=pr.telegraph?{fill:"rgba(200,161,78,.16)",stroke:"#F2CF72",label:"WARNING"}:TERRAIN_STYLE[pr.terrain]||TERRAIN_STYLE.feature;
   const x=bounds.x*BT,y=bounds.y*BT,w=bounds.w*BT,h=bounds.h*BT;
   ctx.save();ctx.fillStyle=style.fill;ctx.strokeStyle=style.stroke;ctx.lineWidth=2/c.s;
-  if(pr.terrain==="overhead")ctx.setLineDash([9/c.s,6/c.s]);
+  if(pr.terrain==="overhead"||pr.telegraph)ctx.setLineDash([9/c.s,6/c.s]);
   ctx.beginPath();
   if(bounds.shape==="circle")ctx.ellipse(x+w/2,y+h/2,w/2,h/2,0,0,7);else ctx.rect(x,y,w,h);
   ctx.fill();ctx.stroke();ctx.setLineDash([]);
@@ -318,7 +318,7 @@ function drawTacticalTerrain(pr,c,showLabel=false){
   }
   if(showLabel){
     ctx.fillStyle=style.stroke;ctx.font=`600 ${10/c.s}px 'IBM Plex Mono', monospace`;ctx.textAlign="center";ctx.textBaseline="middle";
-    const authored=RVIEW==="dm"?pr.label:pr.playerLabel;
+    const authored=RVIEW==="dm"?pr.label:(pr.playerLabel||pr.label);
     ctx.fillText((authored||style.label).toUpperCase(),x+w/2,y+h/2);
   }
   ctx.restore();
@@ -358,8 +358,8 @@ function drawTactical(){
   }
   for(const effect of(v.effects||[])){
     const pr={id:effect.id,t:"effect",x:effect.x,y:effect.y,terrain:effect.terrain,
-      footprint:{w:effect.w,h:effect.h,shape:effect.shape},label:effect.label};
-    ctx.save();if(!showHidden)clipRevealedTactical();drawTacticalTerrain(pr,c,showHidden);ctx.restore();
+      footprint:{w:effect.w,h:effect.h,shape:effect.shape},label:effect.label,playerLabel:effect.playerLabel,telegraph:effect.telegraph};
+    ctx.save();if(!showHidden)clipRevealedTactical();drawTacticalTerrain(pr,c,true);ctx.restore();
   }
   for(const stair of(App.document.stairs||[])){
     ctx.save();if(!showHidden)clipRevealedTactical();ctx.fillStyle="rgba(119,113,104,.68)";ctx.fillRect(stair.x*BT,stair.y*BT,stair.w*BT,stair.h*BT);

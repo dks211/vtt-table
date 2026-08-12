@@ -401,12 +401,12 @@ Then transform.
 
 ## Initiative 20 — add the lair marker when combat starts
 
-Rotate:
+Rotate these actions. The VTT Combat tab handles placement, damage rolls, and persistent map state; apply saves manually.
 
-1. Coin spray / difficult terrain.
-2. Collapse a pillar; rubble becomes difficult terrain.
-3. Persistent molten-leaf hazard.
-4. Telegraph a floor-unwrite zone for one round, then remove it.
+1. **Coin Spray:** 4×4 squares; DC 14 Dexterity; 2d6 bludgeoning, half on success. The area is difficult terrain until the next initiative 20.
+2. **Pillar Collapse:** choose one standing pillar; DC 14 Dexterity; 3d6 bludgeoning, half on success. The pillar becomes permanent difficult rubble.
+3. **Molten Leaf:** 6×2 squares, persistent. A creature entering it for the first time on a turn or starting there makes a DC 14 Dexterity save; 2d6 fire, half on success.
+4. **Floor Unwrite:** telegraph a 4×4 zone for one full round. At the next initiative 20, creatures inside make a DC 14 Dexterity save; 4d6 force, half on success. Resolve and remove the zone.
 
 ## Trajan’s first intervention — no roll
 

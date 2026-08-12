@@ -877,6 +877,13 @@ function deserialize(d){
     App.session.campaignPackageVersion=campaign.packageVersion;
     App.session.campaignStateSchemaVersion=campaign.stateSchemaVersion;
     loadLevel(session.level);
+    if(App.document.rooms.some(room=>room.id==="vault2"||room.name==="The Vault of the Bella Rosa")){
+      for(const authored of App.content.VAULT_LEVEL.encounterEffects||[]){
+        const current=App.document.level.encounterEffects.find(effect=>effect.id===authored.id);if(!current)continue;
+        for(const key of ["playerLabel","category","save","damage","rules","telegraph"])
+          if(current[key]==null&&authored[key]!=null)current[key]=JSON.parse(JSON.stringify(authored[key]));
+      }
+    }
     App.session.verso.revealed=session.verso.revealed;
     App.session.verso.view=session.campaignId==="east-tennessee-1861"?"isometric":session.verso.view;
     document.body.classList.toggle("tacticalscene",App.session.verso.view==="tactical");
@@ -884,6 +891,17 @@ function deserialize(d){
     $("view-tactical").classList.toggle("on",App.session.verso.view==="tactical");
     enforceAlwaysRoomReveal();
     App.session.verso.tokens=session.verso.tokens;
+    // Older saves and manually-authored Vault levels predate token phases. Restore
+    // the authored Sarlossi phases without replacing current HP, position, or ownership.
+    if(App.document.rooms.some(room=>room.id==="vault2"||room.name==="The Vault of the Bella Rosa")){
+      const authored=App.content.VAULT_LEVEL.roster.find(entry=>entry.name==="Don Sarlossi"&&entry.phases?.length);
+      for(const token of App.session.verso.tokens){
+        if(authored&&String(token.name||"").toLowerCase().includes("sarlossi")&&!token.phases?.length){
+          token.phases=JSON.parse(JSON.stringify(authored.phases));
+          token.phase=String(token.name).includes("Vault Guardian")?1:0;
+        }
+      }
+    }
     App.session.verso.doorStates=session.verso.doorStates;
     App.session.verso.effects=session.verso.effects;
     App.session.verso.propStates=session.verso.propStates;
