@@ -19,6 +19,7 @@ const files = [
   "assets/campaigns/east-tennessee-1861/finchs-nest/exterior.svg",
   "assets/campaigns/east-tennessee-1861/finchs-nest/ground-floor.svg",
   "assets/campaigns/east-tennessee-1861/finchs-nest/upper-floor.svg",
+  "assets/tokens/vault-guardian.png",
   "content/east-tennessee-equipment.js",
   "content/east-tennessee-combat.js",
   "content/campaigns.js",

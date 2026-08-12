@@ -896,9 +896,15 @@ function deserialize(d){
     if(App.document.rooms.some(room=>room.id==="vault2"||room.name==="The Vault of the Bella Rosa")){
       const authored=App.content.VAULT_LEVEL.roster.find(entry=>entry.name==="Don Sarlossi"&&entry.phases?.length);
       for(const token of App.session.verso.tokens){
-        if(authored&&String(token.name||"").toLowerCase().includes("sarlossi")&&!token.phases?.length){
-          token.phases=JSON.parse(JSON.stringify(authored.phases));
-          token.phase=String(token.name).includes("Vault Guardian")?1:0;
+        if(authored&&String(token.name||"").toLowerCase().includes("sarlossi")){
+          if(!token.phases?.length){
+            token.phases=JSON.parse(JSON.stringify(authored.phases));
+            token.phase=String(token.name).includes("Vault Guardian")?1:0;
+          }else for(let index=0;index<authored.phases.length;index++){
+            if(!token.phases[index])token.phases[index]=JSON.parse(JSON.stringify(authored.phases[index]));
+            else if(authored.phases[index].image&&!token.phases[index].image)token.phases[index].image=authored.phases[index].image;
+          }
+          if(token.phase&&token.phases[token.phase]?.image&&!token.image)token.image=token.phases[token.phase].image;
         }
       }
     }

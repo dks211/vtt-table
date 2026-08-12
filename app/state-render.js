@@ -250,6 +250,12 @@ function emptyMapMessage(){
   ctx.fillStyle="#ABA38C"; ctx.font="12px 'IBM Plex Mono', monospace";
   ctx.fillText("drop an image anywhere, or use IMPORT MAP in the panel →",W/2,H/2+12);
 }
+const TOKEN_ART_CACHE=new Map();
+function tokenArt(src){
+  if(!src)return null;
+  if(!TOKEN_ART_CACHE.has(src)){const image=new Image();image.src=src;TOKEN_ART_CACHE.set(src,image);}
+  const image=TOKEN_ART_CACHE.get(src);return image.complete&&image.naturalWidth?image:null;
+}
 function drawTokenFlat(t,g,s,options={}){
   const concise=!!options.concise;
   const r=g*.42*t.size;
@@ -260,6 +266,8 @@ function drawTokenFlat(t,g,s,options={}){
   ctx.save();
   ctx.shadowColor="rgba(0,0,0,.55)"; ctx.shadowBlur=10/s; ctx.shadowOffsetY=3/s;
   ctx.beginPath(); ctx.arc(t.x,t.y,r,0,7); ctx.fillStyle=t.color; ctx.fill();
+  const art=tokenArt(t.image),artRadius=art?r*1.3:r;
+  if(art)ctx.drawImage(art,t.x-artRadius,t.y-artRadius,artRadius*2,artRadius*2);
   ctx.shadowColor="transparent";
   ctx.lineWidth=active?Math.max(4,g*.075):Math.max(2,g*.05);
   ctx.strokeStyle = active ? "#C8A14E" : selected ? "#E9E2CE" : npc ? "#8A6E36" : "rgba(7,9,8,.6)";
@@ -271,14 +279,13 @@ function drawTokenFlat(t,g,s,options={}){
     ctx.lineWidth=Math.max(3,g*.045);ctx.stroke();
   }
   ctx.fillStyle="#070908"; ctx.textAlign="center"; ctx.textBaseline="middle";
-  ctx.font=`600 ${r*.8}px 'IBM Plex Mono', monospace`;
-  ctx.fillText(t.letter,t.x,t.y+r*.04);
+  if(!art){ctx.font=`600 ${r*.8}px 'IBM Plex Mono', monospace`;ctx.fillText(t.letter,t.x,t.y+r*.04);}
   if(!concise||active||selected){
     ctx.font=`500 ${Math.max(10,g*.18)}px 'IBM Plex Mono', monospace`;
     ctx.fillStyle="#E9E2CE";
     ctx.strokeStyle="rgba(7,9,8,.8)"; ctx.lineWidth=3; ctx.lineJoin="round";
-    ctx.strokeText(t.name,t.x,t.y+r+g*.17);
-    ctx.fillText(t.name,t.x,t.y+r+g*.17);
+    ctx.strokeText(t.name,t.x,t.y+artRadius+g*.17);
+    ctx.fillText(t.name,t.x,t.y+artRadius+g*.17);
   }
   if(!concise&&t.z){ctx.font=`600 ${Math.max(9,g*.15)}px 'IBM Plex Mono', monospace`;ctx.fillStyle="#7FA8B8";ctx.fillText(`↑${t.z*5} FT`,t.x,t.y-r-g*.12);}
   if(!concise&&Array.isArray(t.statuses)&&t.statuses.length){
@@ -1317,15 +1324,16 @@ function drawTokenIso(t,s){
   // disk
   ctx.beginPath(); ctx.arc(cx,cy-r*.5,r,0,7);
   ctx.fillStyle=t.color; ctx.fill();
+  const art=tokenArt(t.image),artRadius=art?r*1.3:r,artY=cy-r*.5;
+  if(art)ctx.drawImage(art,cx-artRadius,artY-artRadius,artRadius*2,artRadius*2);
   ctx.lineWidth=2.4;
   const npc=App.session.campaignId==="east-tennessee-1861"&&App.session.campaignState?.npcs?.[t.actorId],npcBadge=npc&&globalThis.EastTennesseeNPCs?.tokenBadge(App.session.campaignState,t.actorId);
   ctx.strokeStyle = (RVIEW==="dm"&&App.session.selToken===t.id) ? "#E9E2CE" : npc ? "#8A6E36" : "rgba(7,9,8,.65)";
   ctx.stroke();
   ctx.fillStyle="#070908"; ctx.textAlign="center"; ctx.textBaseline="middle";
-  ctx.font=`600 ${r*.78}px 'IBM Plex Mono', monospace`;
-  ctx.fillText(t.letter,cx,cy-r*.46);
+  if(!art){ctx.font=`600 ${r*.78}px 'IBM Plex Mono', monospace`;ctx.fillText(t.letter,cx,cy-r*.46);}
   const concise=eastTennesseeIso()&&App.session.selToken!==t.id;
-  if(!concise){ctx.font="500 11px 'IBM Plex Mono', monospace";ctx.fillStyle="#E9E2CE";ctx.strokeStyle="rgba(7,9,8,.85)";ctx.lineWidth=3;ctx.lineJoin="round";ctx.strokeText(t.name,cx,cy+r*.9+8);ctx.fillText(t.name,cx,cy+r*.9+8);}
+  if(!concise){const labelY=art?artY+artRadius+8:cy+r*.9+8;ctx.font="500 11px 'IBM Plex Mono', monospace";ctx.fillStyle="#E9E2CE";ctx.strokeStyle="rgba(7,9,8,.85)";ctx.lineWidth=3;ctx.lineJoin="round";ctx.strokeText(t.name,cx,labelY);ctx.fillText(t.name,cx,labelY);}
   if(npcBadge&&!concise){ctx.font="700 9px 'IBM Plex Mono', monospace";ctx.fillStyle="#E9E2CE";ctx.strokeText(npcBadge,cx,cy-r*1.65);ctx.fillText(npcBadge,cx,cy-r*1.65);}
   ctx.restore();
 }

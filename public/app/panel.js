@@ -440,7 +440,9 @@ function sarlossiToken(){return S().tokens.find(token=>String(token.name||"").to
 function transformTokenPhase(token){
   if(!token?.phases?.length)return;
   const next=((token.phase||0)+1)%token.phases.length,phase=token.phases[next],phases=token.phases;
-  for(const key of ["name","letter","color","size","sheet"]){if(phase[key]!=null)token[key]=JSON.parse(JSON.stringify(phase[key]));}
+  for(const key of ["name","letter","color","size","sheet","image"]){
+    if(phase[key]!=null)token[key]=JSON.parse(JSON.stringify(phase[key]));else if(key==="image")delete token.image;
+  }
   token.phase=next;token.phases=phases;
   const entry=App.session.tracker.order.find(item=>item.tok===token.id);if(entry)entry.name=token.name;
   const f={head:next?"THE HOUSE COLLECTS":"THE GUARDIAN RECEDES",total:phase.title||phase.name,detail:next?"Don Sarlossi becomes the Vault Guardian.":"Don Sarlossi returns to mortal shape."};

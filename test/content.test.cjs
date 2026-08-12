@@ -57,6 +57,7 @@ test("Level 2 ships with a room-scoped tactical vault arena",()=>{
   assert.equal(countingEnemies.filter(token=>token.name.includes("Thug")).length,3);
   const sarlossi=content.VAULT_START.tokens.find(token=>token.name==="Don Sarlossi");
   assert.equal(sarlossi.phases.length,2);
+  assert.equal(sarlossi.phases[1].image,"assets/tokens/vault-guardian.png");
   assert.equal(sarlossi.sheet.atks.filter(attack=>attack.name==="Cane").length,1);
   assert.equal(sarlossi.phases[0].sheet.atks.filter(attack=>attack.name==="Cane").length,1);
   assert.equal(level.roster.find(token=>token.name==="Don Sarlossi").phases.length,2);

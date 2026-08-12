@@ -352,7 +352,7 @@ const SARLOSSI_HUMAN_SHEET={prof:3,init:2,ac:15,hp:60,hpMax:60,abil:{str:4,dex:2
 const SARLOSSI_GUARDIAN_SHEET={prof:4,init:2,ac:17,hp:110,hpMax:110,abil:{str:5,dex:2,con:4,int:1,wis:1,cha:3},atks:[{name:"Bite",hit:7,dmg:"2d10+5"},{name:"Claw",hit:7,dmg:"2d6+5"},{name:"Molten Leaf",hit:0,dmg:"10d6"}],skills:{}};
 const SARLOSSI_PHASES=[
  {title:"Don Sarlossi",name:"Don Sarlossi",letter:"S",color:"#C8A14E",size:1.2,sheet:SARLOSSI_HUMAN_SHEET},
- {title:"Vault Guardian",name:"Don Sarlossi · Vault Guardian",letter:"S",color:"#B87333",size:3,sheet:SARLOSSI_GUARDIAN_SHEET}
+ {title:"Vault Guardian",name:"Don Sarlossi · Vault Guardian",letter:"S",color:"#B87333",size:3,image:"assets/tokens/vault-guardian.png",sheet:SARLOSSI_GUARDIAN_SHEET}
 ];
 const VAULT_ROSTER=[
  {name:"Randy Meisner",letter:"R",color:"#8A6FB8",pc:true},
