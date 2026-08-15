@@ -312,6 +312,12 @@ function wireSheetRolls(p,t){
 
 /* pop-out roll palette: same controls, floating over the map, draggable by its header */
 let rollsFloatOpen=false;
+const rollsQuick=$("rolls-quick");
+if(rollsQuick)rollsQuick.onclick=()=>{
+  const t=rollsFloatToken();
+  if(t?.sheet){rollsFloatOpen=!rollsFloatOpen;renderPanel();setDrawer(false);}
+  else{rollsFloatOpen=false;renderPanel();setDrawer(true);}
+};
 function rollsFloatToken(){
   return NET.mode==="client" ? S().tokens.find(t=>t.id===NET.myToken)
                              : S().tokens.find(t=>t.id===App.session.selToken);
@@ -320,6 +326,7 @@ function renderRollsFloat(){
   const el=$("rolls-float");
   if(!el) return;
   const t=(rollsFloatOpen && App.session.mode!=="edit") ? rollsFloatToken() : null;
+  const quick=$("rolls-quick");if(quick){quick.classList.toggle("on",!!t);quick.setAttribute("aria-pressed",t?"true":"false");}
   if(!t || !t.sheet){el.style.display="none";el.innerHTML="";return;}
   const ae=document.activeElement;
   // only bail for an open select/input — a just-clicked button shouldn't freeze the display
@@ -453,10 +460,8 @@ function armVaultEffect(preset){
   if(!preset)return;
   const room=App.document.rooms.find(isVaultRoom);
   App.session.selRoom=room?.id||App.session.selRoom;lastPanelRoom=App.session.selRoom;dmPanelTab="combat";setLevelView("tactical",room);
-  tacticalEffectType=preset.terrain;tacticalEffectWidth=preset.w;tacticalEffectHeight=preset.h;tacticalEffectName=preset.name;
-  tacticalEffectDuration=preset.duration;tacticalEffectShape=preset.shape;tacticalEffectMeta={presetId:preset.id,playerLabel:preset.playerLabel||preset.name,
-    save:preset.save||"",damage:preset.damage||"",rules:preset.rules||"",telegraph:!!preset.telegraph};
-  $("st-hint").textContent="Click the tactical map to place "+preset.name;
+  beginTacticalEffectPlacement({terrain:preset.terrain,w:preset.w,h:preset.h,name:preset.name,duration:preset.duration,shape:preset.shape,
+    meta:{presetId:preset.id,playerLabel:preset.playerLabel||preset.name,save:preset.save||"",damage:preset.damage||"",rules:preset.rules||"",telegraph:!!preset.telegraph}});
 }
 function vaultCombatHTML(){
   if(!vaultLevelActive())return"";
@@ -833,12 +838,10 @@ function renderPanel(){
       $("tac-effect-w").value=preset.w;$("tac-effect-h").value=preset.h;$("tac-effect-duration").value=preset.duration;
     };
     const effectPlace=$("tac-effect-place");if(effectPlace)effectPlace.onclick=()=>{
-      tacticalEffectType=$("tac-effect-type").value;tacticalEffectWidth=Math.max(1,+$("tac-effect-w").value||1);tacticalEffectHeight=Math.max(1,+$("tac-effect-h").value||1);
-      tacticalEffectName=$("tac-effect-name").value.trim()||"Encounter effect";tacticalEffectDuration=Math.max(0,+$("tac-effect-duration").value||0);
-      tacticalEffectShape=$("tac-effect-shape").value;
       const preset=(App.document.level.encounterEffects||[]).find(effect=>effect.id===$("tac-effect-preset")?.value);
-      tacticalEffectMeta=preset?{presetId:preset.id,playerLabel:preset.playerLabel||preset.name,save:preset.save||"",damage:preset.damage||"",rules:preset.rules||"",telegraph:!!preset.telegraph}:null;
-      $("st-hint").textContent="Click the tactical map to place "+tacticalEffectName;
+      beginTacticalEffectPlacement({terrain:$("tac-effect-type").value,w:$("tac-effect-w").value,h:$("tac-effect-h").value,
+        name:$("tac-effect-name").value.trim()||"Encounter effect",duration:$("tac-effect-duration").value,shape:$("tac-effect-shape").value,
+        meta:preset?{presetId:preset.id,playerLabel:preset.playerLabel||preset.name,save:preset.save||"",damage:preset.damage||"",rules:preset.rules||"",telegraph:!!preset.telegraph}:null});
     };
     for(const [attr,delta]of[["data-effect-dec",-1],["data-effect-inc",1]])p.querySelectorAll(`[${attr}]`).forEach(el=>{el.onclick=()=>{
       const effect=App.session.verso.effects.find(item=>item.id===el.getAttribute(attr));if(!effect)return;
@@ -1328,6 +1331,12 @@ function renderClientPanel(){
     </div>`;}).join("")+`</div></div>`;
   const mine=S().tokens.find(t=>t.id===NET.myToken);
   const mineActor=mine&&etActor(mine.actorId);
+  if(mine){
+    html+=`<div class="sect player-rolls-section"><h3>Your Rolls</h3>`+
+      ((rollsFloatOpen&&mine.sheet)?`<div class="hint">Open over the map — use ROLLS &amp; CHECKS in the top bar to show or hide it.</div>`
+        :sheetRollsHTML(mine)+(mine.sheet?`<button class="rbtn quiet" id="sr-pop" style="width:100%;margin-top:6px">KEEP OPEN OVER MAP</button>`:""))+
+      `</div>`;
+  }
   if(App.session.campaignId==="east-tennessee-1861"&&!mineActor)html+=handoutsHTML(false)+etCharactersHTML(false)+etNpcsHTML(false)+etFinchsHTML(false)+etLickCreekHTML(false);
   if(mineActor){
     html+=handoutsHTML(false,mineActor)+etCharactersHTML(false)+etNpcsHTML(false)+etFinchsHTML(false)+etLickCreekHTML(false)+etTalentControlsHTML(mineActor,false)+etHealthHTML(mineActor,false)+etSkillHTML(mineActor,false)+etEquipmentHTML(mineActor,false)+etCombatHTML(mineActor,false);
@@ -1338,12 +1347,6 @@ function renderClientPanel(){
       <div class="row">${mineActor.health.state==="down"&&!mineActor.health.stable&&!mineActor.health.dead&&!sp.active?`<button class="rbtn quiet" id="et-resolve">DOWN RESOLVE</button>`:""}${medicineValue>0&&medical.hasPlausibleMaterials&&structuredMedicalAllowed?`<button class="rbtn quiet" data-et-player="attemptFirstAid">FIRST AID</button>`:""}</div>
       <div class="row">${medicineValue>0&&medical.hasProperSupplies&&!danger?`<button class="rbtn quiet" data-et-player="attemptExtendedMedicine">EXTENDED MEDICINE</button>`:""}${mineActor.talents?.fieldMedicine&&medical.hasProperSupplies&&structuredMedicalAllowed?`<button class="rbtn" data-et-player="useFieldMedicine">FIELD MEDICINE</button>`:""}</div></div>`;
     html+=etStructuredHTML(false,mineActor);
-  }
-  if(mine){
-    html+=`<div class="sect"><h3>Your Rolls</h3>`+
-      ((rollsFloatOpen&&mine.sheet)?`<div class="hint">Popped out — floating over the map.</div>`
-        :sheetRollsHTML(mine)+(mine.sheet?`<button class="rbtn quiet" id="sr-pop" style="width:100%;margin-top:6px">POP OUT OVER MAP</button>`:""))+
-      `</div>`;
   }
   if(App.session.tracker.order.length){
     html+=`<div class="sect"><h3>Initiative</h3>`+trackerListHTML(false)+`</div>`;

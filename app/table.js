@@ -354,7 +354,20 @@ function frame(t){
 
 /* ---------------- input ---------------- */
 let pointers=new Map(), panRef=null, dragTok=null, pinchRef=null, spaceDown=false, downAt=null, fogPainting=false, lastTap=null, patrolRec=null;
-let dragOrigin=null,tacticalEffectType=null,tacticalEffectWidth=1,tacticalEffectHeight=1,tacticalEffectName="Temporary effect",tacticalEffectDuration=0,tacticalEffectShape="rect",tacticalEffectMeta=null;
+let dragOrigin=null,tacticalEffectType=null,tacticalEffectWidth=1,tacticalEffectHeight=1,tacticalEffectName="Temporary effect",tacticalEffectDuration=0,tacticalEffectShape="rect",tacticalEffectMeta=null,tacticalEffectPreview=null;
+function beginTacticalEffectPlacement(options={}){
+  tacticalEffectType=options.terrain||"hazard";
+  tacticalEffectWidth=Math.max(1,+options.w||1);tacticalEffectHeight=Math.max(1,+options.h||1);
+  tacticalEffectName=options.name||"Encounter effect";tacticalEffectDuration=Math.max(0,+options.duration||0);
+  tacticalEffectShape=options.shape||"rect";tacticalEffectMeta=options.meta||null;tacticalEffectPreview=null;
+  document.body.classList.add("placing-effect");
+  $("st-hint").textContent="Move over the tactical map to preview "+tacticalEffectName+" · click to place · Esc to cancel";
+}
+function clearTacticalEffectPlacement(message){
+  tacticalEffectType=null;tacticalEffectMeta=null;tacticalEffectPreview=null;
+  document.body.classList.remove("placing-effect");
+  if(message)$("st-hint").textContent=message;
+}
 
 function tokenAt(sx,sy){
   const [wx,wy]=toWorld(sx,sy);
@@ -411,7 +424,7 @@ cv.addEventListener("pointerdown",e=>{
       x:Math.floor(i),y:Math.floor(j),w:tacticalEffectWidth,h:tacticalEffectHeight,shape:tacticalEffectShape,
       label:tacticalEffectName||("Temporary "+tacticalEffectType),remaining:tacticalEffectDuration,timed:tacticalEffectDuration>0,
       ...(tacticalEffectMeta||{})});
-    tacticalEffectType=null;tacticalEffectMeta=null;markDirty();renderPanel();return;
+    clearTacticalEffectPlacement(tacticalEffectName+" placed");markDirty();renderPanel();return;
   }
   // patrol recording: DM clicks drop waypoints for the selected token
   if(patrolRec!=null && NET.mode!=="client" && e.button===0 && !spaceDown){
@@ -500,6 +513,7 @@ cv.addEventListener("pointermove",e=>{
     const [i,j]=levelTileFromWorld(wx,wy);
     $("st-pos").textContent=`tile ${i.toFixed(1)}, ${j.toFixed(1)}`;
     setPropHover(i,j);
+    if(tacticalView()&&tacticalEffectType&&NET.mode!=="client")tacticalEffectPreview={x:Math.floor(i),y:Math.floor(j)};
   }else{
     $("st-pos").textContent=`${wx.toFixed(0)}, ${wy.toFixed(0)} px`;
   }
@@ -591,7 +605,7 @@ cv.addEventListener("pointercancel",e=>{
   clientDragging=false;dragTok=null;dragOrigin=null;moveGuide=null;panRef=null;fogPainting=false;downAt=null;
   edDraft=null; edDrag=null;
 });
-cv.addEventListener("pointerleave",()=>setPropHover(NaN,NaN));
+cv.addEventListener("pointerleave",()=>{setPropHover(NaN,NaN);tacticalEffectPreview=null;});
 cv.addEventListener("wheel",e=>{
   e.preventDefault();
   const dm=e.deltaMode===1?33:e.deltaMode===2?H:1;   // lines/pages -> px
@@ -632,7 +646,7 @@ addEventListener("keydown",e=>{
   if(e.target.tagName==="INPUT"||e.target.tagName==="SELECT"||e.target.tagName==="TEXTAREA") return;
   if(e.code==="Space"){spaceDown=true;cv.style.cursor="grabbing";e.preventDefault();}
   const k=e.key.toLowerCase();
-  if(e.key==="Escape"&&tacticalEffectType){tacticalEffectType=null;tacticalEffectMeta=null;$("st-hint").textContent="Temporary effect placement cancelled";return;}
+  if(e.key==="Escape"&&tacticalEffectType){clearTacticalEffectPlacement("Temporary effect placement cancelled");return;}
   if(e.key==="Escape"&&ruler){ruler=null;return;}
   if(App.session.mode==="edit"){
     if((e.metaKey||e.ctrlKey) && k==="z"){e.shiftKey?edRedoPop():edUndoPop();e.preventDefault();return;}

@@ -314,19 +314,29 @@ function drawTacticalTerrain(pr,c,showLabel=false){
   if(!pr.terrain&&!pr.footprint)return;
   const bounds=propFootprintBounds(pr),style=pr.telegraph?{fill:"rgba(200,161,78,.16)",stroke:"#F2CF72",label:"WARNING"}:TERRAIN_STYLE[pr.terrain]||TERRAIN_STYLE.feature;
   const x=bounds.x*BT,y=bounds.y*BT,w=bounds.w*BT,h=bounds.h*BT;
-  ctx.save();ctx.fillStyle=style.fill;ctx.strokeStyle=style.stroke;ctx.lineWidth=2/c.s;
-  if(pr.terrain==="overhead"||pr.telegraph)ctx.setLineDash([9/c.s,6/c.s]);
+  ctx.save();ctx.fillStyle=pr.preview?"rgba(233,226,206,.16)":style.fill;ctx.strokeStyle=pr.preview?"#E9E2CE":style.stroke;ctx.lineWidth=(pr.preview?3:2)/c.s;
+  if(pr.terrain==="overhead"||pr.telegraph||pr.preview)ctx.setLineDash([9/c.s,6/c.s]);
   ctx.beginPath();
   if(bounds.shape==="circle")ctx.ellipse(x+w/2,y+h/2,w/2,h/2,0,0,7);else ctx.rect(x,y,w,h);
   ctx.fill();ctx.stroke();ctx.setLineDash([]);
-  if(pr.terrain==="difficult"){
+  if(pr.terrain==="difficult"||pr.terrain==="hazard"){
     ctx.save();ctx.clip();ctx.strokeStyle="rgba(233,226,206,.22)";ctx.lineWidth=1/c.s;ctx.beginPath();
-    for(let q=-h;q<w+h;q+=BT*.45){ctx.moveTo(x+q,y+h);ctx.lineTo(x+q+h,y);}ctx.stroke();ctx.restore();
+    for(let q=-h;q<w+h;q+=BT*.45){ctx.moveTo(x+q,y+h);ctx.lineTo(x+q+h,y);}
+    if(pr.terrain==="hazard")for(let q=0;q<w+h;q+=BT*.65){ctx.moveTo(x+q,y);ctx.lineTo(x+q-h,y+h);}
+    ctx.stroke();ctx.restore();
   }
   if(showLabel){
-    ctx.fillStyle=style.stroke;ctx.font=`600 ${10/c.s}px 'IBM Plex Mono', monospace`;ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.font=`600 ${10/c.s}px 'IBM Plex Mono', monospace`;ctx.textAlign="center";ctx.textBaseline="middle";
     const authored=RVIEW==="dm"?pr.label:(pr.playerLabel||pr.label);
-    ctx.fillText((authored||style.label).toUpperCase(),x+w/2,y+h/2);
+    const details=[pr.save,pr.damage].filter(Boolean).join(" · ").toUpperCase();
+    let label=(authored||style.label).toUpperCase();
+    if(pr.preview)label=`${bounds.w}×${bounds.h} · PLACE ${label}`;else if(details)label+=" · "+details;
+    const maxWidth=Math.min(190/c.s,Math.max(w-8/c.s,120/c.s)),padX=6/c.s;
+    while(label.length>5&&ctx.measureText(label).width>maxWidth-padX*2)label=label.slice(0,-2)+"…";
+    const tw=Math.min(maxWidth,ctx.measureText(label).width+padX*2),th=18/c.s,cx=x+tw/2+4/c.s,cy=y+th/2+4/c.s;
+    ctx.fillStyle="rgba(7,9,8,.86)";ctx.fillRect(cx-tw/2,cy-th/2,tw,th);
+    ctx.strokeStyle=pr.preview?"#E9E2CE":style.stroke;ctx.lineWidth=1/c.s;ctx.strokeRect(cx-tw/2,cy-th/2,tw,th);
+    ctx.fillStyle=pr.preview?"#E9E2CE":style.stroke;ctx.fillText(label,cx,cy);
   }
   ctx.restore();
 }
@@ -365,8 +375,14 @@ function drawTactical(){
   }
   for(const effect of(v.effects||[])){
     const pr={id:effect.id,t:"effect",x:effect.x,y:effect.y,terrain:effect.terrain,
-      footprint:{w:effect.w,h:effect.h,shape:effect.shape},label:effect.label,playerLabel:effect.playerLabel,telegraph:effect.telegraph};
+      footprint:{w:effect.w,h:effect.h,shape:effect.shape},label:effect.label,playerLabel:effect.playerLabel,telegraph:effect.telegraph,
+      save:effect.save,damage:effect.damage};
     ctx.save();if(!showHidden)clipRevealedTactical();drawTacticalTerrain(pr,c,true);ctx.restore();
+  }
+  if(showHidden&&tacticalEffectType&&tacticalEffectPreview){
+    const pr={t:"effect",x:tacticalEffectPreview.x,y:tacticalEffectPreview.y,terrain:tacticalEffectType,preview:true,
+      footprint:{w:tacticalEffectWidth,h:tacticalEffectHeight,shape:tacticalEffectShape},label:tacticalEffectName,...(tacticalEffectMeta||{})};
+    drawTacticalTerrain(pr,c,true);
   }
   for(const stair of(App.document.stairs||[])){
     ctx.save();if(!showHidden)clipRevealedTactical();ctx.fillStyle="rgba(119,113,104,.68)";ctx.fillRect(stair.x*BT,stair.y*BT,stair.w*BT,stair.h*BT);
