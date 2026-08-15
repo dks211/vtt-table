@@ -174,6 +174,38 @@ $("file-sheet").onchange=e=>{
 };
 let diceLog=[], diceN=1, diceMod=0, bannerTimer=null, dmHidden=false;
 let critPromptTimer=null,critPromptRoll=null,lastCritEffect=0;
+const diceVisualTimers=new WeakMap();
+function rollVisualPayload(entry){
+  return {d:entry.d,results:entry.results.slice(0,20),keptIndex:entry.keptIndex,mode:entry.mode,total:entry.total};
+}
+function rememberPublicRoll(banner){
+  const item={head:String(banner.head||"").slice(0,120),total:banner.total,detail:String(banner.detail||"").slice(0,180),
+    stamp:banner.stamp,at:banner.at||Date.now(),crit:!!banner.crit,fumble:!!banner.fumble,visual:banner.visual};
+  if(!Array.isArray(NET.rollHistory))NET.rollHistory=[];
+  NET.rollHistory.unshift(item);NET.rollHistory=NET.rollHistory.slice(0,30);
+}
+function showVisualDice(data,doc=document,id="dice-visual"){
+  const visual=data&&data.visual,host=doc.getElementById(id);
+  if(!host||!visual||!Array.isArray(visual.results)||!visual.results.length)return;
+  host.replaceChildren();
+  const shown=visual.results.slice(0,10);
+  shown.forEach((value,index)=>{
+    const die=doc.createElement("span"),sides=+visual.d||20;
+    die.className="visual-die dv-d"+sides;
+    if(visual.mode&&index!==visual.keptIndex)die.classList.add("discarded");
+    if(visual.mode&&index===visual.keptIndex)die.classList.add("kept");
+    die.dataset.die="d"+sides;die.textContent=String(value);
+    const direction=index%2?-1:1,travel=direction*(22+index%3*13);
+    die.style.setProperty("--tx",travel+"px");die.style.setProperty("--bounce",Math.round(travel*-.18)+"px");
+    die.style.setProperty("--r0",direction*(125+index*31)+"deg");die.style.setProperty("--r1",direction*(8+index%4*6)+"deg");
+    die.style.animationDelay=(index*.045)+"s";host.appendChild(die);
+  });
+  if(visual.results.length>shown.length){const more=doc.createElement("span");more.className="visual-dice-more";more.textContent="+"+(visual.results.length-shown.length);host.appendChild(more);}
+  const total=doc.createElement("span");total.className="visual-dice-total";total.textContent="= "+String(visual.total);host.appendChild(total);
+  host.classList.remove("show");void host.offsetWidth;host.classList.add("show");
+  const prior=diceVisualTimers.get(host);if(prior)clearTimeout(prior);
+  diceVisualTimers.set(host,setTimeout(()=>host.classList.remove("show"),2850));
+}
 function triggerCritEffect(){
   if(Date.now()-lastCritEffect<600)return;
   lastCritEffect=Date.now();
@@ -207,25 +239,29 @@ function roll(d,n,mod,who,label,options={}){
     const a=1+Math.floor(Math.random()*20), b=1+Math.floor(Math.random()*20);
     results=[a,b];
     var kept = mode==="adv" ? Math.max(a,b) : Math.min(a,b);
+    var keptIndex = mode==="adv" ? (a>=b?0:1) : (a<=b?0:1);
     var total = kept+mod;
   }else{
     for(let k=0;k<n;k++) results.push(1+Math.floor(Math.random()*d));
-    var kept=null;
+    var kept=null,keptIndex=null;
     var total=results.reduce((a,b)=>a+b,0)+mod;
   }
   const hush = who==="dm" && dmHidden;   // hidden DM roll: log only, no banners, nothing broadcast
-  const entry={d,n:mode?2:n,mod,results,kept,mode,total,who,label:label||null,hush,at:Date.now()};
+  const entry={d,n:mode?2:n,mod,results,kept,keptIndex,mode,total,who,label:label||null,hush,at:Date.now()};
   entry.crit=isCriticalRoll(entry);
   entry.critAttack=entry.crit&&!!options.attack;
   entry.fumble=(entry.d===20&&(entry.kept==null?entry.results[0]:entry.kept)===1&&entry.n<=2);
-  diceLog.unshift(entry); diceLog=diceLog.slice(0,10);
+  diceLog.unshift(entry); diceLog=diceLog.slice(0,30);
   if(!hush){
-    NET.lastDice=Object.assign(fmtRoll(entry),{stamp:++NET.diceStamp,crit:entry.crit,critAttack:entry.critAttack,fumble:entry.fumble});
+    NET.lastDice=Object.assign(fmtRoll(entry),{stamp:++NET.diceStamp,at:entry.at,crit:entry.crit,critAttack:entry.critAttack,
+      fumble:entry.fumble,visual:rollVisualPayload(entry)});
+    rememberPublicRoll(NET.lastDice);
     netMark();
   }
   renderPanel();
   if(!hush){
     pushRollBanner(entry);
+    showVisualDice(NET.lastDice);
     if(NET.mode!=="client") clientBanner(NET.lastDice);
   }
   return entry;
@@ -242,13 +278,14 @@ function pwinBanner(f,cls){
     const d=pwin.document, b=d.getElementById("dice-banner");
     if(!b) return;
     setBannerContent(d,b,f,cls);
+    if(f.visual)showVisualDice(f,d,"dice-visual");
     b.classList.remove("show"); void b.offsetWidth; b.classList.add("show");
     if(bannerTimer) clearTimeout(bannerTimer);
     bannerTimer=setTimeout(()=>{try{b.classList.remove("show");}catch(_){}} ,5200);
   }catch(_){/* window mid-close */}
 }
 function pushRollBanner(e){
-  pwinBanner(fmtRoll(e),e.crit?' crit':e.fumble?' fumble':'');
+  pwinBanner({...fmtRoll(e),visual:rollVisualPayload(e)},e.crit?' crit':e.fumble?' fumble':'');
 }
 
 /* ---------------- player window (second screen) ---------------- */
@@ -274,13 +311,26 @@ function openPlayerWindow(){
     '.rb-total{font-family:Marcellus,serif;font-size:110px;line-height:1.05;color:#E9E2CE}'+
     '.rb-total.crit{color:#C8A14E}.rb-total.fumble{color:#8A2E25}'+
     '.rb-detail{font-family:"IBM Plex Mono",monospace;font-size:13px;color:#7FA8B8;letter-spacing:.08em}'+
+    '#dice-visual{position:fixed;left:50%;top:30vh;z-index:5;display:flex;align-items:center;gap:10px;max-width:88vw;'+
+      'opacity:0;transform:translateX(-50%);pointer-events:none}'+
+    '#dice-visual.show{animation:dvstage 2.7s ease both}@keyframes dvstage{0%,100%{opacity:0}12%,72%{opacity:1}}'+
+    '.visual-die{width:62px;height:62px;display:grid;place-items:center;position:relative;color:#070908;'+
+      'background:linear-gradient(145deg,#F2E9D2,#B9964A);border:2px solid #F8E9B4;filter:drop-shadow(0 8px 9px #000);'+
+      'font-family:Marcellus,serif;font-size:25px;font-weight:600;animation:dvtumble .82s cubic-bezier(.18,.72,.2,1.18) both}'+
+    '.visual-die:after{content:attr(data-die);position:absolute;bottom:5px;font-family:"IBM Plex Mono",monospace;font-size:7px;opacity:.65}'+
+    '.dv-d4{clip-path:polygon(50% 2%,98% 94%,2% 94%);padding-top:10px}.dv-d6{border-radius:11px}.dv-d8{clip-path:polygon(50% 0,96% 50%,50% 100%,4% 50%)}'+
+    '.dv-d10{clip-path:polygon(50% 0,96% 34%,78% 100%,22% 100%,4% 34%)}.dv-d12{clip-path:polygon(25% 3%,75% 3%,100% 36%,82% 96%,18% 96%,0 36%)}'+
+    '.dv-d20{clip-path:polygon(50% 0,92% 22%,100% 67%,72% 100%,28% 100%,0 67%,8% 22%)}.dv-d100{border-radius:50%}'+
+    '.visual-die.discarded{opacity:.42;filter:grayscale(.6) drop-shadow(0 5px 6px #000)}.visual-die.kept{outline:3px solid #C8A14E;outline-offset:3px}'+
+    '.visual-dice-more,.visual-dice-total{font-family:Marcellus,serif;color:#E9E2CE;text-shadow:0 3px 10px #000}.visual-dice-total{font-size:36px;color:#C8A14E}'+
+    '@keyframes dvtumble{0%{transform:translate(var(--tx),-90px) rotate(var(--r0)) scale(.55)}58%{transform:translate(var(--bounce),8px) rotate(var(--r1)) scale(1.08)}100%{transform:none}}'+
     '#dice-tray{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);display:flex;gap:7px;'+
       'padding:8px 10px;background:rgba(14,20,17,.88);border:1px solid #5A4A28;border-radius:6px}'+
     '#dice-tray button{font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.06em;'+
       'color:#C8A14E;background:none;border:1px solid #5A4A28;border-radius:4px;padding:7px 11px;cursor:pointer}'+
     '#dice-tray button:hover{background:#C8A14E;color:#070908}'+
     '</style></head><body>'+
-    '<canvas id="c"></canvas><div id="dice-banner"></div>'+
+    '<canvas id="c"></canvas><div id="dice-banner"></div><div id="dice-visual"></div>'+
     '<div id="dice-tray">'+
       ["d4","d6","d8","d10","d12","d20","d100"].map(x=>'<button data-d="'+x.slice(1)+'">'+x+'</button>').join('')+
       '<button data-d="adv">ADV</button><button data-d="dis">DIS</button>'+

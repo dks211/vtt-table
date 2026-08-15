@@ -1,7 +1,7 @@
 "use strict";
 /* ---------------- online table (WebRTC via PeerJS) ---------------- */
 const NET={mode:null,peer:null,conns:new Map(),code:null,myToken:null,myId:null,
-  playerKey:null,dirty:false,fogDirty:false,imgStamp:0,diceStamp:0,lastDice:null};
+  playerKey:null,dirty:false,fogDirty:false,imgStamp:0,diceStamp:0,lastDice:null,rollHistory:[]};
 function netMark(){NET.dirty=true;}
 function netMarkFog(){NET.fogDirty=true;}
 function netMarkLevel(){NET.levelDirty=true;}
@@ -80,6 +80,7 @@ function projectionFor(c){
   const projected=App.core.projectSessionForRecipient(App.session,recipientContextFor(c),{level:levelData()});
   projected.sync.imgStamp=NET.imgStamp;
   projected.sync.dice=NET.lastDice;
+  projected.sync.diceHistory=(Array.isArray(NET.rollHistory)?NET.rollHistory:[]).slice(0,30);
   return projected;
 }
 function netBroadcast(msg){
@@ -456,7 +457,10 @@ function clientHandle(m){
       const t=[...App.session.map.tokens,...App.session.verso.tokens].find(t=>t.id===cliWantTok);
       if(t && (t.ownerKey===NET.playerKey||t.owner===NET.myId)) NET.myToken=cliWantTok;
     }
-    if(m.dice && (!NET.lastDice||m.dice.stamp!==NET.lastDice.stamp)){NET.lastDice=m.dice;clientBanner(m.dice);}
+    if(Array.isArray(m.diceHistory))NET.rollHistory=m.diceHistory.slice(0,30);
+    if(m.dice && (!NET.lastDice||m.dice.stamp!==NET.lastDice.stamp)){
+      NET.lastDice=m.dice;if(m.dice.visual&&typeof showVisualDice==="function")showVisualDice(m.dice);clientBanner(m.dice);
+    }
     if(firstSync||cliTransitionFit){firstSync=false;cliTransitionFit=false;fitScene();updZoom();}
     renderPanel();
   }

@@ -126,12 +126,19 @@ test("player roll access and tactical hazard previews stay visible and wired", (
   const html = readFileSync(join(__dirname, "..", "index.html"), "utf8");
   const panel = readFileSync(join(__dirname, "..", "app", "panel.js"), "utf8");
   const table = readFileSync(join(__dirname, "..", "app", "table.js"), "utf8");
+  const network = readFileSync(join(__dirname, "..", "app", "network.js"), "utf8");
   const renderer = readFileSync(join(__dirname, "..", "app", "state-render.js"), "utf8");
 
   assert.match(html, /id="rolls-quick"/);
+  assert.match(html, /id="history-quick"/);
+  assert.match(html, /id="dice-visual"/);
   assert.match(html, /body\.netclient #dicebar\{display:flex/);
   assert.match(panel, /player-rolls-section/);
+  assert.match(panel, /function renderRollHistory/);
   assert.match(panel, /beginTacticalEffectPlacement/);
+  assert.match(table, /function showVisualDice/);
+  assert.match(table, /rememberPublicRoll\(NET\.lastDice\)/);
+  assert.match(network, /projected\.sync\.diceHistory/);
   assert.match(table, /tacticalEffectPreview=\{x:Math\.floor\(i\),y:Math\.floor\(j\)\}/);
   assert.match(renderer, /PLACE \$\{label\}/);
   assert.match(renderer, /pr\.terrain==="difficult"\|\|pr\.terrain==="hazard"/);

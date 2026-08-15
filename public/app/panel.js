@@ -348,6 +348,37 @@ function renderRollsFloat(){
   };
 }
 
+/* Persistent table roll history: public rolls for players, plus private rolls for the DM. */
+let rollHistoryOpen=false,lastHistoryStamp=null;
+function rollHistoryEntries(){
+  if(NET.mode==="client")return (NET.rollHistory||[]).slice(0,20);
+  return diceLog.slice(0,20).map(entry=>({...fmtRoll(entry),at:entry.at,hush:entry.hush,crit:entry.crit,fumble:entry.fumble,
+    stamp:entry.at,visual:rollVisualPayload(entry)}));
+}
+function renderRollHistory(){
+  const host=$("roll-history"),button=$("history-quick");if(!host||!button)return;
+  const entries=rollHistoryEntries(),latest=entries[0];
+  button.textContent=latest?`HISTORY · ${latest.total}`:"HISTORY";
+  button.classList.toggle("on",rollHistoryOpen);button.setAttribute("aria-pressed",rollHistoryOpen?"true":"false");
+  const stamp=latest?.stamp||latest?.at||null;
+  if(stamp&&lastHistoryStamp&&stamp!==lastHistoryStamp){button.classList.remove("fresh");void button.offsetWidth;button.classList.add("fresh");}
+  lastHistoryStamp=stamp;
+  host.classList.toggle("show",rollHistoryOpen);
+  if(!rollHistoryOpen){host.innerHTML="";return;}
+  host.innerHTML=`<div class="rh-head"><span>ROLL HISTORY</span><button class="rh-close" id="rh-close" title="close history">✕</button></div>
+    <div class="rh-list">${entries.length?entries.map((entry,index)=>{
+      const time=new Date(entry.at||Date.now()).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});
+      return `<button class="rh-entry" data-history-replay="${index}" title="replay this dice result">
+        <span class="rh-title"><span class="rh-time">${esc(time)}</span>${entry.hush?"🕶 ":""}${esc(entry.head||"Roll")}</span>
+        <span class="rh-total">${esc(entry.total)}</span><span class="rh-detail">${esc(entry.detail||"")}</span></button>`;
+    }).join(""):`<div class="rh-empty">No rolls yet. The next roll will stay here.</div>`}</div>`;
+  $("rh-close").onclick=()=>{rollHistoryOpen=false;renderRollHistory();};
+  host.querySelectorAll("[data-history-replay]").forEach(element=>element.onclick=()=>{
+    const entry=entries[+element.dataset.historyReplay];if(entry?.visual)showVisualDice(entry);
+  });
+}
+const historyQuick=$("history-quick");if(historyQuick)historyQuick.onclick=()=>{rollHistoryOpen=!rollHistoryOpen;renderRollHistory();};
+
 /* character mini-sheet: same form for the DM (any token) and players (their claim) */
 function sheetFormHTML(t,toLib){
   const sh=t.sheet||{prof:2,init:null,abil:{str:0,dex:0,con:0,int:0,wis:0,cha:0},atks:[],skills:{}};
@@ -502,6 +533,7 @@ function wireVaultCombat(p){
 function renderPanel(){
   updateTrackerFloat();
   renderRollsFloat();
+  renderRollHistory();
   // don't wipe a form someone is typing in (network syncs re-render constantly)
   const ae=document.activeElement;
   if(ae && ae.closest && ae.closest("#panel") &&
@@ -626,7 +658,7 @@ function renderPanel(){
     <label class="check"><input type="checkbox" id="dice-hide" ${dmHidden?"checked":""}> hidden rolls — only you see the results</label>
     <div class="toklist">${diceLog.slice(0,6).map(e=>{const f=fmtRoll(e);
       return `<div class="tok" style="cursor:default"><span class="nm" style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--vellum-dim)">${e.hush?"🕶 ":""}${esc(f.head)} ${esc(f.detail)}</span><span style="font-family:Marcellus,serif;font-size:16px;color:var(--brass)">${esc(f.total)}</span></div>`;}).join("")}</div>
-    <div class="hint" style="margin-top:6px">Rolls flash on the player window. The tray at the bottom of that window is clickable too (for a table TV).</div></div>`;
+    <div class="hint" style="margin-top:6px">Rolls animate on every screen. HISTORY in the top bar keeps the latest 20; the tray on the player window is clickable too.</div></div>`;
 
   if(!etMode)html+=vaultCombatHTML();
 
@@ -1358,7 +1390,7 @@ function renderClientPanel(){
       <button class="rbtn quiet" data-cdie="dis" style="flex:none;padding:6px 9px">DIS</button>
     </div>
     <div class="row"><input type="text" id="dice-custom" placeholder="custom: 8d6, 2d4+2…" style="flex:1"><button class="rbtn quiet" id="dice-customgo" style="flex:none;padding:6px 10px">ROLL</button></div>
-    <div class="hint">Rolls go to the whole table.</div></div>`;
+    <div class="hint">Rolls go to the whole table and remain under HISTORY in the top bar.</div></div>`;
   if(mine) html+=sheetFormHTML(mine);
   html+=`<div class="sect"><h3>Table</h3>
     <div class="hint">Drag your token to move. Drag empty space to pan, pinch or scroll to zoom, ⤢ FIT to re-center. Double-tap anywhere to ping the map for the table. Rooms appear as the party discovers them.</div></div>`;

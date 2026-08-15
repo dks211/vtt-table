@@ -269,6 +269,47 @@ body.netclient #rolls-float{right:12px;bottom:120px}
 body.netclient #rolls-quick{display:block;border-color:var(--brass);color:var(--brass);font-weight:600;
   box-shadow:0 0 0 1px rgba(200,161,78,.12),0 4px 16px rgba(0,0,0,.32)}
 body.netclient #rolls-quick:hover,body.netclient #rolls-quick.on{background:var(--brass);color:var(--ink)}
+#history-quick{border-color:var(--brass-dim);color:var(--brass);min-width:88px}
+#history-quick.on{background:var(--brass);color:var(--ink)}
+#history-quick.fresh{animation:historyPulse .7s ease-out}
+@keyframes historyPulse{0%{box-shadow:0 0 0 0 rgba(200,161,78,.8)}100%{box-shadow:0 0 0 12px rgba(200,161,78,0)}}
+#roll-history{position:fixed;right:calc(var(--panel-w) + 14px);top:calc(var(--top-h) + 10px);z-index:56;
+  width:min(390px,calc(100vw - var(--panel-w) - var(--rail-w) - 42px));max-height:62vh;display:none;
+  background:rgba(14,20,17,.97);border:1px solid var(--brass-dim);border-radius:6px;
+  box-shadow:0 10px 32px rgba(0,0,0,.58);overflow:hidden}
+#roll-history.show{display:block}
+#roll-history .rh-head{display:flex;align-items:center;padding:10px 12px;border-bottom:1px solid var(--brass-faint);
+  font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.2em;color:var(--brass)}
+#roll-history .rh-head span{flex:1}#roll-history .rh-close{padding:2px 6px;color:var(--vellum-dim)}
+#roll-history .rh-list{max-height:calc(62vh - 39px);overflow-y:auto;padding:6px}
+#roll-history .rh-entry{width:100%;display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:8px 9px;
+  border:1px solid transparent;border-radius:4px;text-align:left}
+#roll-history .rh-entry:hover{border-color:var(--brass-faint);background:var(--felt-950)}
+#roll-history .rh-title{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--vellum);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#roll-history .rh-time{color:var(--vellum-dim);margin-right:7px}#roll-history .rh-total{grid-row:1/3;grid-column:2;
+  align-self:center;font-family:Marcellus,serif;font-size:24px;color:var(--brass)}
+#roll-history .rh-detail{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--under);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#roll-history .rh-empty{padding:24px;text-align:center;color:var(--vellum-dim);font-style:italic}
+body.netclient #roll-history{right:12px;width:min(390px,calc(100vw - 24px))}
+#dice-visual{position:fixed;left:50%;top:190px;z-index:54;display:flex;align-items:center;justify-content:center;
+  gap:10px;max-width:min(850px,88vw);padding:10px 14px;pointer-events:none;opacity:0;transform:translateX(-50%) translateY(-18px) scale(.9)}
+#dice-visual.show{animation:diceStage 2.7s ease both}
+@keyframes diceStage{0%{opacity:0;transform:translateX(-50%) translateY(-30px) scale(.82)}12%,72%{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}100%{opacity:0;transform:translateX(-50%) translateY(8px) scale(.98)}}
+.visual-die{--r0:-150deg;--r1:18deg;width:62px;height:62px;flex:0 0 auto;display:grid;place-items:center;position:relative;
+  color:#070908;background:linear-gradient(145deg,#F2E9D2,#B9964A);border:2px solid #F8E9B4;
+  filter:drop-shadow(0 8px 9px rgba(0,0,0,.7));font-family:Marcellus,serif;font-size:25px;font-weight:600;
+  text-shadow:0 1px rgba(255,255,255,.4);animation:diceTumble .82s cubic-bezier(.18,.72,.2,1.18) both}
+.visual-die::after{content:attr(data-die);position:absolute;bottom:5px;font-family:'IBM Plex Mono',monospace;font-size:7px;letter-spacing:.06em;opacity:.65}
+.visual-die.dv-d4{clip-path:polygon(50% 2%,98% 94%,2% 94%);padding-top:10px}
+.visual-die.dv-d6{border-radius:11px}.visual-die.dv-d8{clip-path:polygon(50% 0,96% 50%,50% 100%,4% 50%)}
+.visual-die.dv-d10{clip-path:polygon(50% 0,96% 34%,78% 100%,22% 100%,4% 34%)}
+.visual-die.dv-d12{clip-path:polygon(25% 3%,75% 3%,100% 36%,82% 96%,18% 96%,0 36%)}
+.visual-die.dv-d20{clip-path:polygon(50% 0,92% 22%,100% 67%,72% 100%,28% 100%,0 67%,8% 22%)}
+.visual-die.dv-d100{border-radius:50%}.visual-die.discarded{opacity:.42;filter:grayscale(.6) drop-shadow(0 5px 6px rgba(0,0,0,.55))}
+.visual-die.kept{outline:3px solid var(--brass);outline-offset:3px}
+.visual-dice-more,.visual-dice-total{font-family:Marcellus,serif;color:var(--vellum);text-shadow:0 3px 10px #000}
+.visual-dice-more{font-size:20px}.visual-dice-total{font-size:36px;color:var(--brass);white-space:nowrap}
+@keyframes diceTumble{0%{transform:translate(var(--tx),-90px) rotate(var(--r0)) scale(.55)}58%{transform:translate(var(--bounce),8px) rotate(var(--r1)) scale(1.08)}76%{transform:translate(0,-5px) rotate(-5deg)}100%{transform:none}}
 #net-banner{position:fixed;top:70px;left:50%;transform:translateX(-50%) scale(.8);opacity:0;pointer-events:none;
   text-align:center;transition:opacity .25s,transform .25s;z-index:40;text-shadow:0 2px 14px rgba(0,0,0,.9)}
 #net-banner.show{opacity:1;transform:translateX(-50%) scale(1)}
@@ -312,6 +353,10 @@ body.netclient #dicebar button:active{background:var(--brass);color:var(--ink)}
   body.netclient #wordmark small{display:none}
   body.netclient #stage{right:0}
   body.netclient #rolls-quick{font-size:10px;padding:7px 9px}
+  #history-quick{font-size:9px;padding:7px 8px;min-width:72px}
+  body.netclient #roll-history{left:8px;right:8px;top:60px;width:auto;max-height:58vh}
+  body.netclient #roll-history .rh-list{max-height:calc(58vh - 39px)}
+  #dice-visual{top:150px;gap:6px;padding:8px;max-width:94vw}.visual-die{width:48px;height:48px;font-size:20px}
   body.netclient #dicebar{left:0;right:0;bottom:26px;transform:none;border-width:1px 0 0;border-radius:0;
     padding:7px 8px;background:var(--felt-900)}
   body.netclient #dicebar button{flex:1;min-width:0;font-family:'IBM Plex Mono',monospace;font-size:10px;
@@ -325,6 +370,8 @@ body.netclient #dicebar button:active{background:var(--brass);color:var(--ink)}
   body.netclient #fit-float{display:block;left:10px;bottom:81px;border-color:var(--brass-faint);color:var(--vellum-dim)}
   body.netclient #st-hint{display:none}
 }
+@media (max-width:520px){body.netclient #net-status{display:none!important}body.netclient #rolls-quick{margin-left:auto}}
+@media (prefers-reduced-motion:reduce){#dice-visual.show{animation:none;opacity:1;transform:translateX(-50%)}.visual-die{animation:none}}
 #dmgate{position:fixed;inset:0;z-index:100;display:grid;place-items:center;background:#0A0F0C}
 #dmgate .gcard{text-align:center;padding:36px 44px;border:1px solid var(--brass-faint);border-radius:6px;background:var(--felt-900)}
 #dmgate h1{font-family:Marcellus,serif;font-size:26px;letter-spacing:.14em;color:var(--brass);margin-bottom:4px}
@@ -394,6 +441,7 @@ body.netclient #dicebar button:active{background:var(--brass);color:var(--ink)}
   </nav>
   <div class="spacer"></div>
   <button class="tbtn" id="rolls-quick" title="Open your attacks, checks, saving throws, and damage rolls" aria-pressed="false">🎲 ROLLS &amp; CHECKS</button>
+  <button class="tbtn" id="history-quick" title="Open the table's recent roll history" aria-pressed="false">HISTORY</button>
   <div class="level-view" id="level-view" title="Show this level as an isometric scene or a five-foot tactical surface (B)">
     <button class="on" id="view-iso">ISO</button><button id="view-tactical">TACTICAL</button>
   </div>
@@ -438,6 +486,8 @@ body.netclient #dicebar button:active{background:var(--brass);color:var(--ink)}
 <aside id="panel"></aside>
 
 <div id="net-banner"></div>
+<div id="dice-visual" aria-hidden="true"></div>
+<div id="roll-history"></div>
 <div id="crit-effect"><span>CRITICAL!</span></div>
 <div id="crit-prompt"><span id="crit-attack"></span><button id="crit-roll"></button><button id="crit-dismiss" title="dismiss">✕</button></div>
 <div id="tracker-float"></div>
