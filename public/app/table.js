@@ -197,11 +197,11 @@ function showVisualDice(data,doc=document,id="dice-visual"){
     die.dataset.die="d"+sides;die.textContent=String(value);
     const direction=index%2?-1:1,travel=direction*(22+index%3*13);
     die.style.setProperty("--tx",travel+"px");die.style.setProperty("--bounce",Math.round(travel*-.18)+"px");
-    die.style.setProperty("--r0",direction*(125+index*31)+"deg");die.style.setProperty("--r1",direction*(8+index%4*6)+"deg");
+    die.style.setProperty("--r0",direction*(540+index*73)+"deg");die.style.setProperty("--r1",direction*(150+index*31)+"deg");
+    die.style.setProperty("--r2",direction*(35+index%3*12)+"deg");
     die.style.animationDelay=(index*.045)+"s";host.appendChild(die);
   });
   if(visual.results.length>shown.length){const more=doc.createElement("span");more.className="visual-dice-more";more.textContent="+"+(visual.results.length-shown.length);host.appendChild(more);}
-  const total=doc.createElement("span");total.className="visual-dice-total";total.textContent="= "+String(visual.total);host.appendChild(total);
   host.classList.remove("show");void host.offsetWidth;host.classList.add("show");
   const prior=diceVisualTimers.get(host);if(prior)clearTimeout(prior);
   diceVisualTimers.set(host,setTimeout(()=>host.classList.remove("show"),2850));
@@ -278,6 +278,7 @@ function pwinBanner(f,cls){
     const d=pwin.document, b=d.getElementById("dice-banner");
     if(!b) return;
     setBannerContent(d,b,f,cls);
+    b.classList.toggle("visual-roll",!!f.visual);
     if(f.visual)showVisualDice(f,d,"dice-visual");
     b.classList.remove("show"); void b.offsetWidth; b.classList.add("show");
     if(bannerTimer) clearTimeout(bannerTimer);
@@ -310,20 +311,20 @@ function openPlayerWindow(){
     '.rb-head{font-family:"IBM Plex Mono",monospace;font-size:15px;letter-spacing:.25em;color:#ABA38C}'+
     '.rb-total{font-family:Marcellus,serif;font-size:110px;line-height:1.05;color:#E9E2CE}'+
     '.rb-total.crit{color:#C8A14E}.rb-total.fumble{color:#8A2E25}'+
-    '.rb-detail{font-family:"IBM Plex Mono",monospace;font-size:13px;color:#7FA8B8;letter-spacing:.08em}'+
+    '.rb-detail{font-family:"IBM Plex Mono",monospace;font-size:13px;color:#7FA8B8;letter-spacing:.08em}#dice-banner.visual-roll .rb-detail{display:none}'+
     '#dice-visual{position:fixed;left:50%;top:30vh;z-index:5;display:flex;align-items:center;gap:10px;max-width:88vw;'+
       'opacity:0;transform:translateX(-50%);pointer-events:none}'+
     '#dice-visual.show{animation:dvstage 2.7s ease both}@keyframes dvstage{0%,100%{opacity:0}12%,72%{opacity:1}}'+
     '.visual-die{width:62px;height:62px;display:grid;place-items:center;position:relative;color:#070908;'+
       'background:linear-gradient(145deg,#F2E9D2,#B9964A);border:2px solid #F8E9B4;filter:drop-shadow(0 8px 9px #000);'+
-      'font-family:Marcellus,serif;font-size:25px;font-weight:600;animation:dvtumble .82s cubic-bezier(.18,.72,.2,1.18) both}'+
+      'font-family:Marcellus,serif;font-size:25px;font-weight:600;animation:dvtumble 1.12s cubic-bezier(.18,.72,.2,1.08) both}'+
     '.visual-die:after{content:attr(data-die);position:absolute;bottom:5px;font-family:"IBM Plex Mono",monospace;font-size:7px;opacity:.65}'+
     '.dv-d4{clip-path:polygon(50% 2%,98% 94%,2% 94%);padding-top:10px}.dv-d6{border-radius:11px}.dv-d8{clip-path:polygon(50% 0,96% 50%,50% 100%,4% 50%)}'+
     '.dv-d10{clip-path:polygon(50% 0,96% 34%,78% 100%,22% 100%,4% 34%)}.dv-d12{clip-path:polygon(25% 3%,75% 3%,100% 36%,82% 96%,18% 96%,0 36%)}'+
     '.dv-d20{clip-path:polygon(50% 0,92% 22%,100% 67%,72% 100%,28% 100%,0 67%,8% 22%)}.dv-d100{border-radius:50%}'+
     '.visual-die.discarded{opacity:.42;filter:grayscale(.6) drop-shadow(0 5px 6px #000)}.visual-die.kept{outline:3px solid #C8A14E;outline-offset:3px}'+
-    '.visual-dice-more,.visual-dice-total{font-family:Marcellus,serif;color:#E9E2CE;text-shadow:0 3px 10px #000}.visual-dice-total{font-size:36px;color:#C8A14E}'+
-    '@keyframes dvtumble{0%{transform:translate(var(--tx),-90px) rotate(var(--r0)) scale(.55)}58%{transform:translate(var(--bounce),8px) rotate(var(--r1)) scale(1.08)}100%{transform:none}}'+
+    '.visual-dice-more{font-family:Marcellus,serif;font-size:20px;color:#E9E2CE;text-shadow:0 3px 10px #000}'+
+    '@keyframes dvtumble{0%{transform:translate(var(--tx),-110px) rotate(var(--r0)) scale(.48)}42%{transform:translate(var(--bounce),12px) rotate(var(--r1)) scale(.94)}66%{transform:translate(7px,-10px) rotate(var(--r2)) scale(1.08)}82%{transform:translate(-4px,4px) rotate(-12deg)}100%{transform:none}}'+
     '#dice-tray{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);display:flex;gap:7px;'+
       'padding:8px 10px;background:rgba(14,20,17,.88);border:1px solid #5A4A28;border-radius:6px}'+
     '#dice-tray button{font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.06em;'+

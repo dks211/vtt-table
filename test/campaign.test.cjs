@@ -137,8 +137,11 @@ test("player roll access and tactical hazard previews stay visible and wired", (
   assert.match(panel, /function renderRollHistory/);
   assert.match(panel, /beginTacticalEffectPlacement/);
   assert.match(table, /function showVisualDice/);
+  assert.doesNotMatch(table, /visual-dice-total/);
   assert.match(table, /rememberPublicRoll\(NET\.lastDice\)/);
   assert.match(network, /projected\.sync\.diceHistory/);
+  assert.match(network, /classList\.toggle\("visual-roll",!!d\.visual\)/);
+  assert.match(html, /#net-banner\.visual-roll \.rb-detail\{display:none\}/);
   assert.match(table, /tacticalEffectPreview=\{x:Math\.floor\(i\),y:Math\.floor\(j\)\}/);
   assert.match(renderer, /PLACE \$\{label\}/);
   assert.match(renderer, /pr\.terrain==="difficult"\|\|pr\.terrain==="hazard"/);

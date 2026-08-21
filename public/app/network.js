@@ -512,6 +512,7 @@ function clientBanner(d){
   const b=$("net-banner");
   const cls=d.crit?" crit":d.fumble?" fumble":"";
   setBannerContent(document,b,d,cls);
+  b.classList.toggle("visual-roll",!!d.visual);
   b.classList.remove("show");void b.offsetWidth;b.classList.add("show");
   if(d.critAttack&&typeof triggerCritEffect==="function")triggerCritEffect();
   setTimeout(()=>b.classList.remove("show"),4500);

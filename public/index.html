@@ -295,10 +295,10 @@ body.netclient #roll-history{right:12px;width:min(390px,calc(100vw - 24px))}
   gap:10px;max-width:min(850px,88vw);padding:10px 14px;pointer-events:none;opacity:0;transform:translateX(-50%) translateY(-18px) scale(.9)}
 #dice-visual.show{animation:diceStage 2.7s ease both}
 @keyframes diceStage{0%{opacity:0;transform:translateX(-50%) translateY(-30px) scale(.82)}12%,72%{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}100%{opacity:0;transform:translateX(-50%) translateY(8px) scale(.98)}}
-.visual-die{--r0:-150deg;--r1:18deg;width:62px;height:62px;flex:0 0 auto;display:grid;place-items:center;position:relative;
+.visual-die{--r0:-540deg;--r1:150deg;--r2:35deg;width:62px;height:62px;flex:0 0 auto;display:grid;place-items:center;position:relative;
   color:#070908;background:linear-gradient(145deg,#F2E9D2,#B9964A);border:2px solid #F8E9B4;
   filter:drop-shadow(0 8px 9px rgba(0,0,0,.7));font-family:Marcellus,serif;font-size:25px;font-weight:600;
-  text-shadow:0 1px rgba(255,255,255,.4);animation:diceTumble .82s cubic-bezier(.18,.72,.2,1.18) both}
+  text-shadow:0 1px rgba(255,255,255,.4);animation:diceTumble 1.12s cubic-bezier(.18,.72,.2,1.08) both}
 .visual-die::after{content:attr(data-die);position:absolute;bottom:5px;font-family:'IBM Plex Mono',monospace;font-size:7px;letter-spacing:.06em;opacity:.65}
 .visual-die.dv-d4{clip-path:polygon(50% 2%,98% 94%,2% 94%);padding-top:10px}
 .visual-die.dv-d6{border-radius:11px}.visual-die.dv-d8{clip-path:polygon(50% 0,96% 50%,50% 100%,4% 50%)}
@@ -307,9 +307,8 @@ body.netclient #roll-history{right:12px;width:min(390px,calc(100vw - 24px))}
 .visual-die.dv-d20{clip-path:polygon(50% 0,92% 22%,100% 67%,72% 100%,28% 100%,0 67%,8% 22%)}
 .visual-die.dv-d100{border-radius:50%}.visual-die.discarded{opacity:.42;filter:grayscale(.6) drop-shadow(0 5px 6px rgba(0,0,0,.55))}
 .visual-die.kept{outline:3px solid var(--brass);outline-offset:3px}
-.visual-dice-more,.visual-dice-total{font-family:Marcellus,serif;color:var(--vellum);text-shadow:0 3px 10px #000}
-.visual-dice-more{font-size:20px}.visual-dice-total{font-size:36px;color:var(--brass);white-space:nowrap}
-@keyframes diceTumble{0%{transform:translate(var(--tx),-90px) rotate(var(--r0)) scale(.55)}58%{transform:translate(var(--bounce),8px) rotate(var(--r1)) scale(1.08)}76%{transform:translate(0,-5px) rotate(-5deg)}100%{transform:none}}
+.visual-dice-more{font-family:Marcellus,serif;font-size:20px;color:var(--vellum);text-shadow:0 3px 10px #000}
+@keyframes diceTumble{0%{transform:translate(var(--tx),-110px) rotate(var(--r0)) scale(.48)}42%{transform:translate(var(--bounce),12px) rotate(var(--r1)) scale(.94)}66%{transform:translate(7px,-10px) rotate(var(--r2)) scale(1.08)}82%{transform:translate(-4px,4px) rotate(-12deg)}100%{transform:none}}
 #net-banner{position:fixed;top:70px;left:50%;transform:translateX(-50%) scale(.8);opacity:0;pointer-events:none;
   text-align:center;transition:opacity .25s,transform .25s;z-index:40;text-shadow:0 2px 14px rgba(0,0,0,.9)}
 #net-banner.show{opacity:1;transform:translateX(-50%) scale(1)}
@@ -318,6 +317,7 @@ body.netclient #roll-history{right:12px;width:min(390px,calc(100vw - 24px))}
 #net-banner .rb-total.crit{color:var(--brass);text-shadow:0 0 24px rgba(200,161,78,.65)}
 #net-banner .rb-total.fumble{color:var(--oxblood)}
 #net-banner .rb-detail{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--under)}
+#net-banner.visual-roll .rb-detail{display:none}
 #crit-effect{position:fixed;inset:0;z-index:70;display:grid;place-items:center;pointer-events:none;opacity:0;
   background:radial-gradient(circle,rgba(200,161,78,.3),rgba(200,161,78,0) 48%)}
 #crit-effect span{font-family:Marcellus,serif;font-size:clamp(44px,8vw,100px);letter-spacing:.12em;color:var(--brass);
